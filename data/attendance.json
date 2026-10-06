@@ -1,5 +1,28 @@
 [
   {
+    "id": "att_1791311708963",
+    "userId": "user_1791311641164",
+    "userName": "Ngô Mai",
+    "userEmail": "nVmai@chaomamnho.vn",
+    "employeeCode": "NV-001",
+    "date": "2026-10-06",
+    "checkInTime": "2026-10-06T18:35:08.963Z",
+    "checkOutTime": "2026-10-06T18:35:15.492Z",
+    "totalMinutes": 1,
+    "status": "completed",
+    "checkInMethod": "direct_button",
+    "checkInIp": "2405:4802:1bf3:c760:c077:a33:caac:87fb",
+    "checkInWifiSsid": "ChaoMamNho_ThaiThinh_5G",
+    "shiftId": "shift_afternoon",
+    "shiftName": "Ca Chiều (15:30 - 20:00)",
+    "isLate": true,
+    "isEarlyLeave": false,
+    "note": "",
+    "createdAt": "2026-10-06T18:35:08.963Z",
+    "updatedAt": "2026-10-06T18:35:15.492Z",
+    "checkOutIp": "2405:4802:1bf3:c760:c077:a33:caac:87fb"
+  },
+  {
     "id": "att_manual_1791310970716",
     "userId": "user_staff_3",
     "userName": "Lê Bảo Nam",
