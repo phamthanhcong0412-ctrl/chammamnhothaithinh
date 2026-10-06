@@ -87,6 +87,55 @@
           "type": "boolean",
           "description": "Whether the account is active."
         },
+        "note": {
+          "type": "string",
+          "description": "HR or manager note for the employee.",
+          "maxLength": 500
+        },
+        "totalMinutesWorked": {
+          "type": "number",
+          "description": "Total accumulated minutes worked by the employee."
+        },
+        "totalHoursWorked": {
+          "type": "number",
+          "description": "Total accumulated hours worked by the employee."
+        },
+        "totalDaysWorked": {
+          "type": "number",
+          "description": "Total distinct days worked by the employee."
+        },
+        "totalShifts": {
+          "type": "number",
+          "description": "Total number of attendance shifts recorded."
+        },
+        "lateCount": {
+          "type": "number",
+          "description": "Total number of late check-ins."
+        },
+        "estimatedSalary": {
+          "type": "number",
+          "description": "Total estimated salary in VND based on hours worked and hourlyRate."
+        },
+        "currentStatus": {
+          "type": "string",
+          "description": "Current working status of the employee.",
+          "enum": ["working", "offline"]
+        },
+        "lastCheckInTime": {
+          "type": "string",
+          "description": "Most recent check-in ISO timestamp.",
+          "maxLength": 64
+        },
+        "lastCheckOutTime": {
+          "type": "string",
+          "description": "Most recent check-out ISO timestamp.",
+          "maxLength": 64
+        },
+        "recentAttendanceSummary": {
+          "type": "string",
+          "description": "Readable summary of recent attendance shifts, hours, and minutes.",
+          "maxLength": 2000
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -206,6 +255,18 @@
         "totalMinutes": {
           "type": "number",
           "description": "Total minutes worked in the shift."
+        },
+        "totalHours": {
+          "type": "number",
+          "description": "Total hours worked in the shift."
+        },
+        "hourlyRate": {
+          "type": "number",
+          "description": "Employee hourly rate in VND for this shift."
+        },
+        "estimatedShiftPay": {
+          "type": "number",
+          "description": "Calculated wage in VND for this shift."
         },
         "status": {
           "type": "string",

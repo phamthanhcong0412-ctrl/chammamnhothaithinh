@@ -9,9 +9,13 @@ import type {
 import {
   auth,
   fetchUsersFromFirestore,
+  fetchAttendanceFromFirestore,
   loginFromFirestore,
   saveUserToFirestore,
   deleteUserFromFirestore,
+  deleteAttendanceFromFirestore,
+  enrichUserWithAttendanceStats,
+  enrichAttendanceRecord,
 } from '../firebase.ts';
 
 const API_BASE = '/api';
@@ -310,25 +314,29 @@ export const api = {
   },
 
   async getUsers(): Promise<User[]> {
+    const localAtt = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
     try {
       const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/users`);
       if (!ok) throw new Error('Không thể tải danh sách nhân viên từ Firebase API');
       const apiUsers: User[] = Array.isArray(data.users) ? data.users : Array.isArray(data) ? data : [];
-      saveLocal(STORAGE_KEYS.USERS, apiUsers);
-      return apiUsers;
+      const enriched = apiUsers.map((u) => enrichUserWithAttendanceStats(u, localAtt));
+      saveLocal(STORAGE_KEYS.USERS, enriched);
+      return enriched;
     } catch {
       if (auth.currentUser) {
         try {
           const firestoreList = await fetchUsersFromFirestore();
           if (firestoreList.length > 0) {
-            saveLocal(STORAGE_KEYS.USERS, firestoreList);
-            return firestoreList;
+            const enriched = firestoreList.map((u) => enrichUserWithAttendanceStats(u, localAtt));
+            saveLocal(STORAGE_KEYS.USERS, enriched);
+            return enriched;
           }
         } catch (e) {
           console.warn('Firestore getUsers fallback:', e);
         }
       }
-      return loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      const fallback = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      return fallback.map((u) => enrichUserWithAttendanceStats(u, localAtt));
     }
   },
 
@@ -490,14 +498,30 @@ export const api = {
 
   // Attendance
   async getAttendance(params?: { date?: string; userId?: string; month?: string }): Promise<AttendanceRecord[]> {
+    const localUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
     try {
       const query = new URLSearchParams(params as Record<string, string>).toString();
       const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/attendance${query ? `?${query}` : ''}`);
       if (!ok) throw new Error('Không thể tải lịch sử chấm công');
-      if (!params) saveLocal(STORAGE_KEYS.ATTENDANCE, data);
-      return data;
+      const enriched = (Array.isArray(data) ? data : []).map((r) =>
+        enrichAttendanceRecord(r, localUsers)
+      );
+      if (!params) saveLocal(STORAGE_KEYS.ATTENDANCE, enriched);
+      return enriched;
     } catch {
-      let list = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      let list: AttendanceRecord[] = [];
+      if (auth.currentUser) {
+        try {
+          const fbAtt = await fetchAttendanceFromFirestore();
+          if (fbAtt.length > 0) list = fbAtt;
+        } catch (e) {
+          console.warn('Firestore getAttendance fallback:', e);
+        }
+      }
+      if (list.length === 0) {
+        list = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      }
+      list = list.map((r) => enrichAttendanceRecord(r, localUsers));
       if (params?.date) list = list.filter((r) => r.date === params.date);
       if (params?.userId) list = list.filter((r) => r.userId === params.userId);
       if (params?.month) list = list.filter((r) => r.date.startsWith(params.month!));
@@ -689,10 +713,18 @@ export const api = {
     try {
       const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/attendance/${id}`, { method: 'DELETE' });
       if (!ok) throw new Error('Không thể xoá bản ghi');
+      if (auth.currentUser) {
+        deleteAttendanceFromFirestore(id).catch(() => {});
+      }
+      const attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []).filter((r) => r.id !== id);
+      saveLocal(STORAGE_KEYS.ATTENDANCE, attendance);
       return data;
     } catch {
       const attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []).filter((r) => r.id !== id);
       saveLocal(STORAGE_KEYS.ATTENDANCE, attendance);
+      if (auth.currentUser) {
+        deleteAttendanceFromFirestore(id).catch(() => {});
+      }
       return { success: true };
     }
   },

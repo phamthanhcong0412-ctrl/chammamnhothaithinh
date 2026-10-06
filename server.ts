@@ -357,6 +357,7 @@ function ensureUsersHaveCredentials(): void {
 }
 
 ensureUsersHaveCredentials();
+syncAllStatsOnServer();
 
 // Helper to get client IP
 function getClientIp(req: express.Request): string {
@@ -570,7 +571,85 @@ app.delete('/api/users/:id', (req, res) => {
 });
 
 // --- FIREBASE API ENDPOINTS (/api/firebase/*) ---
+function enrichAttendanceRecordOnServer(rec: AttendanceRecord): AttendanceRecord {
+  const matchedUser = users.find((u) => u.id === rec.userId);
+  const hourlyRate = Number(rec.hourlyRate || matchedUser?.hourlyRate || 28000);
+  const totalMinutes = Math.max(0, Number(rec.totalMinutes) || 0);
+  const totalHours = Number((totalMinutes / 60).toFixed(2));
+  const estimatedShiftPay = Math.round((totalMinutes / 60) * hourlyRate);
+  return {
+    ...rec,
+    totalMinutes,
+    totalHours,
+    hourlyRate,
+    estimatedShiftPay,
+  };
+}
+
+function enrichUserStatsOnServer(u: User): User {
+  const userRecords = attendance
+    .filter((r) => r.userId === u.id)
+    .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+
+  const totalMinutesWorked = userRecords.reduce((sum, r) => sum + (Number(r.totalMinutes) || 0), 0);
+  const totalHoursWorked = Number((totalMinutesWorked / 60).toFixed(2));
+  const totalDaysWorked = new Set(userRecords.map((r) => r.date)).size;
+  const totalShifts = userRecords.length;
+  const lateCount = userRecords.filter((r) => r.isLate).length;
+  const hourlyRate = Number(u.hourlyRate) || 28000;
+  const estimatedSalary = Math.round((totalMinutesWorked / 60) * hourlyRate);
+  const activeShift = userRecords.find((r) => r.status === 'working');
+  const currentStatus: 'working' | 'offline' = activeShift ? 'working' : 'offline';
+  const lastCheckInTime = userRecords[0]?.checkInTime || u.lastCheckInTime || null;
+  const lastCheckOutTime =
+    userRecords.find((r) => r.checkOutTime)?.checkOutTime || u.lastCheckOutTime || null;
+
+  const recentSummaryItems = userRecords.slice(0, 5).map((r) => {
+    const inStr = new Date(r.checkInTime).toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const outStr = r.checkOutTime
+      ? new Date(r.checkOutTime).toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : 'Đang làm';
+    const hrs = Number(((r.totalMinutes || 0) / 60).toFixed(2));
+    return `${r.date}: ${inStr}-${outStr} (${hrs}h / ${r.totalMinutes || 0}p)`;
+  });
+
+  const recentAttendanceSummary =
+    recentSummaryItems.length > 0
+      ? recentSummaryItems.join(' | ').slice(0, 2000)
+      : u.recentAttendanceSummary || 'Chưa có lịch sử chấm công';
+
+  return {
+    ...u,
+    note: u.note || '',
+    totalMinutesWorked,
+    totalHoursWorked,
+    totalDaysWorked,
+    totalShifts,
+    lateCount,
+    estimatedSalary,
+    currentStatus,
+    lastCheckInTime,
+    lastCheckOutTime,
+    recentAttendanceSummary,
+  };
+}
+
+function syncAllStatsOnServer(): void {
+  attendance = attendance.map((r) => enrichAttendanceRecordOnServer(r));
+  users = users.map((u) => enrichUserStatsOnServer(u));
+  saveData(ATTENDANCE_FILE, attendance);
+  saveData(USERS_FILE, users);
+}
+
 app.get('/api/firebase/users', (_req, res) => {
+  autoCloseOverdueShifts();
+  syncAllStatsOnServer();
   res.json({
     success: true,
     source: 'firebase_firestore',
@@ -581,6 +660,45 @@ app.get('/api/firebase/users', (_req, res) => {
     collection: 'users',
     count: users.length,
     users,
+  });
+});
+
+app.get('/api/firebase/attendance', (_req, res) => {
+  autoCloseOverdueShifts();
+  syncAllStatsOnServer();
+  res.json({
+    success: true,
+    source: 'firebase_firestore',
+    projectId: storeConfig.firebaseConfig?.projectId || 'gen-lang-client-0980052625',
+    databaseId:
+      storeConfig.firebaseConfig?.firestoreDatabaseId ||
+      'ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881',
+    collection: 'attendance',
+    count: attendance.length,
+    attendance,
+  });
+});
+
+app.post('/api/firebase/sync-attendance', (req, res) => {
+  const incomingAttendance = req.body?.attendance;
+  if (Array.isArray(incomingAttendance) && incomingAttendance.length > 0) {
+    const mergedMap = new Map<string, AttendanceRecord>();
+    attendance.forEach((r) => mergedMap.set(r.id, r));
+    incomingAttendance.forEach((r: AttendanceRecord) => {
+      if (r && r.id && r.userId) {
+        mergedMap.set(r.id, r);
+      }
+    });
+    attendance = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime()
+    );
+    syncAllStatsOnServer();
+  }
+  res.json({
+    success: true,
+    source: 'firebase_firestore',
+    count: attendance.length,
+    attendance,
   });
 });
 
@@ -673,7 +791,7 @@ app.post('/api/firebase/users', (req, res) => {
   const rolePrefix = role === 'admin' ? 'QL' : 'NV';
   const roleCount = users.filter((u) => u.role === role).length + 1;
 
-  const newUser: User = {
+  const newUser: User = enrichUserStatsOnServer({
     id: req.body.id || 'user_' + Date.now(),
     username: rawUsername,
     password: rawPassword,
@@ -686,10 +804,11 @@ app.post('/api/firebase/users', (req, res) => {
     hourlyRate: Number(req.body.hourlyRate) || (role === 'admin' ? 50000 : 28000),
     phone: req.body.phone || '',
     joinDate: req.body.joinDate || getTodayString(),
-    isActive: true,
-  };
+    isActive: req.body.isActive !== false,
+    note: req.body.note || '',
+  });
   users.push(newUser);
-  saveData(USERS_FILE, users);
+  syncAllStatsOnServer();
   res.json({ success: true, source: 'firebase_firestore', user: newUser });
 });
 
@@ -715,12 +834,12 @@ app.put('/api/firebase/users/:id', (req, res) => {
     req.body.username = cleanNewUsername;
   }
 
-  users[index] = {
+  users[index] = enrichUserStatsOnServer({
     ...users[index],
     ...req.body,
     password: req.body.password ? String(req.body.password).trim() : users[index].password,
-  };
-  saveData(USERS_FILE, users);
+  });
+  syncAllStatsOnServer();
   res.json({ success: true, source: 'firebase_firestore', user: users[index] });
 });
 
@@ -851,6 +970,7 @@ app.delete('/api/firebase/collections/:collection/:id', (req, res) => {
 // 5. Attendance Records
 app.get('/api/attendance', (req, res) => {
   autoCloseOverdueShifts();
+  syncAllStatsOnServer();
 
   const { date, userId, month } = req.query;
   let filtered = [...attendance];
@@ -919,7 +1039,7 @@ app.post('/api/attendance/check-in', (req, res) => {
   const checkInTime = now.toISOString();
   const today = getTodayString();
 
-  const newRecord: AttendanceRecord = {
+  const newRecord: AttendanceRecord = enrichAttendanceRecordOnServer({
     id: 'att_' + Date.now(),
     userId: user.id,
     userName: user.name,
@@ -929,6 +1049,9 @@ app.post('/api/attendance/check-in', (req, res) => {
     checkInTime,
     checkOutTime: null,
     totalMinutes: 0,
+    totalHours: 0,
+    hourlyRate: user.hourlyRate,
+    estimatedShiftPay: 0,
     status: 'working',
     checkInMethod: 'direct_button',
     checkInIp: clientIp,
@@ -941,10 +1064,10 @@ app.post('/api/attendance/check-in', (req, res) => {
     note: note || '',
     createdAt: checkInTime,
     updatedAt: checkInTime,
-  };
+  });
 
   attendance.unshift(newRecord);
-  saveData(ATTENDANCE_FILE, attendance);
+  syncAllStatsOnServer();
   res.json({ success: true, record: newRecord });
 });
 
@@ -982,7 +1105,7 @@ app.post('/api/attendance/check-out', (req, res) => {
   const endMs = now.getTime();
   const diffMinutes = Math.max(1, Math.round((endMs - startMs) / (1000 * 60)));
 
-  const updatedRecord: AttendanceRecord = {
+  const updatedRecord: AttendanceRecord = enrichAttendanceRecordOnServer({
     ...record,
     checkOutTime,
     totalMinutes: diffMinutes,
@@ -991,10 +1114,10 @@ app.post('/api/attendance/check-out', (req, res) => {
     checkOutGps: gps,
     note: note ? (record.note ? `${record.note} | ${note}` : note) : record.note,
     updatedAt: checkOutTime,
-  };
+  });
 
   attendance[recordIndex] = updatedRecord;
-  saveData(ATTENDANCE_FILE, attendance);
+  syncAllStatsOnServer();
   res.json({ success: true, record: updatedRecord });
 });
 
@@ -1029,8 +1152,9 @@ app.post('/api/attendance/manual', (req, res) => {
       res.status(404).json({ error: 'Bản ghi không tồn tại' });
       return;
     }
-    const updated: AttendanceRecord = {
+    const updated: AttendanceRecord = enrichAttendanceRecordOnServer({
       ...attendance[index],
+      date: date || attendance[index].date,
       checkInTime,
       checkOutTime: checkOutTime || null,
       totalMinutes,
@@ -1039,13 +1163,13 @@ app.post('/api/attendance/manual', (req, res) => {
       adjustedBy: adjustedBy || 'Admin',
       adjustedReason: adjustedReason || 'Quản lý chỉnh sửa công',
       updatedAt: new Date().toISOString(),
-    };
+    });
     attendance[index] = updated;
-    saveData(ATTENDANCE_FILE, attendance);
+    syncAllStatsOnServer();
     res.json({ success: true, record: updated });
   } else {
     // Create new manual attendance record
-    const newRecord: AttendanceRecord = {
+    const newRecord: AttendanceRecord = enrichAttendanceRecordOnServer({
       id: 'att_manual_' + Date.now(),
       userId: user.id,
       userName: user.name,
@@ -1065,9 +1189,9 @@ app.post('/api/attendance/manual', (req, res) => {
       adjustedReason: adjustedReason || 'Chấm công hộ bởi Quản lý',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    };
+    });
     attendance.unshift(newRecord);
-    saveData(ATTENDANCE_FILE, attendance);
+    syncAllStatsOnServer();
     res.json({ success: true, record: newRecord });
   }
 });
@@ -1075,7 +1199,7 @@ app.post('/api/attendance/manual', (req, res) => {
 app.delete('/api/attendance/:id', (req, res) => {
   const { id } = req.params;
   attendance = attendance.filter((r) => r.id !== id);
-  saveData(ATTENDANCE_FILE, attendance);
+  syncAllStatsOnServer();
   res.json({ success: true });
 });
 

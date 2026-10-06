@@ -12,6 +12,18 @@ export interface User {
   phone: string;
   joinDate: string;
   isActive: boolean;
+  note?: string;
+  // Enriched Firebase management fields (hours, minutes, attendance stats)
+  totalMinutesWorked?: number;
+  totalHoursWorked?: number;
+  totalDaysWorked?: number;
+  totalShifts?: number;
+  lateCount?: number;
+  estimatedSalary?: number;
+  currentStatus?: 'working' | 'offline';
+  lastCheckInTime?: string | null;
+  lastCheckOutTime?: string | null;
+  recentAttendanceSummary?: string;
 }
 
 export interface AttendanceRecord {
@@ -24,6 +36,9 @@ export interface AttendanceRecord {
   checkInTime: string; // ISO
   checkOutTime: string | null; // ISO
   totalMinutes: number;
+  totalHours?: number;
+  hourlyRate?: number;
+  estimatedShiftPay?: number;
   status: 'working' | 'completed' | 'adjusted';
   checkInMethod: 'qr_wifi' | 'manual_admin' | 'qr_gps' | 'qr_wifi_gps' | 'direct_button';
   checkInIp: string;

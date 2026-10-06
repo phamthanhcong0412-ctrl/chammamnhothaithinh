@@ -122,53 +122,174 @@ function sanitizeUsername(raw: string): string {
   return cleaned || 'nv_' + Date.now();
 }
 
-export async function saveUserToFirestore(user: User, existingDocIds?: Set<string>): Promise<void> {
+export function enrichAttendanceRecord(
+  record: AttendanceRecord,
+  usersList: User[] = []
+): AttendanceRecord {
+  const matchedUser = usersList.find((u) => u.id === record.userId);
+  const hourlyRate = Number(record.hourlyRate || matchedUser?.hourlyRate || 28000);
+  const totalMinutes = Math.max(0, Number(record.totalMinutes) || 0);
+  const totalHours = Number((totalMinutes / 60).toFixed(2));
+  const estimatedShiftPay = Math.round((totalMinutes / 60) * hourlyRate);
+
+  return {
+    ...record,
+    totalMinutes,
+    totalHours,
+    hourlyRate,
+    estimatedShiftPay,
+  };
+}
+
+export function enrichUserWithAttendanceStats(
+  user: User,
+  attendanceList: AttendanceRecord[] = []
+): User {
+  const userRecords = attendanceList
+    .filter((r) => r.userId === user.id)
+    .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+
+  const totalMinutesWorked = userRecords.reduce((sum, r) => sum + (Number(r.totalMinutes) || 0), 0);
+  const totalHoursWorked = Number((totalMinutesWorked / 60).toFixed(2));
+  const totalDaysWorked = new Set(userRecords.map((r) => r.date)).size;
+  const totalShifts = userRecords.length;
+  const lateCount = userRecords.filter((r) => r.isLate).length;
+  const hourlyRate = Number(user.hourlyRate) || 28000;
+  const estimatedSalary = Math.round((totalMinutesWorked / 60) * hourlyRate);
+  const activeShift = userRecords.find((r) => r.status === 'working');
+  const currentStatus: 'working' | 'offline' = activeShift ? 'working' : 'offline';
+  const lastCheckInTime = userRecords[0]?.checkInTime || user.lastCheckInTime || null;
+  const lastCheckOutTime =
+    userRecords.find((r) => r.checkOutTime)?.checkOutTime || user.lastCheckOutTime || null;
+
+  const recentSummaryItems = userRecords.slice(0, 5).map((r) => {
+    const inStr = new Date(r.checkInTime).toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const outStr = r.checkOutTime
+      ? new Date(r.checkOutTime).toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : 'Đang làm';
+    const hrs = Number(((r.totalMinutes || 0) / 60).toFixed(2));
+    return `${r.date}: ${inStr}-${outStr} (${hrs}h / ${r.totalMinutes || 0}p)`;
+  });
+
+  const recentAttendanceSummary =
+    recentSummaryItems.length > 0
+      ? recentSummaryItems.join(' | ').slice(0, 2000)
+      : user.recentAttendanceSummary || 'Chưa có lịch sử chấm công';
+
+  return {
+    ...user,
+    totalMinutesWorked,
+    totalHoursWorked,
+    totalDaysWorked,
+    totalShifts,
+    lateCount,
+    estimatedSalary,
+    currentStatus,
+    lastCheckInTime,
+    lastCheckOutTime,
+    recentAttendanceSummary,
+  };
+}
+
+export async function saveUserToFirestore(
+  user: User,
+  existingDocIds?: Set<string>,
+  attendanceList?: AttendanceRecord[]
+): Promise<void> {
   const currentFbUser = auth.currentUser;
   if (!currentFbUser) return;
 
-  const docId = sanitizeId(user.id);
+  const enriched = attendanceList ? enrichUserWithAttendanceStats(user, attendanceList) : user;
+  const docId = sanitizeId(enriched.id);
   const path = `users/${docId}`;
   const docRef = doc(db, 'users', docId);
 
-  const basePayload = {
-    username: sanitizeUsername(user.username),
-    password: String(user.password || '123456').slice(0, 128),
-    email: String(user.email || `${user.username}@chaomamnho.vn`).slice(0, 128),
-    name: String(user.name || 'Nhân Viên').slice(0, 120),
+  const corePayload = {
+    username: sanitizeUsername(enriched.username),
+    password: String(enriched.password || '123456').slice(0, 128),
+    email: String(enriched.email || `${enriched.username}@chaomamnho.vn`).slice(0, 128),
+    name: String(enriched.name || 'Nhân Viên').slice(0, 120),
     avatar: String(
-      user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}`
+      enriched.avatar ||
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(enriched.username)}`
     ).slice(0, 500),
-    role: user.role === 'admin' ? ('admin' as const) : ('staff' as const),
-    employeeCode: String(user.employeeCode || 'NV-001').slice(0, 32),
-    position: String(user.position || 'Nhân Viên').slice(0, 100),
-    hourlyRate: Math.max(0, Math.min(10000000, Number(user.hourlyRate) || 28000)),
-    phone: String(user.phone || '').slice(0, 32),
-    joinDate: String(user.joinDate || new Date().toISOString().slice(0, 10)).slice(0, 32),
-    isActive: user.isActive !== false,
+    role: enriched.role === 'admin' ? ('admin' as const) : ('staff' as const),
+    employeeCode: String(enriched.employeeCode || 'NV-001').slice(0, 32),
+    position: String(enriched.position || 'Nhân Viên').slice(0, 100),
+    hourlyRate: Math.max(0, Math.min(10000000, Number(enriched.hourlyRate) || 28000)),
+    phone: String(enriched.phone || '').slice(0, 32),
+    joinDate: String(enriched.joinDate || new Date().toISOString().slice(0, 10)).slice(0, 32),
+    isActive: enriched.isActive !== false,
     updatedAt: serverTimestamp(),
   };
 
-  const createPayload = {
+  const extendedPayload = {
+    ...corePayload,
+    note: String(enriched.note || '').slice(0, 500),
+    totalMinutesWorked: Math.max(0, Math.min(10000000, Number(enriched.totalMinutesWorked) || 0)),
+    totalHoursWorked: Math.max(0, Math.min(1000000, Number(enriched.totalHoursWorked) || 0)),
+    totalDaysWorked: Math.max(0, Math.min(100000, Number(enriched.totalDaysWorked) || 0)),
+    totalShifts: Math.max(0, Math.min(100000, Number(enriched.totalShifts) || 0)),
+    lateCount: Math.max(0, Math.min(100000, Number(enriched.lateCount) || 0)),
+    estimatedSalary: Math.max(0, Math.min(10000000000, Number(enriched.estimatedSalary) || 0)),
+    currentStatus: enriched.currentStatus === 'working' ? ('working' as const) : ('offline' as const),
+    lastCheckInTime: enriched.lastCheckInTime ? String(enriched.lastCheckInTime).slice(0, 64) : null,
+    lastCheckOutTime: enriched.lastCheckOutTime ? String(enriched.lastCheckOutTime).slice(0, 64) : null,
+    recentAttendanceSummary: String(
+      enriched.recentAttendanceSummary || 'Chưa có lịch sử chấm công'
+    ).slice(0, 2000),
+  };
+
+  const createExtendedPayload = {
     id: docId,
     ownerId: currentFbUser.uid,
-    ...basePayload,
+    ...extendedPayload,
+    createdAt: serverTimestamp(),
+  };
+
+  const createCorePayload = {
+    id: docId,
+    ownerId: currentFbUser.uid,
+    ...corePayload,
     createdAt: serverTimestamp(),
   };
 
   try {
     if (existingDocIds) {
       if (existingDocIds.has(docId)) {
-        await updateDoc(docRef, basePayload);
+        try {
+          await updateDoc(docRef, extendedPayload);
+        } catch {
+          await updateDoc(docRef, corePayload);
+        }
       } else {
-        await setDoc(docRef, createPayload);
+        try {
+          await setDoc(docRef, createExtendedPayload);
+        } catch {
+          await setDoc(docRef, createCorePayload);
+        }
       }
       return;
     }
 
     try {
-      await setDoc(docRef, createPayload);
+      await setDoc(docRef, createExtendedPayload);
     } catch {
-      await updateDoc(docRef, basePayload);
+      try {
+        await updateDoc(docRef, extendedPayload);
+      } catch {
+        try {
+          await setDoc(docRef, createCorePayload);
+        } catch {
+          await updateDoc(docRef, corePayload);
+        }
+      }
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -188,7 +309,10 @@ export async function deleteUserFromFirestore(userId: string): Promise<void> {
   }
 }
 
-export async function syncAllUsersToFirestore(usersList: User[]): Promise<FirebaseSyncResult> {
+export async function syncAllUsersToFirestore(
+  usersList: User[],
+  attendanceList: AttendanceRecord[] = []
+): Promise<FirebaseSyncResult> {
   const currentFbUser = auth.currentUser;
   if (!currentFbUser) {
     throw new Error('Chưa xác thực tài khoản Google Firebase. Vui lòng đăng nhập Google ở cửa sổ bật lên.');
@@ -208,7 +332,7 @@ export async function syncAllUsersToFirestore(usersList: User[]): Promise<Fireba
 
   let syncedCount = 0;
   for (const u of usersList) {
-    await saveUserToFirestore(u, existingIds);
+    await saveUserToFirestore(u, existingIds, attendanceList);
     syncedCount++;
   }
 
@@ -268,6 +392,17 @@ export async function fetchUsersFromFirestore(): Promise<User[]> {
         phone: data.phone || '',
         joinDate: data.joinDate || '2025-01-01',
         isActive: data.isActive !== false,
+        note: data.note || '',
+        totalMinutesWorked: Number(data.totalMinutesWorked) || 0,
+        totalHoursWorked: Number(data.totalHoursWorked) || 0,
+        totalDaysWorked: Number(data.totalDaysWorked) || 0,
+        totalShifts: Number(data.totalShifts) || 0,
+        lateCount: Number(data.lateCount) || 0,
+        estimatedSalary: Number(data.estimatedSalary) || 0,
+        currentStatus: data.currentStatus === 'working' ? 'working' : 'offline',
+        lastCheckInTime: data.lastCheckInTime || null,
+        lastCheckOutTime: data.lastCheckOutTime || null,
+        recentAttendanceSummary: data.recentAttendanceSummary || '',
       } satisfies User;
     });
 
@@ -348,62 +483,179 @@ export async function loginFromFirestore(
   );
 }
 
-export async function saveAttendanceToFirestore(record: AttendanceRecord): Promise<void> {
+export async function saveAttendanceToFirestore(
+  record: AttendanceRecord,
+  usersList: User[] = []
+): Promise<void> {
   const currentFbUser = auth.currentUser;
   if (!currentFbUser) return;
 
-  const docId = sanitizeId(record.id);
+  const enriched = enrichAttendanceRecord(record, usersList);
+  const docId = sanitizeId(enriched.id);
   const path = `attendance/${docId}`;
   const docRef = doc(db, 'attendance', docId);
 
-  const createPayload = {
+  const coreCreatePayload = {
     id: docId,
     ownerId: currentFbUser.uid,
-    userId: sanitizeId(record.userId),
-    userName: String(record.userName || 'Nhân Viên').slice(0, 120),
-    userEmail: String(record.userEmail || 'nv@chaomamnho.vn').slice(0, 128),
-    employeeCode: String(record.employeeCode || 'NV-001').slice(0, 32),
-    date: String(record.date).slice(0, 16),
-    checkInTime: String(record.checkInTime).slice(0, 64),
-    checkOutTime: record.checkOutTime ? String(record.checkOutTime).slice(0, 64) : null,
-    totalMinutes: Math.max(0, Math.min(1440, Number(record.totalMinutes) || 0)),
-    status: record.status,
-    checkInMethod: record.checkInMethod || 'direct_button',
-    checkInIp: String(record.checkInIp || '127.0.0.1').slice(0, 64),
-    checkInWifiSsid: String(record.checkInWifiSsid || '').slice(0, 100),
-    shiftId: String(record.shiftId || 'shift_morning').slice(0, 64),
-    shiftName: String(record.shiftName || 'Ca làm việc').slice(0, 100),
-    isLate: Boolean(record.isLate),
-    isEarlyLeave: Boolean(record.isEarlyLeave),
-    note: String(record.note || '').slice(0, 500),
-    adjustedBy: String(record.adjustedBy || '').slice(0, 120),
-    adjustedReason: String(record.adjustedReason || '').slice(0, 300),
+    userId: sanitizeId(enriched.userId),
+    userName: String(enriched.userName || 'Nhân Viên').slice(0, 120),
+    userEmail: String(enriched.userEmail || 'nv@chaomamnho.vn').slice(0, 128),
+    employeeCode: String(enriched.employeeCode || 'NV-001').slice(0, 32),
+    date: String(enriched.date).slice(0, 16),
+    checkInTime: String(enriched.checkInTime).slice(0, 64),
+    checkOutTime: enriched.checkOutTime ? String(enriched.checkOutTime).slice(0, 64) : null,
+    totalMinutes: Math.max(0, Math.min(1440, Number(enriched.totalMinutes) || 0)),
+    status: enriched.status,
+    checkInMethod: enriched.checkInMethod || 'direct_button',
+    checkInIp: String(enriched.checkInIp || '127.0.0.1').slice(0, 64),
+    checkInWifiSsid: String(enriched.checkInWifiSsid || '').slice(0, 100),
+    shiftId: String(enriched.shiftId || 'shift_morning').slice(0, 64),
+    shiftName: String(enriched.shiftName || 'Ca làm việc').slice(0, 100),
+    isLate: Boolean(enriched.isLate),
+    isEarlyLeave: Boolean(enriched.isEarlyLeave),
+    note: String(enriched.note || '').slice(0, 500),
+    adjustedBy: String(enriched.adjustedBy || '').slice(0, 120),
+    adjustedReason: String(enriched.adjustedReason || '').slice(0, 300),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
 
-  const updatePayload = {
-    date: String(record.date).slice(0, 16),
-    checkInTime: String(record.checkInTime).slice(0, 64),
-    checkOutTime: record.checkOutTime ? String(record.checkOutTime).slice(0, 64) : null,
-    totalMinutes: Math.max(0, Math.min(1440, Number(record.totalMinutes) || 0)),
-    status: record.status,
-    isLate: Boolean(record.isLate),
-    isEarlyLeave: Boolean(record.isEarlyLeave),
-    note: String(record.note || '').slice(0, 500),
-    adjustedBy: String(record.adjustedBy || '').slice(0, 120),
-    adjustedReason: String(record.adjustedReason || '').slice(0, 300),
+  const extendedCreatePayload = {
+    ...coreCreatePayload,
+    totalHours: Math.max(0, Math.min(24, Number(enriched.totalHours) || 0)),
+    hourlyRate: Math.max(0, Math.min(10000000, Number(enriched.hourlyRate) || 28000)),
+    estimatedShiftPay: Math.max(0, Math.min(240000000, Number(enriched.estimatedShiftPay) || 0)),
+  };
+
+  const coreUpdatePayload = {
+    date: String(enriched.date).slice(0, 16),
+    checkInTime: String(enriched.checkInTime).slice(0, 64),
+    checkOutTime: enriched.checkOutTime ? String(enriched.checkOutTime).slice(0, 64) : null,
+    totalMinutes: Math.max(0, Math.min(1440, Number(enriched.totalMinutes) || 0)),
+    status: enriched.status,
+    isLate: Boolean(enriched.isLate),
+    isEarlyLeave: Boolean(enriched.isEarlyLeave),
+    note: String(enriched.note || '').slice(0, 500),
+    adjustedBy: String(enriched.adjustedBy || '').slice(0, 120),
+    adjustedReason: String(enriched.adjustedReason || '').slice(0, 300),
     updatedAt: serverTimestamp(),
+  };
+
+  const extendedUpdatePayload = {
+    ...coreUpdatePayload,
+    totalHours: Math.max(0, Math.min(24, Number(enriched.totalHours) || 0)),
+    hourlyRate: Math.max(0, Math.min(10000000, Number(enriched.hourlyRate) || 28000)),
+    estimatedShiftPay: Math.max(0, Math.min(240000000, Number(enriched.estimatedShiftPay) || 0)),
   };
 
   try {
     try {
-      await setDoc(docRef, createPayload);
+      await setDoc(docRef, extendedCreatePayload);
     } catch {
-      await updateDoc(docRef, updatePayload);
+      try {
+        await updateDoc(docRef, extendedUpdatePayload);
+      } catch {
+        try {
+          await setDoc(docRef, coreCreatePayload);
+        } catch {
+          await updateDoc(docRef, coreUpdatePayload);
+        }
+      }
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteAttendanceFromFirestore(recordId: string): Promise<void> {
+  const currentFbUser = auth.currentUser;
+  if (!currentFbUser) return;
+
+  const docId = sanitizeId(recordId);
+  const path = `attendance/${docId}`;
+  try {
+    await deleteDoc(doc(db, 'attendance', docId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function fetchAttendanceFromFirestore(): Promise<AttendanceRecord[]> {
+  const currentFbUser = auth.currentUser;
+  if (!currentFbUser) return [];
+
+  const path = 'attendance';
+  try {
+    const q = isBootstrappedAdminEmail(currentFbUser.email)
+      ? collection(db, 'attendance')
+      : query(collection(db, 'attendance'), where('ownerId', '==', currentFbUser.uid));
+
+    let snap;
+    try {
+      snap = await getDocsFromServer(q);
+    } catch {
+      snap = await getDocs(q);
+    }
+
+    const list = snap.docs
+      .map((d) => {
+        const data = d.data();
+        const totalMinutes = Number(data.totalMinutes) || 0;
+        const hourlyRate = Number(data.hourlyRate) || 28000;
+        return {
+          id: data.id || d.id,
+          userId: data.userId || '',
+          userName: data.userName || 'Nhân Viên',
+          userEmail: data.userEmail || '',
+          employeeCode: data.employeeCode || 'NV-001',
+          date: data.date || new Date().toISOString().slice(0, 10),
+          checkInTime: data.checkInTime || new Date().toISOString(),
+          checkOutTime: data.checkOutTime || null,
+          totalMinutes,
+          totalHours:
+            data.totalHours !== undefined
+              ? Number(data.totalHours)
+              : Number((totalMinutes / 60).toFixed(2)),
+          hourlyRate,
+          estimatedShiftPay:
+            data.estimatedShiftPay !== undefined
+              ? Number(data.estimatedShiftPay)
+              : Math.round((totalMinutes / 60) * hourlyRate),
+          status:
+            data.status === 'working' || data.status === 'adjusted' ? data.status : 'completed',
+          checkInMethod: data.checkInMethod || 'direct_button',
+          checkInIp: data.checkInIp || '127.0.0.1',
+          checkInWifiSsid: data.checkInWifiSsid || '',
+          shiftId: data.shiftId || 'shift_morning',
+          shiftName: data.shiftName || 'Ca làm việc',
+          isLate: Boolean(data.isLate),
+          isEarlyLeave: Boolean(data.isEarlyLeave),
+          note: data.note || '',
+          adjustedBy: data.adjustedBy || '',
+          adjustedReason: data.adjustedReason || '',
+          createdAt:
+            typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+          updatedAt:
+            typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+        } satisfies AttendanceRecord;
+      })
+      .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+
+    if (list.length > 0) {
+      try {
+        localStorage.setItem('chammam_attendance_v1', JSON.stringify(list));
+        fetch('/api/firebase/sync-attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attendance: list }),
+        }).catch(() => {});
+      } catch {}
+    }
+
+    return list;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
   }
 }
 

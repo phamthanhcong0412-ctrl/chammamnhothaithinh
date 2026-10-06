@@ -14,11 +14,15 @@ import {
   fbSignOut,
   onAuthStateChanged,
   fetchUsersFromFirestore,
+  fetchAttendanceFromFirestore,
   saveUserToFirestore,
   deleteUserFromFirestore,
   syncAllUsersToFirestore,
   saveAttendanceToFirestore,
+  deleteAttendanceFromFirestore,
   saveStoreConfigToFirestore,
+  enrichUserWithAttendanceStats,
+  enrichAttendanceRecord,
   isBootstrappedAdminEmail,
   type FirebaseUser,
   type FirebaseSyncResult,
@@ -98,17 +102,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsub();
   }, []);
 
-  // Fetch users from Firestore once on load when authenticated with Firebase
+  // Fetch users and attendance from Firestore once on load when authenticated with Firebase
   useEffect(() => {
     if (!isAuthReady || !firebaseUser) return;
 
-    fetchUsersFromFirestore()
-      .then((firestoreUsers) => {
+    Promise.all([
+      fetchUsersFromFirestore().catch(() => [] as User[]),
+      fetchAttendanceFromFirestore().catch(() => [] as AttendanceRecord[]),
+    ])
+      .then(([firestoreUsers, firestoreAtt]) => {
+        if (firestoreAtt.length > 0) {
+          setAttendance((prev) => {
+            const map = new Map<string, AttendanceRecord>();
+            prev.forEach((r) => map.set(r.id, r));
+            firestoreAtt.forEach((r) => map.set(r.id, r));
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime()
+            );
+          });
+        }
         if (firestoreUsers.length > 0) {
-          setUsers(firestoreUsers);
+          setUsers((prevUsers) => {
+            const baseAtt = firestoreAtt.length > 0 ? firestoreAtt : attendance;
+            const enriched = firestoreUsers.map((u) => enrichUserWithAttendanceStats(u, baseAtt));
+            return enriched.length > 0 ? enriched : prevUsers;
+          });
         }
       })
-      .catch((err) => console.warn('Initial Firestore user load warning:', err));
+      .catch((err) => console.warn('Initial Firestore load warning:', err));
   }, [isAuthReady, firebaseUser]);
 
   // Compute active record for current user
@@ -141,19 +162,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           appId: cfg.firebaseConfig?.appId || firebaseAppletConfig.appId,
         },
       });
-      setUsers(userList);
-      setAttendance(attList);
+      const enrichedAtt = attList.map((r) => enrichAttendanceRecord(r, userList));
+      const enrichedUsers = userList.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
+      setUsers(enrichedUsers);
+      setAttendance(enrichedAtt);
       if (netInfo) setNetworkInfo(netInfo);
 
       // Restore current user only if saved in localStorage
       setCurrentUser((prev) => {
         if (prev) {
-          const updated = userList.find((u) => u.id === prev.id);
+          const updated = enrichedUsers.find((u) => u.id === prev.id);
           return updated || prev;
         }
         const savedUsername = localStorage.getItem('chammam_auth_username');
         if (savedUsername) {
-          const matched = userList.find(
+          const matched = enrichedUsers.find(
             (u) => u.username?.toLowerCase() === savedUsername.toLowerCase() && u.isActive !== false
           );
           if (matched) return matched;
@@ -236,9 +259,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Sync to Firestore
     if (isAdminEmail) {
-      await syncAllUsersToFirestore(users.some((u) => u.id === matchedUser!.id) ? users : [...users, matchedUser]);
+      await syncAllUsersToFirestore(
+        users.some((u) => u.id === matchedUser!.id) ? users : [...users, matchedUser],
+        attendance
+      );
     } else {
-      await saveUserToFirestore({ ...matchedUser, id: fbUser.uid });
+      await saveUserToFirestore({ ...matchedUser, id: fbUser.uid }, undefined, attendance);
     }
 
     if (!currentUser) {
@@ -254,12 +280,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!auth.currentUser) {
       await signInWithPopup(auth, googleProvider);
     }
-    const result = await syncAllUsersToFirestore(users);
+    const enrichedUsers = users.map((u) => enrichUserWithAttendanceStats(u, attendance));
+    setUsers(enrichedUsers);
+    const result = await syncAllUsersToFirestore(enrichedUsers, attendance);
     if (storeConfig) {
       await saveStoreConfigToFirestore(storeConfig).catch(() => {});
     }
-    for (const rec of attendance.slice(0, 30)) {
-      await saveAttendanceToFirestore(rec).catch(() => {});
+    for (const rec of attendance.slice(0, 100)) {
+      await saveAttendanceToFirestore(rec, enrichedUsers).catch(() => {});
     }
     // Ensure visual feedback lasts at least 600ms so button doesn't just flash
     const elapsed = Date.now() - startTime;
@@ -277,6 +305,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(null);
   };
 
+  const syncUserAndAttendanceState = (nextAttendance: AttendanceRecord[], targetUserId?: string) => {
+    const enrichedAtt = nextAttendance.map((r) => enrichAttendanceRecord(r, users));
+    setAttendance(enrichedAtt);
+    setUsers((prevUsers) => {
+      const nextUsers = prevUsers.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
+      if (auth.currentUser && targetUserId) {
+        const updatedTarget = nextUsers.find((u) => u.id === targetUserId);
+        if (updatedTarget) {
+          saveUserToFirestore(updatedTarget, undefined, enrichedAtt).catch(() => {});
+        }
+      }
+      return nextUsers;
+    });
+    if (currentUser && (!targetUserId || currentUser.id === targetUserId)) {
+      setCurrentUser((prev) => (prev ? enrichUserWithAttendanceStats(prev, enrichedAtt) : null));
+    }
+  };
+
   const checkIn = async (payload?: {
     qrToken?: string;
     wifiSsid?: string;
@@ -291,11 +337,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       gps: payload?.gps,
       note: payload?.note,
     });
-    setAttendance((prev) => [res.record, ...prev]);
+    const enrichedRec = enrichAttendanceRecord(res.record, users);
+    const nextAtt = [enrichedRec, ...attendance];
+    syncUserAndAttendanceState(nextAtt, currentUser.id);
     if (auth.currentUser) {
-      saveAttendanceToFirestore(res.record).catch((e) => console.warn('Firestore attendance sync:', e));
+      saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
+        console.warn('Firestore attendance sync:', e)
+      );
     }
-    return res.record;
+    return enrichedRec;
   };
 
   const checkOut = async (payload?: {
@@ -312,13 +362,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       gps: payload?.gps,
       note: payload?.note,
     });
-    setAttendance((prev) =>
-      prev.map((r) => (r.id === res.record.id ? res.record : r))
-    );
+    const enrichedRec = enrichAttendanceRecord(res.record, users);
+    const nextAtt = attendance.map((r) => (r.id === enrichedRec.id ? enrichedRec : r));
+    syncUserAndAttendanceState(nextAtt, currentUser.id);
     if (auth.currentUser) {
-      saveAttendanceToFirestore(res.record).catch((e) => console.warn('Firestore checkout sync:', e));
+      saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
+        console.warn('Firestore checkout sync:', e)
+      );
     }
-    return res.record;
+    return enrichedRec;
   };
 
   const manualAttendance = async (payload: {
@@ -335,20 +387,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...payload,
       adjustedBy: currentUser?.name || 'Quản lý',
     });
-    if (payload.id) {
-      setAttendance((prev) => prev.map((r) => (r.id === res.record.id ? res.record : r)));
-    } else {
-      setAttendance((prev) => [res.record, ...prev]);
-    }
+    const enrichedRec = enrichAttendanceRecord(res.record, users);
+    const nextAtt = payload.id
+      ? attendance.map((r) => (r.id === enrichedRec.id ? enrichedRec : r))
+      : [enrichedRec, ...attendance];
+    syncUserAndAttendanceState(nextAtt, payload.userId);
     if (auth.currentUser) {
-      saveAttendanceToFirestore(res.record).catch((e) => console.warn('Firestore manual attendance sync:', e));
+      saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
+        console.warn('Firestore manual attendance sync:', e)
+      );
     }
-    return res.record;
+    return enrichedRec;
   };
 
   const deleteAttendance = async (id: string) => {
+    const targetRec = attendance.find((r) => r.id === id);
     await api.deleteAttendance(id);
-    setAttendance((prev) => prev.filter((r) => r.id !== id));
+    const nextAtt = attendance.filter((r) => r.id !== id);
+    syncUserAndAttendanceState(nextAtt, targetRec?.userId);
+    if (auth.currentUser) {
+      deleteAttendanceFromFirestore(id).catch((e) =>
+        console.warn('Firestore deleteAttendance sync:', e)
+      );
+    }
   };
 
   const updateConfig = async (cfg: Partial<StoreConfig>) => {
@@ -361,23 +422,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addUser = async (userData: Partial<User>) => {
     const res = await api.createUser(userData);
-    setUsers((prev) => [...prev.filter((u) => u.id !== res.user.id), res.user]);
+    const enrichedUser = enrichUserWithAttendanceStats(res.user, attendance);
+    setUsers((prev) => [...prev.filter((u) => u.id !== enrichedUser.id), enrichedUser]);
     if (auth.currentUser) {
-      saveUserToFirestore(res.user).catch((e) => console.warn('Firestore addUser sync:', e));
+      saveUserToFirestore(enrichedUser, undefined, attendance).catch((e) =>
+        console.warn('Firestore addUser sync:', e)
+      );
     }
-    return res.user;
+    return enrichedUser;
   };
 
   const updateUser = async (id: string, userData: Partial<User>) => {
     const res = await api.updateUser(id, userData);
-    setUsers((prev) => prev.map((u) => (u.id === id ? res.user : u)));
+    const enrichedUser = enrichUserWithAttendanceStats(res.user, attendance);
+    setUsers((prev) => prev.map((u) => (u.id === id ? enrichedUser : u)));
     if (currentUser?.id === id) {
-      setCurrentUser(res.user);
+      setCurrentUser(enrichedUser);
     }
     if (auth.currentUser) {
-      saveUserToFirestore(res.user).catch((e) => console.warn('Firestore updateUser sync:', e));
+      saveUserToFirestore(enrichedUser, undefined, attendance).catch((e) =>
+        console.warn('Firestore updateUser sync:', e)
+      );
     }
-    return res.user;
+    return enrichedUser;
   };
 
   const deleteUser = async (id: string) => {
