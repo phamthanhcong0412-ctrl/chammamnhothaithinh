@@ -267,6 +267,9 @@ export const EmployeeManagement: React.FC = () => {
               <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-zinc-800 text-indigo-300 border border-zinc-700">
                 {firebaseProjectId}
               </span>
+              <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                Admin: {firebaseUser?.email || 'phamthanhcong0412@gmail.com'}
+              </span>
               {isFirebaseConnected ? (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
                   Đã Kết Nối ({firebaseUser?.email})

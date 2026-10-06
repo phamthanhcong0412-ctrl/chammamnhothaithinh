@@ -83,6 +83,7 @@ export interface StoreConfig {
   managerEmail: string;
   lastReportSentDate: string | null;
   firebaseConfig?: {
+    adminEmail?: string;
     apiKey?: string;
     authDomain?: string;
     projectId?: string;

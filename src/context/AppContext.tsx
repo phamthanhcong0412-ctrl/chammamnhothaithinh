@@ -180,13 +180,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setStoreConfig({
         ...cfg,
         firebaseConfig: {
-          projectId: firebaseAppletConfig.projectId,
-          firestoreDatabaseId: firebaseAppletConfig.firestoreDatabaseId,
-          apiKey: firebaseAppletConfig.apiKey,
-          authDomain: firebaseAppletConfig.authDomain,
-          storageBucket: firebaseAppletConfig.storageBucket,
-          messagingSenderId: firebaseAppletConfig.messagingSenderId,
-          appId: firebaseAppletConfig.appId,
+          adminEmail: cfg.firebaseConfig?.adminEmail || 'phamthanhcong0412@gmail.com',
+          projectId: cfg.firebaseConfig?.projectId || firebaseAppletConfig.projectId,
+          firestoreDatabaseId:
+            cfg.firebaseConfig?.firestoreDatabaseId || firebaseAppletConfig.firestoreDatabaseId,
+          apiKey: cfg.firebaseConfig?.apiKey || firebaseAppletConfig.apiKey,
+          authDomain: cfg.firebaseConfig?.authDomain || firebaseAppletConfig.authDomain,
+          storageBucket: cfg.firebaseConfig?.storageBucket || firebaseAppletConfig.storageBucket,
+          messagingSenderId:
+            cfg.firebaseConfig?.messagingSenderId || firebaseAppletConfig.messagingSenderId,
+          appId: cfg.firebaseConfig?.appId || firebaseAppletConfig.appId,
         },
       });
       setUsers(userList);

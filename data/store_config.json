@@ -43,6 +43,7 @@
   "managerEmail": "phamthanhcong0412@gmail.com",
   "lastReportSentDate": null,
   "firebaseConfig": {
+    "adminEmail": "phamthanhcong0412@gmail.com",
     "projectId": "gen-lang-client-0980052625",
     "appId": "1:107881027720:web:3ea36799af656c1971e73d",
     "apiKey": "AIzaSyC5b9mOMKJ_XSbUp58Oy9d4l9LiKhgEXO4",

@@ -240,7 +240,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </span>
                   </div>
                   <div className="text-[11px] text-zinc-300 font-mono">
-                    Project ID: <strong className="text-white">{firebaseProjectId || formData.firebaseConfig?.projectId}</strong> • DB: <strong className="text-indigo-300">{formData.firebaseConfig?.firestoreDatabaseId || 'default'}</strong>
+                    Tài khoản Quản trị: <strong className="text-emerald-300">{formData.firebaseConfig?.adminEmail || 'phamthanhcong0412@gmail.com'}</strong> • Project ID: <strong className="text-white">{formData.firebaseConfig?.projectId || firebaseProjectId}</strong>
                   </div>
                 </div>
                 <button
@@ -673,6 +673,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    Email Tài Khoản Google Quản Trị Firebase (Admin Account)
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.firebaseConfig?.adminEmail || 'phamthanhcong0412@gmail.com'}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        firebaseConfig: {
+                          ...formData.firebaseConfig,
+                          adminEmail: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-zinc-950 border border-emerald-500/40 rounded-xl text-xs text-emerald-300 font-bold focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-zinc-300 mb-1">
                     Firebase Project ID
