@@ -1,0 +1,48 @@
+{
+  "storeName": "Cháo Mầm Nhỏ Thái Thịnh",
+  "storeAddress": "Thái Thịnh, Đống Đa, Hà Nội",
+  "wifiSsid": "ChaoMamNho_ThaiThinh_5G",
+  "allowedIps": [
+    "127.0.0.1",
+    "::1",
+    "14.161.45.88",
+    "118.69.182.20"
+  ],
+  "bypassIpCheck": true,
+  "requireWifi": true,
+  "requireQr": false,
+  "requireGps": true,
+  "storeGps": {
+    "lat": 21.0116,
+    "lng": 105.8174,
+    "radiusMeters": 150
+  },
+  "qrRefreshSeconds": 45,
+  "qrSecret": "store_secret_qr_token_1791295609168",
+  "shifts": [
+    {
+      "id": "shift_morning",
+      "name": "Ca Sáng (06:00 - 12:00)",
+      "startTime": "06:00",
+      "endTime": "12:00",
+      "lateGraceMinutes": 15,
+      "checkInBeforeMinutes": 30,
+      "checkOutAfterMinutes": 90
+    },
+    {
+      "id": "shift_afternoon",
+      "name": "Ca Chiều (15:30 - 20:00)",
+      "startTime": "15:30",
+      "endTime": "20:00",
+      "lateGraceMinutes": 15,
+      "checkInBeforeMinutes": 30,
+      "checkOutAfterMinutes": 90
+    }
+  ],
+  "autoEmailTime": "21:00",
+  "managerEmail": "phamthanhcong0412@gmail.com",
+  "lastReportSentDate": null,
+  "firebaseConfig": {
+    "projectId": "store-attendance-free"
+  }
+}

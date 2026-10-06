@@ -1,0 +1,11 @@
+{
+  "name": "Remix Chấm Công Thông Minh - Smart Store Attendance",
+  "description": "Hệ thống chấm công nhân viên quét QR \u0026 xác thực WiFi / GPS cửa hàng, dashboard quản lý thời gian thực, tính công và tự động báo cáo email.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
