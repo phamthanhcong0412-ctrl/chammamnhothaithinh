@@ -50,7 +50,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
     setIsSubmitting(true);
     try {
       await changePassword(currentPassword.trim(), newPassword.trim());
-      setSuccessMsg('Đổi mật khẩu thành công! Đã đồng bộ Realtime lên Firebase.');
+      setSuccessMsg('Đổi mật khẩu thành công! Đã lưu lên hệ thống Firebase.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');

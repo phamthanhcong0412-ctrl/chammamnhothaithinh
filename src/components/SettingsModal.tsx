@@ -675,12 +675,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           Thông Tin Project Firebase
                         </span>
                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          Realtime • Full Quyền
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          Đã kết nối • Full Quyền
                         </span>
                       </div>
                       <p className="text-[11px] text-zinc-400 mt-0.5">
-                        Tự động đồng bộ Realtime mọi bảng dữ liệu (Users, Attendance, Config...)
+                        Tự động tải dữ liệu khi load trang và lưu trực tiếp lên Firebase khi thao tác
                       </p>
                     </div>
                   </div>

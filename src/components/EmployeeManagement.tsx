@@ -153,10 +153,10 @@ export const EmployeeManagement: React.FC = () => {
       };
       if (editingUser) {
         await updateUser(editingUser.id, payload);
-        triggerToast(`Đã cập nhật tài khoản "${payload.name}" (${payload.username}) Realtime!`);
+        triggerToast(`Đã cập nhật tài khoản "${payload.name}" (${payload.username})!`);
       } else {
         await addUser(payload);
-        triggerToast(`Đã thêm tài khoản "${payload.name}" (${payload.username}) Realtime!`);
+        triggerToast(`Đã thêm tài khoản "${payload.name}" (${payload.username})!`);
       }
       setIsModalOpen(false);
     } catch (err: any) {

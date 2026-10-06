@@ -9,23 +9,17 @@ import type {
 import { api } from '../services/api.ts';
 import {
   auth,
-  db,
   googleProvider,
   signInWithPopup,
   fbSignOut,
   onAuthStateChanged,
-  collection,
-  query,
-  where,
-  onSnapshot,
+  fetchUsersFromFirestore,
   saveUserToFirestore,
   deleteUserFromFirestore,
   syncAllUsersToFirestore,
   saveAttendanceToFirestore,
   saveStoreConfigToFirestore,
   isBootstrappedAdminEmail,
-  handleFirestoreError,
-  OperationType,
   type FirebaseUser,
   type FirebaseSyncResult,
 } from '../firebase.ts';
@@ -104,81 +98,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsub();
   }, []);
 
-  // Real-time Firestore listener for users when authenticated with Firebase
+  // Fetch users from Firestore once on load when authenticated with Firebase
   useEffect(() => {
     if (!isAuthReady || !firebaseUser) return;
 
-    const usersPath = 'users';
-    const usersQuery = isBootstrappedAdminEmail(firebaseUser.email)
-      ? collection(db, 'users')
-      : query(collection(db, 'users'), where('ownerId', '==', firebaseUser.uid));
-
-    const unsubUsers = onSnapshot(
-      usersQuery,
-      (snapshot) => {
-        const firestoreUsers: User[] = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: data.id || d.id,
-            username: data.username || d.id,
-            password: data.password || '123456',
-            email: data.email || '',
-            name: data.name || 'Nhân Viên',
-            avatar: data.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${d.id}`,
-            role: data.role === 'admin' ? 'admin' : 'staff',
-            employeeCode: data.employeeCode || 'NV-001',
-            position: data.position || 'Nhân Viên',
-            hourlyRate: Number(data.hourlyRate) || 28000,
-            phone: data.phone || '',
-            joinDate: data.joinDate || '2025-01-01',
-            isActive: data.isActive !== false,
-          };
-        });
-
-        setUsers((prev) => {
-          const firestoreIds = new Set(firestoreUsers.map((u) => u.id));
-          const missingInFirestore = prev.filter((u) => !firestoreIds.has(u.id));
-          if (missingInFirestore.length > 0 && isBootstrappedAdminEmail(firebaseUser.email)) {
-            syncAllUsersToFirestore(missingInFirestore).catch((err) =>
-              console.warn('Auto-sync missing users to Firestore warning:', err)
-            );
-          }
-
-          if (firestoreUsers.length === 0) {
-            return prev;
-          }
-
-          const mergedMap = new Map<string, User>();
-          prev.forEach((u) => mergedMap.set(u.id, u));
-          firestoreUsers.forEach((u) => mergedMap.set(u.id, u));
-          const mergedList = Array.from(mergedMap.values());
-          try {
-            localStorage.setItem('chammam_users_v1', JSON.stringify(mergedList));
-          } catch {}
-          return mergedList;
-        });
-      },
-      (err) => {
-        try {
-          handleFirestoreError(err, OperationType.LIST, usersPath);
-        } catch (handledErr) {
-          console.warn(handledErr);
+    fetchUsersFromFirestore()
+      .then((firestoreUsers) => {
+        if (firestoreUsers.length > 0) {
+          setUsers(firestoreUsers);
         }
-      }
-    );
-
-    return () => unsubUsers();
+      })
+      .catch((err) => console.warn('Initial Firestore user load warning:', err));
   }, [isAuthReady, firebaseUser]);
-
-  // Auto-seed local users to Firestore as soon as both firebaseUser and users list are ready
-  useEffect(() => {
-    if (!isAuthReady || !firebaseUser || users.length === 0) return;
-    if (isBootstrappedAdminEmail(firebaseUser.email)) {
-      syncAllUsersToFirestore(users)
-        .then((res) => setLastFirebaseSync(res))
-        .catch((err) => console.warn('Background Firestore user sync warning:', err));
-    }
-  }, [isAuthReady, firebaseUser, users.length]);
 
   // Compute active record for current user
   const activeRecord = currentUser
@@ -237,10 +168,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  // Load data once on page load (no background polling)
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 3000); // Realtime sync every 3s
-    return () => clearInterval(interval);
   }, [refreshData]);
 
   const switchUser = (user: User) => {

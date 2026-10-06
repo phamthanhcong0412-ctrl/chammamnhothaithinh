@@ -2,7 +2,7 @@
   {
     "id": "user_admin_1",
     "username": "ptcong",
-    "password": "12345678@Abc",
+    "password": "12345678",
     "email": "phamthanhcong0412@gmail.com",
     "name": "Phạm Thành Công (Chủ Quán)",
     "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ptcong",
@@ -15,33 +15,18 @@
     "isActive": true
   },
   {
-    "id": "user_staff_1",
-    "username": "nv_mai",
-    "password": "123456",
-    "email": "nhanvien.mai@gmail.com",
-    "name": "Nguyễn Thị Mai",
-    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=nv_mai",
+    "id": "user_1791311641164",
+    "username": "nVmai",
+    "password": "123456@",
+    "email": "nVmai@chaomamnho.vn",
+    "name": "Ngô Mai",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=nVmai",
     "role": "staff",
     "employeeCode": "NV-001",
-    "position": "Thu Ngân & Barista",
-    "hourlyRate": 21000,
-    "phone": "0912 345 678",
-    "joinDate": "2025-02-15",
-    "isActive": true
-  },
-  {
-    "id": "user_staff_3",
-    "username": "nv_nam",
-    "password": "123456",
-    "email": "nhanvien.nam@gmail.com",
-    "name": "Lê Bảo Nam",
-    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=nv_nam",
-    "role": "staff",
-    "employeeCode": "NV-003",
-    "position": "Nhân Viên Phục Vụ",
-    "hourlyRate": 25000,
-    "phone": "0933 112 233",
-    "joinDate": "2025-03-01",
+    "position": "Nhân Viên Bán Hàng",
+    "hourlyRate": 28000,
+    "phone": "",
+    "joinDate": "2026-10-06",
     "isActive": true
   }
 ]
