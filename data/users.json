@@ -9,7 +9,7 @@
     "role": "admin",
     "employeeCode": "QL-001",
     "position": "Chủ Cửa Hàng / Quản Lý",
-    "hourlyRate": 50000,
+    "hourlyRate": 1000000,
     "phone": "0901 234 567",
     "joinDate": "2025-01-01",
     "isActive": true
@@ -24,7 +24,7 @@
     "role": "staff",
     "employeeCode": "NV-001",
     "position": "Thu Ngân & Barista",
-    "hourlyRate": 28000,
+    "hourlyRate": 21000,
     "phone": "0912 345 678",
     "joinDate": "2025-02-15",
     "isActive": true
