@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Globe,
   Radio,
+  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import { getCurrentPosition } from '../utils/geo.ts';
@@ -21,6 +22,13 @@ import type { StoreConfig } from '../types/index.ts';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+interface SyncToastState {
+  type: 'loading' | 'success' | 'error';
+  title: string;
+  description: string;
+  timestamp?: string;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
@@ -33,7 +41,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     isFirebaseConnected,
     firebaseUser,
     firebaseProjectId,
+    lastFirebaseSync,
     syncUsersToFirebase,
+    refreshData,
   } = useApp();
   const [formData, setFormData] = useState<StoreConfig | null>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'network' | 'gps' | 'shifts' | 'firebase'>('general');
@@ -42,17 +52,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [isLocating, setIsLocating] = useState(false);
   const [ipInput, setIpInput] = useState('');
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
-  const [cloudSyncMsg, setCloudSyncMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<SyncToastState | null>(null);
+
+  const showToast = (nextToast: SyncToastState, autoHideMs = 6000) => {
+    setToast(nextToast);
+    if (nextToast.type !== 'loading' && autoHideMs > 0) {
+      setTimeout(() => {
+        setToast((prev) => (prev === nextToast ? null : prev));
+      }, autoHideMs);
+    }
+  };
 
   const handleSyncFirebaseCloud = async () => {
     setIsSyncingCloud(true);
-    setCloudSyncMsg(null);
+    showToast(
+      {
+        type: 'loading',
+        title: 'Đang kết nối & đẩy dữ liệu lên Firebase Firestore...',
+        description: `Đang đồng bộ ${users.length} tài khoản nhân sự lên bảng /users (Project: ${firebaseProjectId})`,
+      },
+      0
+    );
+
     try {
-      const count = await syncUsersToFirebase();
-      setCloudSyncMsg(`Đã đồng bộ thành công ${count} tài khoản nhân sự lên Firebase Firestore!`);
-      setTimeout(() => setCloudSyncMsg(null), 4000);
+      const res = await syncUsersToFirebase();
+      showToast(
+        {
+          type: 'success',
+          title: `Đồng bộ thành công ${res.syncedCount}/${users.length} tài khoản lên Firebase!`,
+          description: `Máy chủ Firestore xác nhận đang lưu trữ ${res.serverCount} tài khoản trong bảng /users • Tài khoản: ${res.adminEmail}`,
+          timestamp: res.syncedAt,
+        },
+        7000
+      );
     } catch (err: any) {
-      setCloudSyncMsg(err.message || 'Lỗi khi đồng bộ Firebase');
+      let friendlyMsg = err?.message || 'Không thể đồng bộ lên Firebase Firestore.';
+      if (friendlyMsg.includes('popup-closed-by-user')) {
+        friendlyMsg = 'Bạn đã đóng cửa sổ đăng nhập Google trước khi hoàn tất xác thực.';
+      } else if (friendlyMsg.includes('popup-blocked')) {
+        friendlyMsg = 'Trình duyệt đã chặn cửa sổ bật lên (Popup). Vui lòng cho phép Popup để đăng nhập Google.';
+      } else if (friendlyMsg.includes('Missing or insufficient permissions')) {
+        friendlyMsg =
+          'Tài khoản Google vừa chọn chưa có quyền ghi (chỉ tài khoản Admin phamthanhcong0412@gmail.com hoặc buihoai0412@gmail.com mới có quyền đồng bộ toàn bộ nhân sự).';
+      }
+      showToast(
+        {
+          type: 'error',
+          title: 'Đồng bộ Firebase chưa hoàn tất!',
+          description: friendlyMsg,
+          timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        },
+        8000
+      );
     } finally {
       setIsSyncingCloud(false);
     }
@@ -73,9 +124,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     try {
       await updateConfig(formData);
       setSaveSuccess(true);
+      showToast({
+        type: 'success',
+        title: 'Đã lưu cấu hình hệ thống!',
+        description: 'Mọi thiết lập WiFi, GPS, ca làm việc và Firebase đã được cập nhật.',
+      });
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
-      alert(err.message || 'Lỗi khi lưu cấu hình');
+      showToast({
+        type: 'error',
+        title: 'Lỗi khi lưu cấu hình',
+        description: err.message || 'Không thể lưu cấu hình cửa hàng',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -122,9 +182,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           radiusMeters: formData.storeGps.radiusMeters || 120,
         },
       });
-      alert(`Đã nhận diện tọa độ cửa hàng: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`);
+      showToast({
+        type: 'success',
+        title: 'Đã nhận diện tọa độ cửa hàng!',
+        description: `Vĩ độ: ${pos.coords.latitude.toFixed(6)}, Kinh độ: ${pos.coords.longitude.toFixed(6)}`,
+      });
     } catch (err: any) {
-      alert(err.message || 'Không thể lấy GPS');
+      showToast({
+        type: 'error',
+        title: 'Không thể lấy vị trí GPS',
+        description: err.message || 'Vui lòng cấp quyền định vị GPS trên trình duyệt.',
+      });
     } finally {
       setIsLocating(false);
     }
@@ -148,6 +216,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-[110] max-w-md w-full sm:w-96 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div
+            className={`p-4 rounded-2xl border shadow-2xl backdrop-blur-xl flex items-start gap-3 ${
+              toast.type === 'success'
+                ? 'bg-zinc-900/95 border-emerald-500/50 text-emerald-100 shadow-emerald-950/50'
+                : toast.type === 'error'
+                ? 'bg-zinc-900/95 border-rose-500/50 text-rose-100 shadow-rose-950/50'
+                : 'bg-zinc-900/95 border-indigo-500/50 text-indigo-100 shadow-indigo-950/50'
+            }`}
+          >
+            <div className="shrink-0 mt-0.5">
+              {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+              {toast.type === 'error' && <AlertTriangle className="w-5 h-5 text-rose-400" />}
+              {toast.type === 'loading' && <RefreshCw className="w-5 h-5 text-indigo-400 animate-spin" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-xs font-bold leading-snug">{toast.title}</h4>
+                {toast.timestamp && (
+                  <span className="text-[10px] font-mono opacity-75 shrink-0">{toast.timestamp}</span>
+                )}
+              </div>
+              <p className="text-[11px] opacity-90 mt-1 leading-relaxed break-words">{toast.description}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="relative w-full max-w-3xl max-h-[92vh] bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-zinc-100">
         
         {/* Header */}
@@ -229,29 +334,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {/* TAB 1: General */}
           {activeTab === 'general' && (
             <div className="space-y-4">
-              {/* Quick Firebase Summary Banner right inside General Tab */}
-              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
-                    <Database className="w-4 h-4 shrink-0" />
-                    <span>Firebase Firestore Đã Cấu Hình Lưu Trữ User</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      {isFirebaseConnected ? `Đã kết nối (${firebaseUser?.email})` : 'Active'}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-zinc-300 font-mono">
-                    Tài khoản Quản trị: <strong className="text-emerald-300">{formData.firebaseConfig?.adminEmail || 'phamthanhcong0412@gmail.com'}</strong> • Project ID: <strong className="text-white">{formData.firebaseConfig?.projectId || firebaseProjectId}</strong>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('firebase')}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0 transition-colors cursor-pointer"
-                >
-                  Xem Chi Tiết Firebase →
-                </button>
-              </div>
-
               <div>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Tên Cửa Hàng / Quán</label>
                 <input
@@ -652,24 +734,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   Dự án Firebase Firestore đã được khởi tạo và triển khai quy tắc bảo mật (Security Rules) cho bảng <code>users</code>, <code>attendance</code> và <code>store_config</code>.
                 </p>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handleSyncFirebaseCloud}
                     disabled={isSyncingCloud}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-60"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-2 shadow-lg shadow-emerald-600/20"
                   >
-                    {isSyncingCloud
-                      ? 'Đang đồng bộ lên Firestore...'
-                      : isFirebaseConnected
-                      ? `Đồng Bộ Toàn Bộ ${users.length} User Lên Firestore Ngay`
-                      : 'Xác Thực Google & Đồng Bộ User Lên Firestore'}
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+                    <span>
+                      {isSyncingCloud
+                        ? 'Đang đẩy & xác thực trên Firestore...'
+                        : isFirebaseConnected
+                        ? `Đồng Bộ Toàn Bộ ${users.length} User Lên Firestore Ngay`
+                        : 'Xác Thực Google & Đồng Bộ User Lên Firestore'}
+                    </span>
                   </button>
+
+                  <a
+                    href={`https://console.firebase.google.com/project/${formData.firebaseConfig?.projectId || firebaseProjectId}/firestore/databases/${formData.firebaseConfig?.firestoreDatabaseId || 'ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881'}/data`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    Mở Thẳng Bảng /users Trên Firestore
+                  </a>
+
+                  <a
+                    href={`https://console.firebase.google.com/project/${formData.firebaseConfig?.projectId || firebaseProjectId}/settings/iam`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold text-xs transition-colors"
+                  >
+                    Kiểm Tra Quyền (Users & Permissions)
+                  </a>
                 </div>
 
-                {cloudSyncMsg && (
-                  <p className="mt-2 text-xs text-emerald-300 font-semibold">{cloudSyncMsg}</p>
+                {lastFirebaseSync && (
+                  <div className="mt-3 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-between gap-2 text-xs text-emerald-200">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>
+                        Đã xác thực trên máy chủ Firestore: <strong>{lastFirebaseSync.serverCount} tài khoản</strong> trong bảng <code>/users</code> (Đồng bộ bởi <code>{lastFirebaseSync.adminEmail}</code>)
+                      </span>
+                    </div>
+                    <span className="font-mono text-[11px] text-emerald-300 shrink-0">
+                      Lúc {lastFirebaseSync.syncedAt}
+                    </span>
+                  </div>
                 )}
+              </div>
+
+              {/* Important Notice for accepting invitation on phamthanhcong0412@gmail.com */}
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
+                <div className="flex items-center gap-2 text-amber-300 font-bold">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>Tại sao thêm quyền rồi nhưng vào phamthanhcong0412@gmail.com chưa thấy Project?</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1.5 text-zinc-300 text-[11px] leading-relaxed">
+                  <li>
+                    <strong className="text-white">Chấp nhận Email lời mời của Google (Bắt buộc):</strong> Khi bạn thêm <code className="text-emerald-300">phamthanhcong0412@gmail.com</code> vào mục <em>Users and permissions</em>, trạng thái sẽ là <strong>Pending (Đang chờ)</strong>. Bạn cần mở hộp thư <strong>Gmail của phamthanhcong0412@gmail.com</strong>, tìm email từ <code>firebase-noreply@google.com</code> (hoặc <code>google-cloud-noreply@google.com</code>) và bấm nút <strong>"Accept invitation" (Chấp nhận lời mời)</strong> thì dự án mới hiện ra trong Firebase Console.
+                  </li>
+                  <li>
+                    <strong className="text-white">Truy cập thẳng bằng Link trực tiếp:</strong> Sau khi bấm chấp nhận trong Gmail, bấm nút <strong>"Mở Thẳng Bảng /users Trên Firestore"</strong> ở trên (nhớ chọn đúng avatar tài khoản <code>phamthanhcong0412@gmail.com</code> ở góc phải trên cùng của trang Firebase).
+                  </li>
+                  <li>
+                    <strong className="text-white">Đẩy dữ liệu lên bảng /users:</strong> Nếu vào Firestore mà chưa thấy danh sách nhân viên, hãy bấm nút màu xanh <strong>"Xác Thực Google & Đồng Bộ User Lên Firestore"</strong> ngay phía trên để đẩy toàn bộ {users.length} tài khoản lên đám mây.
+                  </li>
+                </ol>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -817,13 +950,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-              {/* Synced Users Summary */}
-              <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800/90 space-y-2">
-                <div className="flex items-center justify-between text-xs">
+      {/* Synced Users Summary & Firebase API Endpoints */}
+              <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800/90 space-y-2.5">
+                <div className="flex items-center justify-between text-xs flex-wrap gap-2">
                   <span className="font-bold text-zinc-200">
-                    Danh Sách Tài Khoản User Đang Quản Lý ({users.length} tài khoản)
+                    Danh Sách Nhân Viên Lấy Từ Firebase ({users.length} tài khoản)
                   </span>
-                  <span className="text-[11px] text-emerald-400 font-mono">Collection: /users</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      showToast(
+                        {
+                          type: 'loading',
+                          title: 'Đang gọi API lấy danh sách nhân viên từ Firebase...',
+                          description: 'GET /api/firebase/users • Collection: /users',
+                        },
+                        0
+                      );
+                      try {
+                        await refreshData();
+                        showToast({
+                          type: 'success',
+                          title: `Đã tải ${users.length} tài khoản từ Firebase API!`,
+                          description: `Dữ liệu nhân viên và thông tin đăng nhập đã được đồng bộ từ bảng /users (${firebaseProjectId}).`,
+                          timestamp: new Date().toLocaleTimeString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          }),
+                        });
+                      } catch (err: any) {
+                        showToast({
+                          type: 'error',
+                          title: 'Lỗi tải dữ liệu từ Firebase API',
+                          description: err?.message || 'Không thể kết nối API Firebase',
+                        });
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[11px] font-semibold text-indigo-300 transition-colors cursor-pointer"
+                  >
+                    Tải Lại Từ API Firebase (/users)
+                  </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {users.map((u) => (
@@ -834,6 +1001,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       {u.username} ({u.role === 'admin' ? 'QL' : 'NV'})
                     </span>
                   ))}
+                </div>
+              </div>
+
+              {/* Active Firebase REST & SDK APIs */}
+              <div className="p-3.5 rounded-2xl bg-zinc-950 border border-indigo-500/25 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-indigo-300">
+                    Hệ Thống API Firebase Đang Hoạt Động (Auth & Nhân Sự)
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                    Firestore + REST API
+                  </span>
+                </div>
+                <div className="space-y-1.5 text-[11px] font-mono">
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800">
+                    <span className="text-emerald-400 font-bold">POST /api/firebase/login</span>
+                    <span className="text-zinc-400 font-sans">Đăng nhập bằng tài khoản từ Firebase (/users)</span>
+                  </div>
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800">
+                    <span className="text-sky-400 font-bold">GET /api/firebase/users</span>
+                    <span className="text-zinc-400 font-sans">Lấy danh sách toàn bộ nhân viên từ Firebase</span>
+                  </div>
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800">
+                    <span className="text-amber-400 font-bold">POST /api/firebase/users</span>
+                    <span className="text-zinc-400 font-sans">Tạo mới tài khoản & lưu lên Firebase Firestore</span>
+                  </div>
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800">
+                    <span className="text-violet-400 font-bold">PUT /api/firebase/users/:id</span>
+                    <span className="text-zinc-400 font-sans">Cập nhật nhân sự / mật khẩu trên Firebase</span>
+                  </div>
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800">
+                    <span className="text-rose-400 font-bold">DELETE /api/firebase/users/:id</span>
+                    <span className="text-zinc-400 font-sans">Xoá tài khoản khỏi Firebase Firestore</span>
+                  </div>
                 </div>
               </div>
 

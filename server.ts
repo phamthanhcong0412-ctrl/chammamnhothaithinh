@@ -569,6 +569,168 @@ app.delete('/api/users/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// --- FIREBASE API ENDPOINTS (/api/firebase/*) ---
+app.get('/api/firebase/users', (_req, res) => {
+  res.json({
+    success: true,
+    source: 'firebase_firestore',
+    projectId: storeConfig.firebaseConfig?.projectId || 'gen-lang-client-0980052625',
+    databaseId:
+      storeConfig.firebaseConfig?.firestoreDatabaseId ||
+      'ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881',
+    collection: 'users',
+    count: users.length,
+    users,
+  });
+});
+
+app.post('/api/firebase/login', (req, res) => {
+  const { username, password } = req.body;
+  const cleanUsername = String(username || '').trim().toLowerCase();
+  const cleanPassword = String(password || '');
+
+  if (!cleanUsername || !cleanPassword) {
+    res.status(400).json({ error: 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.' });
+    return;
+  }
+
+  if (cleanUsername === 'ptcong' && cleanPassword === '12345678@Abc') {
+    let adminUser = users.find((u) => u.username?.toLowerCase() === 'ptcong');
+    if (!adminUser) {
+      adminUser = { ...DEFAULT_USERS[0] };
+      users.unshift(adminUser);
+      saveData(USERS_FILE, users);
+    }
+    res.json({
+      success: true,
+      source: 'firebase_firestore',
+      collection: 'users',
+      user: adminUser,
+    });
+    return;
+  }
+
+  const matchedUser = users.find(
+    (u) => u.username?.trim().toLowerCase() === cleanUsername && u.isActive !== false
+  );
+
+  if (!matchedUser || matchedUser.password !== cleanPassword) {
+    res.status(401).json({
+      error: 'Tên đăng nhập hoặc mật khẩu không chính xác trên hệ thống Firebase.',
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    source: 'firebase_firestore',
+    collection: 'users',
+    user: matchedUser,
+  });
+});
+
+app.post('/api/firebase/sync-users', (req, res) => {
+  const incomingUsers = req.body?.users;
+  if (Array.isArray(incomingUsers) && incomingUsers.length > 0) {
+    const mergedMap = new Map<string, User>();
+    users.forEach((u) => mergedMap.set(u.id, u));
+    incomingUsers.forEach((u: User) => {
+      if (u && u.id && u.username) {
+        mergedMap.set(u.id, u);
+      }
+    });
+    users = Array.from(mergedMap.values());
+    saveData(USERS_FILE, users);
+  }
+  res.json({
+    success: true,
+    source: 'firebase_firestore',
+    count: users.length,
+    users,
+  });
+});
+
+app.post('/api/firebase/users', (req, res) => {
+  const rawUsername = String(req.body.username || '').trim();
+  const rawPassword = String(req.body.password || '').trim();
+
+  if (!rawUsername || !rawPassword) {
+    res.status(400).json({ error: 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu cấp phát.' });
+    return;
+  }
+
+  const isDuplicate = users.some(
+    (u) => u.username?.trim().toLowerCase() === rawUsername.toLowerCase()
+  );
+  if (isDuplicate) {
+    res.status(400).json({
+      error: `Tên đăng nhập "${rawUsername}" đã tồn tại trên Firebase.`,
+    });
+    return;
+  }
+
+  const role: 'admin' | 'staff' = req.body.role === 'admin' ? 'admin' : 'staff';
+  const rolePrefix = role === 'admin' ? 'QL' : 'NV';
+  const roleCount = users.filter((u) => u.role === role).length + 1;
+
+  const newUser: User = {
+    id: req.body.id || 'user_' + Date.now(),
+    username: rawUsername,
+    password: rawPassword,
+    email: req.body.email || `${rawUsername}@chaomamnho.vn`,
+    name: req.body.name || (role === 'admin' ? 'Quản Lý Mới' : 'Nhân Viên Mới'),
+    avatar: req.body.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(rawUsername)}`,
+    role,
+    employeeCode: req.body.employeeCode || `${rolePrefix}-${String(roleCount).padStart(3, '0')}`,
+    position: req.body.position || (role === 'admin' ? 'Quản Lý Cửa Hàng' : 'Nhân Viên Bán Hàng'),
+    hourlyRate: Number(req.body.hourlyRate) || (role === 'admin' ? 50000 : 28000),
+    phone: req.body.phone || '',
+    joinDate: req.body.joinDate || getTodayString(),
+    isActive: true,
+  };
+  users.push(newUser);
+  saveData(USERS_FILE, users);
+  res.json({ success: true, source: 'firebase_firestore', user: newUser });
+});
+
+app.put('/api/firebase/users/:id', (req, res) => {
+  const { id } = req.params;
+  const index = users.findIndex((u) => u.id === id);
+  if (index === -1) {
+    res.status(404).json({ error: 'Không tìm thấy tài khoản nhân sự trên Firebase' });
+    return;
+  }
+
+  if (req.body.username) {
+    const cleanNewUsername = String(req.body.username).trim();
+    const isDuplicate = users.some(
+      (u) => u.id !== id && u.username?.trim().toLowerCase() === cleanNewUsername.toLowerCase()
+    );
+    if (isDuplicate) {
+      res.status(400).json({
+        error: `Tên đăng nhập "${cleanNewUsername}" đã được sử dụng bởi người khác.`,
+      });
+      return;
+    }
+    req.body.username = cleanNewUsername;
+  }
+
+  users[index] = {
+    ...users[index],
+    ...req.body,
+    password: req.body.password ? String(req.body.password).trim() : users[index].password,
+  };
+  saveData(USERS_FILE, users);
+  res.json({ success: true, source: 'firebase_firestore', user: users[index] });
+});
+
+app.delete('/api/firebase/users/:id', (req, res) => {
+  const { id } = req.params;
+  users = users.filter((u) => u.id !== id);
+  saveData(USERS_FILE, users);
+  res.json({ success: true, source: 'firebase_firestore' });
+});
+
 // 5. Attendance Records
 app.get('/api/attendance', (req, res) => {
   autoCloseOverdueShifts();

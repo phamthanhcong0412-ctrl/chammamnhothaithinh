@@ -16,8 +16,6 @@ import {
   ShieldCheck,
   UserCheck,
   AlertCircle,
-  Database,
-  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import type { User } from '../types/index.ts';
@@ -29,10 +27,6 @@ export const EmployeeManagement: React.FC = () => {
     updateUser,
     deleteUser,
     currentUser,
-    isFirebaseConnected,
-    firebaseUser,
-    firebaseProjectId,
-    syncUsersToFirebase,
   } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'staff'>('all');
@@ -40,23 +34,6 @@ export const EmployeeManagement: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [showFormPassword, setShowFormPassword] = useState(true);
-  const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
-  const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
-
-  const handleSyncToFirebase = async () => {
-    setIsSyncingFirebase(true);
-    setSyncSuccessMsg(null);
-    setFormError(null);
-    try {
-      const count = await syncUsersToFirebase();
-      setSyncSuccessMsg(`Đã lưu & đồng bộ ${count} tài khoản nhân sự lên Firebase Firestore (${firebaseProjectId})!`);
-      setTimeout(() => setSyncSuccessMsg(null), 5000);
-    } catch (err: any) {
-      setFormError(err.message || 'Không thể đồng bộ lên Firebase Firestore.');
-    } finally {
-      setIsSyncingFirebase(false);
-    }
-  };
 
   // Track which user cards have their password revealed or copied
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
@@ -217,21 +194,6 @@ export const EmployeeManagement: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={handleSyncToFirebase}
-            disabled={isSyncingFirebase}
-            className="px-4 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 text-emerald-400 ${isSyncingFirebase ? 'animate-spin' : ''}`} />
-            <span>
-              {isSyncingFirebase
-                ? 'Đang lưu Firebase...'
-                : isFirebaseConnected
-                ? 'Đồng Bộ Firebase Cloud'
-                : 'Kết Nối & Lưu Firebase'}
-            </span>
-          </button>
-
-          <button
             onClick={() => handleOpenAdd('staff')}
             className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 flex items-center gap-2 transition-all cursor-pointer"
           >
@@ -246,55 +208,6 @@ export const EmployeeManagement: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {/* Firebase Cloud Persistence Banner */}
-      <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-start sm:items-center gap-3">
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-              isFirebaseConnected
-                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-            }`}
-          >
-            <Database className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-zinc-100">
-                Cơ Sở Dữ Liệu Firebase Firestore:
-              </span>
-              <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-zinc-800 text-indigo-300 border border-zinc-700">
-                {firebaseProjectId}
-              </span>
-              <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                Admin: {firebaseUser?.email || 'phamthanhcong0412@gmail.com'}
-              </span>
-              {isFirebaseConnected ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
-                  Đã Kết Nối ({firebaseUser?.email})
-                </span>
-              ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
-                  Chưa Xác Thực Google Cloud
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-zinc-400 mt-0.5">
-              {isFirebaseConnected
-                ? 'Mọi thao tác thêm, sửa, xóa nhân sự sẽ tự động lưu trực tiếp vào bảng users trên Firebase Firestore.'
-                : 'Bấm "Kết Nối & Lưu Firebase" để xác thực Google và đồng bộ toàn bộ danh sách tài khoản lên đám mây Firestore.'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {syncSuccessMsg && (
-        <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center gap-2">
-          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{syncSuccessMsg}</span>
-        </div>
-      )}
 
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

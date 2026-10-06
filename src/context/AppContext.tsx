@@ -27,6 +27,7 @@ import {
   handleFirestoreError,
   OperationType,
   type FirebaseUser,
+  type FirebaseSyncResult,
 } from '../firebase.ts';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 
@@ -35,6 +36,7 @@ interface AppContextType {
   firebaseUser: FirebaseUser | null;
   isFirebaseConnected: boolean;
   firebaseProjectId: string;
+  lastFirebaseSync: FirebaseSyncResult | null;
   users: User[];
   attendance: AttendanceRecord[];
   storeConfig: StoreConfig | null;
@@ -45,7 +47,7 @@ interface AppContextType {
   switchUser: (user: User) => void;
   loginWithCredentials: (username: string, password: string) => Promise<User>;
   loginWithGoogle: () => Promise<User>;
-  syncUsersToFirebase: () => Promise<number>;
+  syncUsersToFirebase: () => Promise<FirebaseSyncResult>;
   logout: () => void;
   checkIn: (payload?: {
     qrToken?: string;
@@ -83,6 +85,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [lastFirebaseSync, setLastFirebaseSync] = useState<FirebaseSyncResult | null>(null);
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
   const [users, setUsers] = useState<User[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -112,14 +115,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubUsers = onSnapshot(
       usersQuery,
       (snapshot) => {
-        if (snapshot.empty) {
-          // If admin connected for the first time and Firestore users collection is empty, seed current users
-          if (isBootstrappedAdminEmail(firebaseUser.email) && users.length > 0) {
-            syncAllUsersToFirestore(users).catch((err) => console.error('Initial Firestore seed error:', err));
-          }
-          return;
-        }
-
         const firestoreUsers: User[] = snapshot.docs.map((d) => {
           const data = d.data();
           return {
@@ -140,6 +135,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
         setUsers((prev) => {
+          const firestoreIds = new Set(firestoreUsers.map((u) => u.id));
+          const missingInFirestore = prev.filter((u) => !firestoreIds.has(u.id));
+          if (missingInFirestore.length > 0 && isBootstrappedAdminEmail(firebaseUser.email)) {
+            syncAllUsersToFirestore(missingInFirestore).catch((err) =>
+              console.warn('Auto-sync missing users to Firestore warning:', err)
+            );
+          }
+
+          if (firestoreUsers.length === 0) {
+            return prev;
+          }
+
           const mergedMap = new Map<string, User>();
           prev.forEach((u) => mergedMap.set(u.id, u));
           firestoreUsers.forEach((u) => mergedMap.set(u.id, u));
@@ -161,6 +168,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => unsubUsers();
   }, [isAuthReady, firebaseUser]);
+
+  // Auto-seed local users to Firestore as soon as both firebaseUser and users list are ready
+  useEffect(() => {
+    if (!isAuthReady || !firebaseUser || users.length === 0) return;
+    if (isBootstrappedAdminEmail(firebaseUser.email)) {
+      syncAllUsersToFirestore(users)
+        .then((res) => setLastFirebaseSync(res))
+        .catch((err) => console.warn('Background Firestore user sync warning:', err));
+    }
+  }, [isAuthReady, firebaseUser, users.length]);
 
   // Compute active record for current user
   const activeRecord = currentUser
@@ -192,7 +209,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           appId: cfg.firebaseConfig?.appId || firebaseAppletConfig.appId,
         },
       });
-      setUsers(userList);
+      setUsers((prev) => {
+        const merged = new Map<string, User>();
+        prev.forEach((u) => merged.set(u.id, u));
+        userList.forEach((u) => merged.set(u.id, u));
+        return Array.from(merged.values());
+      });
       setAttendance(attList);
       if (netInfo) setNetworkInfo(netInfo);
 
@@ -301,11 +323,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return matchedUser;
   };
 
-  const syncUsersToFirebase = async (): Promise<number> => {
+  const syncUsersToFirebase = async (): Promise<FirebaseSyncResult> => {
+    const startTime = Date.now();
     if (!auth.currentUser) {
-      await loginWithGoogle();
+      await signInWithPopup(auth, googleProvider);
     }
-    return await syncAllUsersToFirestore(users);
+    const result = await syncAllUsersToFirestore(users);
+    if (storeConfig) {
+      await saveStoreConfigToFirestore(storeConfig).catch(() => {});
+    }
+    // Ensure visual feedback lasts at least 600ms so button doesn't just flash
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 600) {
+      await new Promise((r) => setTimeout(r, 600 - elapsed));
+    }
+    setLastFirebaseSync(result);
+    return result;
   };
 
   const logout = () => {
@@ -441,6 +474,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         firebaseUser,
         isFirebaseConnected: !!firebaseUser,
         firebaseProjectId: firebaseAppletConfig.projectId,
+        lastFirebaseSync,
         users,
         attendance,
         storeConfig,

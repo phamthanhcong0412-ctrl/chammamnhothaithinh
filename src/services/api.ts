@@ -6,6 +6,13 @@ import type {
   EmailLog,
   MonthlyEmployeeSummary,
 } from '../types/index.ts';
+import {
+  auth,
+  fetchUsersFromFirestore,
+  loginFromFirestore,
+  saveUserToFirestore,
+  deleteUserFromFirestore,
+} from '../firebase.ts';
 
 const API_BASE = '/api';
 
@@ -263,65 +270,93 @@ export const api = {
     }
   },
 
-  // Auth & Users
+  // Auth & Users (Powered by Firebase Firestore & /api/firebase/*)
   async login(username: string, password: string): Promise<{ success: boolean; user: User }> {
+    const cleanUsername = String(username || '').trim();
+    const cleanPassword = String(password || '');
+
+    // 1. If authenticated with Firebase Firestore on client, query Firestore /users directly first
+    if (auth.currentUser) {
+      try {
+        const localFallback = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+        const fbRes = await loginFromFirestore(cleanUsername, cleanPassword, localFallback);
+        return { success: true, user: fbRes.user };
+      } catch (fbErr: any) {
+        // Continue to /api/firebase/login check below
+        console.warn('Direct Firestore login check:', fbErr?.message);
+      }
+    }
+
+    // 2. Call Firebase API endpoint (/api/firebase/login)
     try {
-      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/auth/login`, {
+      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: cleanUsername, password: cleanPassword }),
       });
       if (!ok) throw new Error(data.error || 'Đăng nhập thất bại');
+      if (auth.currentUser && data.user) {
+        saveUserToFirestore(data.user).catch(() => {});
+      }
       return data;
     } catch (err: any) {
       if (err.message !== 'STATIC_HOST_FALLBACK' && !(err instanceof TypeError)) {
         throw err;
       }
-      const cleanUsername = String(username || '').trim().toLowerCase();
-      const cleanPassword = String(password || '');
-      const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
-
-      if (cleanUsername === 'ptcong' && cleanPassword === '12345678@Abc') {
-        let adminUser = users.find((u) => u.username?.toLowerCase() === 'ptcong');
-        if (!adminUser) {
-          adminUser = { ...DEFAULT_USERS[0] };
-          users.unshift(adminUser);
-          saveLocal(STORAGE_KEYS.USERS, users);
-        }
-        return { success: true, user: adminUser };
-      }
-
-      const matched = users.find(
-        (u) => u.username?.trim().toLowerCase() === cleanUsername && u.isActive !== false
-      );
-      if (!matched || matched.password !== cleanPassword) {
-        throw new Error(
-          'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại tài khoản được cấp phát.'
-        );
-      }
-      return { success: true, user: matched };
+      const localUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      const fbRes = await loginFromFirestore(cleanUsername, cleanPassword, localUsers);
+      return { success: true, user: fbRes.user };
     }
   },
 
   async getUsers(): Promise<User[]> {
+    // 1. Fetch from Firebase Firestore if connected
+    let firestoreList: User[] = [];
+    if (auth.currentUser) {
+      try {
+        firestoreList = await fetchUsersFromFirestore();
+      } catch (e) {
+        console.warn('Firestore getUsers warning:', e);
+      }
+    }
+
+    // 2. Fetch from /api/firebase/users and merge with Firestore list
     try {
-      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/users`);
-      if (!ok) throw new Error('Không thể tải danh sách nhân viên');
-      saveLocal(STORAGE_KEYS.USERS, data);
-      return data;
+      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/users`);
+      if (!ok) throw new Error('Không thể tải danh sách nhân viên từ Firebase API');
+      const apiUsers: User[] = Array.isArray(data.users) ? data.users : Array.isArray(data) ? data : [];
+
+      const mergedMap = new Map<string, User>();
+      apiUsers.forEach((u) => mergedMap.set(u.id, u));
+      firestoreList.forEach((u) => mergedMap.set(u.id, u));
+      const finalUsers = Array.from(mergedMap.values());
+
+      saveLocal(STORAGE_KEYS.USERS, finalUsers);
+      return finalUsers;
     } catch {
-      return loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      const localUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      const mergedMap = new Map<string, User>();
+      localUsers.forEach((u) => mergedMap.set(u.id, u));
+      firestoreList.forEach((u) => mergedMap.set(u.id, u));
+      const finalUsers = Array.from(mergedMap.values());
+      saveLocal(STORAGE_KEYS.USERS, finalUsers);
+      return finalUsers;
     }
   },
 
   async createUser(user: Partial<User>): Promise<{ success: boolean; user: User }> {
     try {
-      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/users`, {
+      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
       });
-      if (!ok) throw new Error(data.error || 'Không thể tạo tài khoản mới');
+      if (!ok) throw new Error(data.error || 'Không thể tạo tài khoản mới trên Firebase');
+      if (auth.currentUser && data.user) {
+        await saveUserToFirestore(data.user);
+      }
+      const currentUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      saveLocal(STORAGE_KEYS.USERS, [...currentUsers.filter((u) => u.id !== data.user.id), data.user]);
       return data;
     } catch (err: any) {
       if (err.message !== 'STATIC_HOST_FALLBACK' && !(err instanceof TypeError)) {
@@ -358,18 +393,29 @@ export const api = {
       };
       users.push(newUser);
       saveLocal(STORAGE_KEYS.USERS, users);
+      if (auth.currentUser) {
+        await saveUserToFirestore(newUser);
+      }
       return { success: true, user: newUser };
     }
   },
 
   async updateUser(id: string, user: Partial<User>): Promise<{ success: boolean; user: User }> {
     try {
-      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/users/${id}`, {
+      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/users/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
       });
-      if (!ok) throw new Error(data.error || 'Không thể cập nhật thông tin tài khoản');
+      if (!ok) throw new Error(data.error || 'Không thể cập nhật thông tin tài khoản trên Firebase');
+      if (auth.currentUser && data.user) {
+        await saveUserToFirestore(data.user);
+      }
+      const currentUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      saveLocal(
+        STORAGE_KEYS.USERS,
+        currentUsers.map((u) => (u.id === id ? data.user : u))
+      );
       return data;
     } catch (err: any) {
       if (err.message !== 'STATIC_HOST_FALLBACK' && !(err instanceof TypeError)) {
@@ -384,18 +430,29 @@ export const api = {
         password: user.password ? String(user.password).trim() : users[idx].password,
       };
       saveLocal(STORAGE_KEYS.USERS, users);
+      if (auth.currentUser) {
+        await saveUserToFirestore(users[idx]);
+      }
       return { success: true, user: users[idx] };
     }
   },
 
   async deleteUser(id: string): Promise<{ success: boolean }> {
     try {
-      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/users/${id}`, { method: 'DELETE' });
-      if (!ok) throw new Error('Không thể xoá nhân viên');
+      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/users/${id}`, { method: 'DELETE' });
+      if (!ok) throw new Error('Không thể xoá nhân viên khỏi Firebase');
+      if (auth.currentUser) {
+        await deleteUserFromFirestore(id);
+      }
+      const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS).filter((u) => u.id !== id);
+      saveLocal(STORAGE_KEYS.USERS, users);
       return data;
     } catch {
       const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS).filter((u) => u.id !== id);
       saveLocal(STORAGE_KEYS.USERS, users);
+      if (auth.currentUser) {
+        await deleteUserFromFirestore(id);
+      }
       return { success: true };
     }
   },
