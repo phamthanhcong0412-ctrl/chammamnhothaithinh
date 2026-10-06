@@ -14,8 +14,10 @@ import {
   ShieldCheck,
   User as UserIcon,
   Check,
+  KeyRound,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
+import { ChangePasswordModal } from './ChangePasswordModal.tsx';
 
 interface NavbarProps {
   currentTab: 'attendance' | 'dashboard' | 'monthly' | 'employees';
@@ -32,6 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { currentUser, storeConfig, logout } = useApp();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isChangePwOpen, setIsChangePwOpen] = useState(false);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -207,9 +210,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         onClick={() => {
                           setIsUserMenuOpen(false);
+                          setIsChangePwOpen(true);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-indigo-300 hover:bg-indigo-500/15 flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                        Đổi mật khẩu cá nhân
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
                           logout();
                         }}
-                        className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 transition-colors"
+                        className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 transition-colors cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         Đăng xuất khỏi tài khoản
@@ -224,6 +238,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         </div>
       </header>
+
+      <ChangePasswordModal
+        isOpen={isChangePwOpen}
+        onClose={() => setIsChangePwOpen(false)}
+      />
 
       {/* Mobile Bottom Navigation Bar for Smartphone Users */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-800/80 px-2 py-1.5 flex items-center justify-around">

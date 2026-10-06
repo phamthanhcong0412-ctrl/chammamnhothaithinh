@@ -310,37 +310,25 @@ export const api = {
   },
 
   async getUsers(): Promise<User[]> {
-    // 1. Fetch from Firebase Firestore if connected
-    let firestoreList: User[] = [];
-    if (auth.currentUser) {
-      try {
-        firestoreList = await fetchUsersFromFirestore();
-      } catch (e) {
-        console.warn('Firestore getUsers warning:', e);
-      }
-    }
-
-    // 2. Fetch from /api/firebase/users and merge with Firestore list
     try {
       const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/users`);
       if (!ok) throw new Error('Không thể tải danh sách nhân viên từ Firebase API');
       const apiUsers: User[] = Array.isArray(data.users) ? data.users : Array.isArray(data) ? data : [];
-
-      const mergedMap = new Map<string, User>();
-      apiUsers.forEach((u) => mergedMap.set(u.id, u));
-      firestoreList.forEach((u) => mergedMap.set(u.id, u));
-      const finalUsers = Array.from(mergedMap.values());
-
-      saveLocal(STORAGE_KEYS.USERS, finalUsers);
-      return finalUsers;
+      saveLocal(STORAGE_KEYS.USERS, apiUsers);
+      return apiUsers;
     } catch {
-      const localUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
-      const mergedMap = new Map<string, User>();
-      localUsers.forEach((u) => mergedMap.set(u.id, u));
-      firestoreList.forEach((u) => mergedMap.set(u.id, u));
-      const finalUsers = Array.from(mergedMap.values());
-      saveLocal(STORAGE_KEYS.USERS, finalUsers);
-      return finalUsers;
+      if (auth.currentUser) {
+        try {
+          const firestoreList = await fetchUsersFromFirestore();
+          if (firestoreList.length > 0) {
+            saveLocal(STORAGE_KEYS.USERS, firestoreList);
+            return firestoreList;
+          }
+        } catch (e) {
+          console.warn('Firestore getUsers fallback:', e);
+        }
+      }
+      return loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
     }
   },
 
@@ -353,7 +341,7 @@ export const api = {
       });
       if (!ok) throw new Error(data.error || 'Không thể tạo tài khoản mới trên Firebase');
       if (auth.currentUser && data.user) {
-        await saveUserToFirestore(data.user);
+        saveUserToFirestore(data.user).catch(() => {});
       }
       const currentUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
       saveLocal(STORAGE_KEYS.USERS, [...currentUsers.filter((u) => u.id !== data.user.id), data.user]);
@@ -394,7 +382,7 @@ export const api = {
       users.push(newUser);
       saveLocal(STORAGE_KEYS.USERS, users);
       if (auth.currentUser) {
-        await saveUserToFirestore(newUser);
+        saveUserToFirestore(newUser).catch(() => {});
       }
       return { success: true, user: newUser };
     }
@@ -409,7 +397,7 @@ export const api = {
       });
       if (!ok) throw new Error(data.error || 'Không thể cập nhật thông tin tài khoản trên Firebase');
       if (auth.currentUser && data.user) {
-        await saveUserToFirestore(data.user);
+        saveUserToFirestore(data.user).catch(() => {});
       }
       const currentUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
       saveLocal(
@@ -431,7 +419,50 @@ export const api = {
       };
       saveLocal(STORAGE_KEYS.USERS, users);
       if (auth.currentUser) {
-        await saveUserToFirestore(users[idx]);
+        saveUserToFirestore(users[idx]).catch(() => {});
+      }
+      return { success: true, user: users[idx] };
+    }
+  },
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ success: boolean; user: User }> {
+    try {
+      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, currentPassword, newPassword }),
+      });
+      if (!ok) throw new Error(data.error || 'Không thể đổi mật khẩu');
+      if (auth.currentUser && data.user) {
+        saveUserToFirestore(data.user).catch(() => {});
+      }
+      const currentUsers = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      saveLocal(
+        STORAGE_KEYS.USERS,
+        currentUsers.map((u) => (u.id === userId ? data.user : u))
+      );
+      return data;
+    } catch (err: any) {
+      if (err.message !== 'STATIC_HOST_FALLBACK' && !(err instanceof TypeError)) {
+        throw err;
+      }
+      const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      const idx = users.findIndex((u) => u.id === userId);
+      if (idx === -1) throw new Error('Không tìm thấy tài khoản người dùng');
+      if (String(users[idx].password || '123456') !== String(currentPassword)) {
+        throw new Error('Mật khẩu hiện tại không chính xác.');
+      }
+      users[idx] = {
+        ...users[idx],
+        password: newPassword.trim(),
+      };
+      saveLocal(STORAGE_KEYS.USERS, users);
+      if (auth.currentUser) {
+        saveUserToFirestore(users[idx]).catch(() => {});
       }
       return { success: true, user: users[idx] };
     }
@@ -442,7 +473,7 @@ export const api = {
       const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/users/${id}`, { method: 'DELETE' });
       if (!ok) throw new Error('Không thể xoá nhân viên khỏi Firebase');
       if (auth.currentUser) {
-        await deleteUserFromFirestore(id);
+        deleteUserFromFirestore(id).catch(() => {});
       }
       const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS).filter((u) => u.id !== id);
       saveLocal(STORAGE_KEYS.USERS, users);
@@ -451,7 +482,7 @@ export const api = {
       const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS).filter((u) => u.id !== id);
       saveLocal(STORAGE_KEYS.USERS, users);
       if (auth.currentUser) {
-        await deleteUserFromFirestore(id);
+        deleteUserFromFirestore(id).catch(() => {});
       }
       return { success: true };
     }

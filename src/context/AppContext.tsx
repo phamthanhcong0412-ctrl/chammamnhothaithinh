@@ -77,6 +77,7 @@ interface AppContextType {
   addUser: (userData: Partial<User>) => Promise<User>;
   updateUser: (id: string, userData: Partial<User>) => Promise<User>;
   deleteUser: (id: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<User>;
   sendEmailReport: (recipient?: string) => Promise<EmailLog>;
 }
 
@@ -209,12 +210,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           appId: cfg.firebaseConfig?.appId || firebaseAppletConfig.appId,
         },
       });
-      setUsers((prev) => {
-        const merged = new Map<string, User>();
-        prev.forEach((u) => merged.set(u.id, u));
-        userList.forEach((u) => merged.set(u.id, u));
-        return Array.from(merged.values());
-      });
+      setUsers(userList);
       setAttendance(attList);
       if (netInfo) setNetworkInfo(netInfo);
 
@@ -243,7 +239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 20000); // Polling every 20s
+    const interval = setInterval(refreshData, 3000); // Realtime sync every 3s
     return () => clearInterval(interval);
   }, [refreshData]);
 
@@ -435,9 +431,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addUser = async (userData: Partial<User>) => {
     const res = await api.createUser(userData);
-    setUsers((prev) => [...prev, res.user]);
+    setUsers((prev) => [...prev.filter((u) => u.id !== res.user.id), res.user]);
     if (auth.currentUser) {
-      await saveUserToFirestore(res.user);
+      saveUserToFirestore(res.user).catch((e) => console.warn('Firestore addUser sync:', e));
     }
     return res.user;
   };
@@ -449,7 +445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(res.user);
     }
     if (auth.currentUser) {
-      await saveUserToFirestore(res.user);
+      saveUserToFirestore(res.user).catch((e) => console.warn('Firestore updateUser sync:', e));
     }
     return res.user;
   };
@@ -458,8 +454,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await api.deleteUser(id);
     setUsers((prev) => prev.filter((u) => u.id !== id));
     if (auth.currentUser) {
-      await deleteUserFromFirestore(id);
+      deleteUserFromFirestore(id).catch((e) => console.warn('Firestore deleteUser sync:', e));
     }
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string): Promise<User> => {
+    if (!currentUser) throw new Error('Vui lòng đăng nhập để đổi mật khẩu.');
+    const res = await api.changePassword(currentUser.id, currentPassword, newPassword);
+    setCurrentUser(res.user);
+    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? res.user : u)));
+    if (auth.currentUser) {
+      saveUserToFirestore(res.user).catch((e) => console.warn('Firestore changePassword sync:', e));
+    }
+    return res.user;
   };
 
   const sendEmailReport = async (recipient?: string): Promise<EmailLog> => {
@@ -499,6 +506,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addUser,
         updateUser,
         deleteUser,
+        changePassword,
         sendEmailReport,
       }}
     >

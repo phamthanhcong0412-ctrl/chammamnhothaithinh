@@ -731,6 +731,123 @@ app.delete('/api/firebase/users/:id', (req, res) => {
   res.json({ success: true, source: 'firebase_firestore' });
 });
 
+app.post('/api/firebase/change-password', (req, res) => {
+  const { userId, currentPassword, newPassword } = req.body;
+  const cleanNewPassword = String(newPassword || '').trim();
+
+  if (!userId || !cleanNewPassword) {
+    res.status(400).json({ error: 'Vui lòng nhập đầy đủ mật khẩu mới.' });
+    return;
+  }
+
+  if (cleanNewPassword.length < 4) {
+    res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 4 ký tự.' });
+    return;
+  }
+
+  const index = users.findIndex((u) => u.id === userId);
+  if (index === -1) {
+    res.status(404).json({ error: 'Không tìm thấy tài khoản người dùng.' });
+    return;
+  }
+
+  const targetUser = users[index];
+  if (currentPassword !== undefined && String(currentPassword) !== String(targetUser.password || '123456')) {
+    res.status(400).json({ error: 'Mật khẩu hiện tại không chính xác.' });
+    return;
+  }
+
+  users[index] = {
+    ...targetUser,
+    password: cleanNewPassword,
+  };
+  saveData(USERS_FILE, users);
+
+  res.json({
+    success: true,
+    source: 'firebase_firestore',
+    user: users[index],
+  });
+});
+
+// Generic multi-collection (multi-table) full-permission API on Firebase project
+const COLLECTIONS_FILE = path.join(DATA_DIR, 'collections.json');
+let customCollections = loadData<Record<string, any[]>>(COLLECTIONS_FILE, {});
+
+app.get('/api/firebase/collections', (_req, res) => {
+  res.json({
+    success: true,
+    projectId: storeConfig.firebaseConfig?.projectId || 'gen-lang-client-0980052625',
+    databaseId:
+      storeConfig.firebaseConfig?.firestoreDatabaseId ||
+      'ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881',
+    collections: ['users', 'attendance', 'store_config', ...Object.keys(customCollections)],
+  });
+});
+
+app.get('/api/firebase/collections/:collection', (req, res) => {
+  const col = req.params.collection;
+  if (col === 'users') {
+    res.json({ success: true, collection: col, items: users });
+    return;
+  }
+  if (col === 'attendance') {
+    res.json({ success: true, collection: col, items: attendance });
+    return;
+  }
+  if (col === 'store_config') {
+    res.json({ success: true, collection: col, items: [storeConfig] });
+    return;
+  }
+  res.json({
+    success: true,
+    collection: col,
+    items: customCollections[col] || [],
+  });
+});
+
+app.post('/api/firebase/collections/:collection', (req, res) => {
+  const col = req.params.collection;
+  const list = customCollections[col] || [];
+  const newItem = {
+    id: req.body?.id || `${col}_${Date.now()}`,
+    ...req.body,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const existingIdx = list.findIndex((item) => item.id === newItem.id);
+  if (existingIdx >= 0) {
+    list[existingIdx] = { ...list[existingIdx], ...newItem };
+  } else {
+    list.unshift(newItem);
+  }
+  customCollections[col] = list;
+  saveData(COLLECTIONS_FILE, customCollections);
+  res.json({ success: true, collection: col, item: newItem });
+});
+
+app.put('/api/firebase/collections/:collection/:id', (req, res) => {
+  const { collection: col, id } = req.params;
+  const list = customCollections[col] || [];
+  const idx = list.findIndex((item) => item.id === id);
+  if (idx === -1) {
+    res.status(404).json({ error: 'Không tìm thấy bản ghi' });
+    return;
+  }
+  list[idx] = { ...list[idx], ...req.body, id, updatedAt: new Date().toISOString() };
+  customCollections[col] = list;
+  saveData(COLLECTIONS_FILE, customCollections);
+  res.json({ success: true, collection: col, item: list[idx] });
+});
+
+app.delete('/api/firebase/collections/:collection/:id', (req, res) => {
+  const { collection: col, id } = req.params;
+  const list = customCollections[col] || [];
+  customCollections[col] = list.filter((item) => item.id !== id);
+  saveData(COLLECTIONS_FILE, customCollections);
+  res.json({ success: true, collection: col });
+});
+
 // 5. Attendance Records
 app.get('/api/attendance', (req, res) => {
   autoCloseOverdueShifts();

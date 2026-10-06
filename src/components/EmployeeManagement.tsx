@@ -39,6 +39,14 @@ export const EmployeeManagement: React.FC = () => {
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [actionToast, setActionToast] = useState<string | null>(null);
+
+  const triggerToast = (msg: string) => {
+    setActionToast(msg);
+    setTimeout(() => {
+      setActionToast((prev) => (prev === msg ? null : prev));
+    }, 3500);
+  };
 
   const [formData, setFormData] = useState({
     name: '',
@@ -145,8 +153,10 @@ export const EmployeeManagement: React.FC = () => {
       };
       if (editingUser) {
         await updateUser(editingUser.id, payload);
+        triggerToast(`Đã cập nhật tài khoản "${payload.name}" (${payload.username}) Realtime!`);
       } else {
         await addUser(payload);
+        triggerToast(`Đã thêm tài khoản "${payload.name}" (${payload.username}) Realtime!`);
       }
       setIsModalOpen(false);
     } catch (err: any) {
@@ -157,8 +167,10 @@ export const EmployeeManagement: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (!userToDelete) return;
     try {
+      const deletedName = userToDelete.name;
       await deleteUser(userToDelete.id);
       setUserToDelete(null);
+      triggerToast(`Đã xoá tài khoản "${deletedName}" khỏi hệ thống!`);
     } catch (err: any) {
       setFormError(err.message || 'Lỗi khi xoá tài khoản');
     }
@@ -181,6 +193,13 @@ export const EmployeeManagement: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
+      {actionToast && (
+        <div className="fixed top-20 right-4 z-50 px-4 py-3 rounded-2xl bg-emerald-950/95 border border-emerald-500/50 text-emerald-100 text-xs font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{actionToast}</span>
+        </div>
+      )}
+
       {/* Top action header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2">
         <div>
@@ -377,15 +396,15 @@ export const EmployeeManagement: React.FC = () => {
                   onClick={() => handleOpenEdit(user)}
                   className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Edit className="w-3.5 h-3.5" /> Sửa / Đổi MK
+                  <Edit className="w-3.5 h-3.5 text-indigo-400" /> Sửa / Đổi MK
                 </button>
-                {user.id !== currentUser?.id && user.username !== 'ptcong' && (
+                {user.id !== currentUser?.id && (
                   <button
                     onClick={() => setUserToDelete(user)}
-                    className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                     title="Xoá tài khoản"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5 text-rose-400" /> Xoá
                   </button>
                 )}
               </div>

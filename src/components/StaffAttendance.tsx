@@ -16,9 +16,11 @@ import {
   Lock,
   Layers,
   ChevronRight,
+  KeyRound,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import { calculateDistanceInMeters, getCurrentPosition } from '../utils/geo.ts';
+import { ChangePasswordModal } from './ChangePasswordModal.tsx';
 
 export const StaffAttendance: React.FC = () => {
   const {
@@ -35,6 +37,7 @@ export const StaffAttendance: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [wifiVerifiedManually, setWifiVerifiedManually] = useState<boolean>(false);
+  const [isChangePwOpen, setIsChangePwOpen] = useState(false);
 
   // GPS State
   const [gpsDistance, setGpsDistance] = useState<number | null>(null);
@@ -316,13 +319,28 @@ export const StaffAttendance: React.FC = () => {
           </div>
         </div>
 
-        <div className="text-right">
-          <span className="text-[11px] text-zinc-500 block">Lương của bạn</span>
-          <span className="text-xs font-bold text-emerald-400">
-            {currentUser?.hourlyRate.toLocaleString('vi-VN')} đ/h
-          </span>
+        <div className="text-right space-y-1.5">
+          <div>
+            <span className="text-[11px] text-zinc-500 block">Lương của bạn</span>
+            <span className="text-xs font-bold text-emerald-400">
+              {currentUser?.hourlyRate.toLocaleString('vi-VN')} đ/h
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsChangePwOpen(true)}
+            className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[11px] font-semibold text-indigo-300 flex items-center gap-1 ml-auto transition-colors cursor-pointer"
+          >
+            <KeyRound className="w-3 h-3 text-indigo-400" />
+            <span>Đổi mật khẩu</span>
+          </button>
         </div>
       </div>
+
+      <ChangePasswordModal
+        isOpen={isChangePwOpen}
+        onClose={() => setIsChangePwOpen(false)}
+      />
 
       {/* Shift Windows Information Card */}
       <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 space-y-2.5">

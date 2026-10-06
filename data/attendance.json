@@ -1,5 +1,26 @@
 [
   {
+    "id": "att_manual_1791310970716",
+    "userId": "user_staff_3",
+    "userName": "Lê Bảo Nam",
+    "userEmail": "nhanvien.nam@gmail.com",
+    "employeeCode": "NV-003",
+    "date": "2026-10-07",
+    "checkInTime": "2026-10-07T01:00:00.000Z",
+    "checkOutTime": "2026-10-07T05:30:00.000Z",
+    "totalMinutes": 270,
+    "status": "completed",
+    "checkInMethod": "manual_admin",
+    "checkInIp": "Manual Entry (Admin)",
+    "isLate": false,
+    "isEarlyLeave": false,
+    "note": "Chấm công bổ sung",
+    "adjustedBy": "Phạm Thành Công (Chủ Quán)",
+    "adjustedReason": "Nhân viên gặp sự cố thiết bị / mạng tại quán",
+    "createdAt": "2026-10-06T18:22:50.716Z",
+    "updatedAt": "2026-10-06T18:22:50.716Z"
+  },
+  {
     "id": "att_1791304432870",
     "userId": "user_staff_1",
     "userName": "Nguyễn Thị Mai",
