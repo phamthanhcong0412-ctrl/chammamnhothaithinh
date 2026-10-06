@@ -332,6 +332,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (storeConfig) {
       await saveStoreConfigToFirestore(storeConfig).catch(() => {});
     }
+    for (const rec of attendance.slice(0, 30)) {
+      await saveAttendanceToFirestore(rec).catch(() => {});
+    }
     // Ensure visual feedback lasts at least 600ms so button doesn't just flash
     const elapsed = Date.now() - startTime;
     if (elapsed < 600) {
