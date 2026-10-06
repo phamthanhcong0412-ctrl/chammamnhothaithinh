@@ -56,7 +56,13 @@ const DEFAULT_CONFIG: StoreConfig = {
   managerEmail: 'phamthanhcong0412@gmail.com',
   lastReportSentDate: null,
   firebaseConfig: {
-    projectId: 'store-attendance-free',
+    projectId: 'gen-lang-client-0980052625',
+    appId: '1:107881027720:web:3ea36799af656c1971e73d',
+    apiKey: 'AIzaSyC5b9mOMKJ_XSbUp58Oy9d4l9LiKhgEXO4',
+    authDomain: 'gen-lang-client-0980052625.firebaseapp.com',
+    firestoreDatabaseId: 'ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881',
+    storageBucket: 'gen-lang-client-0980052625.firebasestorage.app',
+    messagingSenderId: '107881027720',
   },
 };
 

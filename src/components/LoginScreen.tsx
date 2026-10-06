@@ -14,13 +14,26 @@ import {
 import { useApp } from '../context/AppContext.tsx';
 
 export const LoginScreen: React.FC = () => {
-  const { loginWithCredentials, storeConfig } = useApp();
+  const { loginWithCredentials, loginWithGoogle, storeConfig } = useApp();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleGoogleLogin = async () => {
+    setErrorMessage(null);
+    setIsGoogleLoading(true);
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Không thể đăng nhập qua Google Firebase.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,7 +155,7 @@ export const LoginScreen: React.FC = () => {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isGoogleLoading}
               className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2.5 transition-all transform active:scale-[0.99] disabled:opacity-60 cursor-pointer mt-2"
             >
               {isSubmitting ? (
@@ -156,6 +169,26 @@ export const LoginScreen: React.FC = () => {
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
+            </button>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-zinc-800"></div>
+              <span className="flex-shrink mx-3 text-[11px] text-zinc-500">Hoặc đồng bộ đám mây</span>
+              <div className="flex-grow border-t border-zinc-800"></div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isSubmitting || isGoogleLoading}
+              className="w-full py-3 px-4 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 text-zinc-200 font-semibold text-xs flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-60"
+            >
+              {isGoogleLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+              ) : (
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+              )}
+              <span>Đăng Nhập & Đồng Bộ Với Google (Firebase)</span>
             </button>
           </form>
 

@@ -24,13 +24,39 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const { storeConfig, updateConfig, networkInfo, attendance, users } = useApp();
+  const {
+    storeConfig,
+    updateConfig,
+    networkInfo,
+    attendance,
+    users,
+    isFirebaseConnected,
+    firebaseUser,
+    firebaseProjectId,
+    syncUsersToFirebase,
+  } = useApp();
   const [formData, setFormData] = useState<StoreConfig | null>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'network' | 'gps' | 'shifts' | 'firebase'>('general');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [ipInput, setIpInput] = useState('');
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [cloudSyncMsg, setCloudSyncMsg] = useState<string | null>(null);
+
+  const handleSyncFirebaseCloud = async () => {
+    setIsSyncingCloud(true);
+    setCloudSyncMsg(null);
+    try {
+      const count = await syncUsersToFirebase();
+      setCloudSyncMsg(`Đã đồng bộ thành công ${count} tài khoản nhân sự lên Firebase Firestore!`);
+      setTimeout(() => setCloudSyncMsg(null), 4000);
+    } catch (err: any) {
+      setCloudSyncMsg(err.message || 'Lỗi khi đồng bộ Firebase');
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
 
   useEffect(() => {
     if (storeConfig && isOpen) {
@@ -203,6 +229,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {/* TAB 1: General */}
           {activeTab === 'general' && (
             <div className="space-y-4">
+              {/* Quick Firebase Summary Banner right inside General Tab */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                    <Database className="w-4 h-4 shrink-0" />
+                    <span>Firebase Firestore Đã Cấu Hình Lưu Trữ User</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      {isFirebaseConnected ? `Đã kết nối (${firebaseUser?.email})` : 'Active'}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-zinc-300 font-mono">
+                    Project ID: <strong className="text-white">{firebaseProjectId || formData.firebaseConfig?.projectId}</strong> • DB: <strong className="text-indigo-300">{formData.firebaseConfig?.firestoreDatabaseId || 'default'}</strong>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('firebase')}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                >
+                  Xem Chi Tiết Firebase →
+                </button>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Tên Cửa Hàng / Quán</label>
                 <input
@@ -583,24 +632,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {/* TAB 5: Firebase & Backup */}
           {activeTab === 'firebase' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-zinc-300">
-                <div className="flex items-center gap-2 text-amber-400 font-bold mb-1">
-                  <Database className="w-4 h-4" />
-                  Tích Hợp Firebase Miễn Phí (Spark Plan)
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-zinc-300">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                    <Database className="w-4 h-4" />
+                    Đã Cấu Hình Firebase Firestore ({firebaseProjectId})
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      isFirebaseConnected
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}
+                  >
+                    {isFirebaseConnected ? `Đã kết nối (${firebaseUser?.email})` : 'Sẵn sàng kết nối'}
+                  </span>
                 </div>
                 <p className="text-zinc-400 text-xs leading-relaxed">
-                  Cửa hàng có thể kết nối trực tiếp với dự án <strong>Firebase Firestore (Gói miễn phí Spark)</strong> từ tài khoản Google của Quản lý để lưu trữ dữ liệu đám mây vĩnh viễn và đồng bộ realtime.
+                  Dự án Firebase Firestore đã được khởi tạo và triển khai quy tắc bảo mật (Security Rules) cho bảng <code>users</code>, <code>attendance</code> và <code>store_config</code>.
                 </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleSyncFirebaseCloud}
+                    disabled={isSyncingCloud}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-60"
+                  >
+                    {isSyncingCloud
+                      ? 'Đang đồng bộ lên Firestore...'
+                      : isFirebaseConnected
+                      ? `Đồng Bộ Toàn Bộ ${users.length} User Lên Firestore Ngay`
+                      : 'Xác Thực Google & Đồng Bộ User Lên Firestore'}
+                  </button>
+                </div>
+
+                {cloudSyncMsg && (
+                  <p className="mt-2 text-xs text-emerald-300 font-semibold">{cloudSyncMsg}</p>
+                )}
               </div>
 
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-300 mb-1">
                     Firebase Project ID
                   </label>
                   <input
                     type="text"
-                    value={formData.firebaseConfig?.projectId || ''}
+                    value={formData.firebaseConfig?.projectId || firebaseProjectId || ''}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -610,14 +689,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         },
                       })
                     }
-                    placeholder="my-store-attendance-free"
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors font-mono"
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-emerald-400 focus:outline-none focus:border-emerald-500 font-mono"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Firebase API Key (Tùy chọn)
+                    Firestore Database ID
+                  </label>
+                  <input
+                    type="text"
+                    value={
+                      formData.firebaseConfig?.firestoreDatabaseId ||
+                      'ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881'
+                    }
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        firebaseConfig: {
+                          ...formData.firebaseConfig,
+                          firestoreDatabaseId: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-indigo-300 focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    Firebase API Key
                   </label>
                   <input
                     type="text"
@@ -631,9 +732,88 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         },
                       })
                     }
-                    placeholder="AIzaSy..."
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors font-mono"
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-amber-300 focus:outline-none focus:border-amber-500 font-mono"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    Firebase App ID
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.firebaseConfig?.appId || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        firebaseConfig: {
+                          ...formData.firebaseConfig,
+                          appId: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-300 focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    Firebase Auth Domain
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.firebaseConfig?.authDomain || `${firebaseProjectId}.firebaseapp.com`}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        firebaseConfig: {
+                          ...formData.firebaseConfig,
+                          authDomain: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-300 focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    Storage Bucket
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.firebaseConfig?.storageBucket || `${firebaseProjectId}.firebasestorage.app`}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        firebaseConfig: {
+                          ...formData.firebaseConfig,
+                          storageBucket: e.target.value,
+                        },
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-300 focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Synced Users Summary */}
+              <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800/90 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-zinc-200">
+                    Danh Sách Tài Khoản User Đang Quản Lý ({users.length} tài khoản)
+                  </span>
+                  <span className="text-[11px] text-emerald-400 font-mono">Collection: /users</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {users.map((u) => (
+                    <span
+                      key={u.id}
+                      className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 font-mono"
+                    >
+                      {u.username} ({u.role === 'admin' ? 'QL' : 'NV'})
+                    </span>
+                  ))}
                 </div>
               </div>
 

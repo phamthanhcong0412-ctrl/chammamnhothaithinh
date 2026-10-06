@@ -1,0 +1,404 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Employee or manager account profile and credentials stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user record.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the creator or owner of this user profile.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "username": {
+          "type": "string",
+          "description": "Issued login username for the employee or manager.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_.\\-@]+$"
+        },
+        "password": {
+          "type": "string",
+          "description": "Issued login password for the account.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of the user.",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Full display name of the employee or manager.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Avatar URL for the user profile.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user in the store.",
+          "enum": ["admin", "staff"]
+        },
+        "employeeCode": {
+          "type": "string",
+          "description": "Store employee code (e.g., QL-001, NV-001).",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "position": {
+          "type": "string",
+          "description": "Job title or position in the store.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "hourlyRate": {
+          "type": "number",
+          "description": "Hourly wage rate in VND."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the employee.",
+          "maxLength": 32
+        },
+        "joinDate": {
+          "type": "string",
+          "description": "Date the employee joined the store (YYYY-MM-DD).",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the account is active."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the record was last updated."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "username",
+        "email",
+        "name",
+        "avatar",
+        "role",
+        "employeeCode",
+        "position",
+        "hourlyRate",
+        "joinDate",
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Trusted admin registry document keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the administrator.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address of the administrator.",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when admin status was granted."
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Employee shift check-in and check-out record.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the attendance record.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user who created this attendance record.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID of the user in the users collection.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userName": {
+          "type": "string",
+          "description": "Full name of the employee.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Email of the employee.",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "employeeCode": {
+          "type": "string",
+          "description": "Employee code.",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of shift (YYYY-MM-DD).",
+          "minLength": 8,
+          "maxLength": 16
+        },
+        "checkInTime": {
+          "type": "string",
+          "description": "ISO timestamp for check-in.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "checkOutTime": {
+          "type": "string",
+          "description": "ISO timestamp for check-out.",
+          "maxLength": 64
+        },
+        "totalMinutes": {
+          "type": "number",
+          "description": "Total minutes worked in the shift."
+        },
+        "status": {
+          "type": "string",
+          "description": "Current shift status.",
+          "enum": ["working", "completed", "adjusted"]
+        },
+        "checkInMethod": {
+          "type": "string",
+          "description": "Verification method used for check-in.",
+          "enum": ["qr_wifi", "manual_admin", "qr_gps", "qr_wifi_gps", "direct_button"]
+        },
+        "checkInIp": {
+          "type": "string",
+          "description": "Client IP recorded at check-in.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "checkInWifiSsid": {
+          "type": "string",
+          "description": "WiFi SSID verified at check-in.",
+          "maxLength": 100
+        },
+        "shiftId": {
+          "type": "string",
+          "description": "Shift identifier.",
+          "maxLength": 64
+        },
+        "shiftName": {
+          "type": "string",
+          "description": "Shift display name.",
+          "maxLength": 100
+        },
+        "isLate": {
+          "type": "boolean",
+          "description": "Whether check-in was past the grace period."
+        },
+        "isEarlyLeave": {
+          "type": "boolean",
+          "description": "Whether check-out was before shift end."
+        },
+        "note": {
+          "type": "string",
+          "description": "Shift note or comment.",
+          "maxLength": 500
+        },
+        "adjustedBy": {
+          "type": "string",
+          "description": "Admin name if manually adjusted.",
+          "maxLength": 120
+        },
+        "adjustedReason": {
+          "type": "string",
+          "description": "Audit reason for manual adjustment.",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when last updated."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "userId",
+        "userName",
+        "userEmail",
+        "employeeCode",
+        "date",
+        "checkInTime",
+        "totalMinutes",
+        "status",
+        "checkInMethod",
+        "checkInIp",
+        "isLate",
+        "isEarlyLeave",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StoreConfigDoc": {
+      "title": "StoreConfigDoc",
+      "description": "Store attendance configuration stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Configuration document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Admin UID who updated the configuration.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "storeName": {
+          "type": "string",
+          "description": "Store name.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "storeAddress": {
+          "type": "string",
+          "description": "Physical store address.",
+          "minLength": 1,
+          "maxLength": 250
+        },
+        "wifiSsid": {
+          "type": "string",
+          "description": "Required WiFi SSID.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "bypassIpCheck": {
+          "type": "boolean",
+          "description": "Whether IP check is bypassed."
+        },
+        "requireWifi": {
+          "type": "boolean",
+          "description": "Whether WiFi is required."
+        },
+        "requireQr": {
+          "type": "boolean",
+          "description": "Whether QR scan is required."
+        },
+        "requireGps": {
+          "type": "boolean",
+          "description": "Whether GPS check is required."
+        },
+        "qrRefreshSeconds": {
+          "type": "number",
+          "description": "QR refresh interval in seconds."
+        },
+        "autoEmailTime": {
+          "type": "string",
+          "description": "Daily scheduled email report time (HH:mm).",
+          "minLength": 1,
+          "maxLength": 16
+        },
+        "managerEmail": {
+          "type": "string",
+          "description": "Manager recipient email.",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when updated."
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "storeName",
+        "storeAddress",
+        "wifiSsid",
+        "bypassIpCheck",
+        "requireWifi",
+        "requireQr",
+        "requireGps",
+        "qrRefreshSeconds",
+        "autoEmailTime",
+        "managerEmail",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Employee and manager user accounts containing credentials, hourly rates, and profile metadata."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminRole" },
+      "description": "Trusted administrator lookup table keyed by Firebase Auth UID."
+    },
+    "/attendance/{recordId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Attendance check-in and check-out records for store employees."
+    },
+    "/store_config/{configId}": {
+      "schema": { "$ref": "#/entities/StoreConfigDoc" },
+      "description": "Store-wide WiFi, GPS, and shift settings managed by store admins."
+    }
+  }
+}

@@ -1,0 +1,246 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email is string &&
+        request.auth.token.email.size() >= 3 &&
+        request.auth.token.email.size() <= 128 &&
+        (request.auth.token.email == 'buihoai0412@gmail.com' ||
+         request.auth.token.email == 'phamthanhcong0412@gmail.com');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isBootstrappedAdmin() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'username', 'email', 'name', 'avatar',
+          'role', 'employeeCode', 'position', 'hourlyRate', 'joinDate',
+          'isActive', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'username', 'password', 'email', 'name', 'avatar',
+          'role', 'employeeCode', 'position', 'hourlyRate', 'phone', 'joinDate',
+          'isActive', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.ownerId) &&
+        data.username is string && data.username.size() >= 1 && data.username.size() <= 64 &&
+        data.username.matches('^[a-zA-Z0-9_.\\-@]+$') &&
+        (!('password' in data) || (data.password is string && data.password.size() >= 1 && data.password.size() <= 128)) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 128 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.avatar is string && data.avatar.size() >= 1 && data.avatar.size() <= 500 &&
+        data.role is string && (data.role == 'admin' || data.role == 'staff') &&
+        data.employeeCode is string && data.employeeCode.size() >= 1 && data.employeeCode.size() <= 32 &&
+        data.position is string && data.position.size() >= 1 && data.position.size() <= 100 &&
+        data.hourlyRate is number && data.hourlyRate >= 0 && data.hourlyRate <= 10000000 &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 32)) &&
+        data.joinDate is string && data.joinDate.size() >= 1 && data.joinDate.size() <= 32 &&
+        data.isActive is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRole(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 128 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidAttendanceRecord(data) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'userId', 'userName', 'userEmail', 'employeeCode',
+          'date', 'checkInTime', 'totalMinutes', 'status', 'checkInMethod',
+          'checkInIp', 'isLate', 'isEarlyLeave', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'userId', 'userName', 'userEmail', 'employeeCode',
+          'date', 'checkInTime', 'checkOutTime', 'totalMinutes', 'status',
+          'checkInMethod', 'checkInIp', 'checkInWifiSsid', 'shiftId', 'shiftName',
+          'isLate', 'isEarlyLeave', 'note', 'adjustedBy', 'adjustedReason',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.ownerId) &&
+        isValidId(data.userId) &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 120 &&
+        data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 128 &&
+        data.employeeCode is string && data.employeeCode.size() >= 1 && data.employeeCode.size() <= 32 &&
+        data.date is string && data.date.size() >= 8 && data.date.size() <= 16 &&
+        data.checkInTime is string && data.checkInTime.size() >= 1 && data.checkInTime.size() <= 64 &&
+        (!('checkOutTime' in data) || data.checkOutTime == null || (data.checkOutTime is string && data.checkOutTime.size() <= 64)) &&
+        data.totalMinutes is number && data.totalMinutes >= 0 && data.totalMinutes <= 1440 &&
+        data.status is string && (data.status == 'working' || data.status == 'completed' || data.status == 'adjusted') &&
+        data.checkInMethod is string && (
+          data.checkInMethod == 'qr_wifi' ||
+          data.checkInMethod == 'manual_admin' ||
+          data.checkInMethod == 'qr_gps' ||
+          data.checkInMethod == 'qr_wifi_gps' ||
+          data.checkInMethod == 'direct_button'
+        ) &&
+        data.checkInIp is string && data.checkInIp.size() >= 1 && data.checkInIp.size() <= 64 &&
+        (!('checkInWifiSsid' in data) || (data.checkInWifiSsid is string && data.checkInWifiSsid.size() <= 100)) &&
+        (!('shiftId' in data) || (data.shiftId is string && data.shiftId.size() <= 64)) &&
+        (!('shiftName' in data) || (data.shiftName is string && data.shiftName.size() <= 100)) &&
+        data.isLate is bool &&
+        data.isEarlyLeave is bool &&
+        (!('note' in data) || (data.note is string && data.note.size() <= 500)) &&
+        (!('adjustedBy' in data) || (data.adjustedBy is string && data.adjustedBy.size() <= 120)) &&
+        (!('adjustedReason' in data) || (data.adjustedReason is string && data.adjustedReason.size() <= 300)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidStoreConfigDoc(data) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'storeName', 'storeAddress', 'wifiSsid',
+          'bypassIpCheck', 'requireWifi', 'requireQr', 'requireGps',
+          'qrRefreshSeconds', 'autoEmailTime', 'managerEmail', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'ownerId', 'storeName', 'storeAddress', 'wifiSsid',
+          'bypassIpCheck', 'requireWifi', 'requireQr', 'requireGps',
+          'qrRefreshSeconds', 'autoEmailTime', 'managerEmail', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.ownerId) &&
+        data.storeName is string && data.storeName.size() >= 1 && data.storeName.size() <= 150 &&
+        data.storeAddress is string && data.storeAddress.size() >= 1 && data.storeAddress.size() <= 250 &&
+        data.wifiSsid is string && data.wifiSsid.size() >= 1 && data.wifiSsid.size() <= 100 &&
+        data.bypassIpCheck is bool &&
+        data.requireWifi is bool &&
+        data.requireQr is bool &&
+        data.requireGps is bool &&
+        data.qrRefreshSeconds is number && data.qrRefreshSeconds >= 10 && data.qrRefreshSeconds <= 600 &&
+        data.autoEmailTime is string && data.autoEmailTime.size() >= 1 && data.autoEmailTime.size() <= 16 &&
+        data.managerEmail is string && data.managerEmail.size() >= 3 && data.managerEmail.size() <= 128 &&
+        data.updatedAt is timestamp;
+    }
+
+    // 1. Admins Collection
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (adminId == request.auth.uid || isAdmin());
+      allow list: if false;
+      allow create: if isSignedIn() && isValidId(adminId) && isValidAdminRole(incoming()) &&
+        incoming().uid == adminId &&
+        incoming().createdAt == request.time &&
+        isBootstrappedAdmin();
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(adminId) && isBootstrappedAdmin();
+    }
+
+    // 2. Users Collection (PII Isolated to Owner or Admin)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) &&
+        incoming().id == userId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        ((userId == request.auth.uid && incoming().role == 'staff') || isAdmin());
+      allow update: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          (existing().ownerId == request.auth.uid &&
+            incoming().role == existing().role &&
+            incoming().hourlyRate == existing().hourlyRate &&
+            incoming().employeeCode == existing().employeeCode &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'phone', 'password', 'updatedAt'])) ||
+          (isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'username', 'password', 'email', 'name', 'avatar', 'role',
+              'employeeCode', 'position', 'hourlyRate', 'phone', 'joinDate',
+              'isActive', 'updatedAt'
+            ]))
+        );
+      allow delete: if isSignedIn() && isValidId(userId) && isAdmin();
+    }
+
+    // 3. Attendance Collection
+    match /attendance/{recordId} {
+      allow get: if isSignedIn() && isValidId(recordId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isSignedIn() && isValidId(recordId) && isValidAttendanceRecord(incoming()) &&
+        incoming().id == recordId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (exists(/databases/$(database)/documents/users/$(incoming().userId)) || isAdmin());
+      allow update: if isSignedIn() && isValidId(recordId) && isValidAttendanceRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          (existing().ownerId == request.auth.uid &&
+            existing().status == 'working' &&
+            incoming().status == 'completed' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['checkOutTime', 'totalMinutes', 'status', 'note', 'updatedAt'])) ||
+          (isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'date', 'checkInTime', 'checkOutTime', 'totalMinutes', 'status',
+              'isLate', 'isEarlyLeave', 'note', 'adjustedBy', 'adjustedReason', 'updatedAt'
+            ]))
+        );
+      allow delete: if isSignedIn() && isValidId(recordId) && isAdmin();
+    }
+
+    // 4. Store Configuration Collection
+    match /store_config/{configId} {
+      allow get: if isSignedIn() && isValidId(configId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isSignedIn() && isValidId(configId) && isValidStoreConfigDoc(incoming()) &&
+        incoming().id == configId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow update: if isSignedIn() && isValidId(configId) && isValidStoreConfigDoc(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().updatedAt == request.time &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'storeName', 'storeAddress', 'wifiSsid', 'bypassIpCheck',
+          'requireWifi', 'requireQr', 'requireGps', 'qrRefreshSeconds',
+          'autoEmailTime', 'managerEmail', 'updatedAt'
+        ]);
+      allow delete: if isSignedIn() && isValidId(configId) && isAdmin();
+    }
+  }
+}

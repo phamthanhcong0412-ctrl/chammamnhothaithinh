@@ -86,6 +86,7 @@ export interface StoreConfig {
     apiKey?: string;
     authDomain?: string;
     projectId?: string;
+    firestoreDatabaseId?: string;
     storageBucket?: string;
     messagingSenderId?: string;
     appId?: string;
