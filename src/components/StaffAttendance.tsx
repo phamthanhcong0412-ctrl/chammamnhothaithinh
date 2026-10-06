@@ -8,18 +8,13 @@ import {
   AlertCircle,
   ShieldCheck,
   Wifi,
-  MapPin,
-  Calendar,
   Sparkles,
   TrendingUp,
-  AlertTriangle,
   Lock,
   Layers,
-  ChevronRight,
   KeyRound,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
-import { calculateDistanceInMeters, getCurrentPosition } from '../utils/geo.ts';
 import { ChangePasswordModal } from './ChangePasswordModal.tsx';
 
 export const StaffAttendance: React.FC = () => {
@@ -39,10 +34,6 @@ export const StaffAttendance: React.FC = () => {
   const [wifiVerifiedManually, setWifiVerifiedManually] = useState<boolean>(false);
   const [isChangePwOpen, setIsChangePwOpen] = useState(false);
 
-  // GPS State
-  const [gpsDistance, setGpsDistance] = useState<number | null>(null);
-  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
-
   // Personal Monthly Stats
   const [myMonthlyHours, setMyMonthlyHours] = useState<number>(0);
   const [myMonthlyDays, setMyMonthlyDays] = useState<number>(0);
@@ -53,11 +44,6 @@ export const StaffAttendance: React.FC = () => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Check GPS on mount
-  useEffect(() => {
-    checkGpsLocation();
-  }, [storeConfig]);
 
   // Load personal stats
   useEffect(() => {
@@ -75,26 +61,6 @@ export const StaffAttendance: React.FC = () => {
     setMyMonthlyDays(days);
     setMyEstimatedSalary(salary);
   }, [attendance, currentUser]);
-
-  const checkGpsLocation = async () => {
-    if (!storeConfig?.storeGps) return;
-    try {
-      const pos = await getCurrentPosition();
-      const userLat = pos.coords.latitude;
-      const userLng = pos.coords.longitude;
-      setGpsCoords({ lat: userLat, lng: userLng });
-
-      const dist = calculateDistanceInMeters(
-        userLat,
-        userLng,
-        storeConfig.storeGps.lat,
-        storeConfig.storeGps.lng
-      );
-      setGpsDistance(dist);
-    } catch {
-      setGpsDistance(15);
-    }
-  };
 
   // WiFi Verification
   const isWifiValid = useMemo(() => {
@@ -195,7 +161,6 @@ export const StaffAttendance: React.FC = () => {
     try {
       const record = await checkIn({
         wifiSsid: storeConfig?.wifiSsid,
-        gps: gpsCoords ? { ...gpsCoords, distance: gpsDistance || 0 } : undefined,
       });
 
       confetti({
@@ -241,7 +206,6 @@ export const StaffAttendance: React.FC = () => {
     try {
       const record = await checkOut({
         wifiSsid: storeConfig?.wifiSsid,
-        gps: gpsCoords ? { ...gpsCoords, distance: gpsDistance || 0 } : undefined,
       });
 
       confetti({

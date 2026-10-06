@@ -87,7 +87,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             Bảng Điều Khiển Quản Lý Cửa Hàng
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Giám sát nhân sự đang làm việc, chấm công hộ và kiểm soát tính trung thực qua WiFi / GPS
+            Giám sát nhân sự đang làm việc, chấm công hộ và kiểm soát tính trung thực qua WiFi cửa hàng
           </p>
         </div>
 
@@ -166,7 +166,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* KPI 4 */}
         <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-xl flex flex-col justify-between">
           <div className="flex items-center justify-between text-zinc-400">
-            <span className="text-xs font-medium uppercase tracking-wider">Mạng WiFi & GPS</span>
+            <span className="text-xs font-medium uppercase tracking-wider">Mạng WiFi Quán</span>
             <div className="w-7 h-7 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
               <Wifi className="w-4 h-4" />
             </div>
@@ -175,9 +175,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="text-xs font-bold text-zinc-200 truncate">
               {storeConfig?.wifiSsid}
             </div>
-            <p className="text-[11px] text-violet-400 mt-1 flex items-center gap-1 truncate">
-              <MapPin className="w-3 h-3 shrink-0" />
-              Bán kính: {storeConfig?.storeGps.radiusMeters}m
+            <p className="text-[11px] text-violet-400 mt-1 font-mono truncate">
+              IP: {networkInfo?.clientIp || 'Đã kết nối'}
             </p>
           </div>
         </div>

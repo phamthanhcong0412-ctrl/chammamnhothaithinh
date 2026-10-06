@@ -31,7 +31,7 @@ const DEFAULT_CONFIG: StoreConfig = {
   bypassIpCheck: true,
   requireWifi: true,
   requireQr: false,
-  requireGps: true,
+  requireGps: false,
   storeGps: {
     lat: 21.0116,
     lng: 105.8174,

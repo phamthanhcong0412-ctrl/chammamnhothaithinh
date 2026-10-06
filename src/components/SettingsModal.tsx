@@ -3,7 +3,6 @@ import {
   X,
   Settings,
   Wifi,
-  MapPin,
   Clock,
   Shield,
   Save,
@@ -16,7 +15,6 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
-import { getCurrentPosition } from '../utils/geo.ts';
 import type { StoreConfig } from '../types/index.ts';
 
 interface SettingsModalProps {
@@ -41,10 +39,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     firebaseProjectId,
   } = useApp();
   const [formData, setFormData] = useState<StoreConfig | null>(null);
-  const [activeTab, setActiveTab] = useState<'general' | 'network' | 'gps' | 'shifts' | 'firebase'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'network' | 'shifts' | 'firebase'>('general');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
   const [ipInput, setIpInput] = useState('');
   const [toast, setToast] = useState<SyncToastState | null>(null);
 
@@ -70,12 +67,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setIsSaving(true);
     setSaveSuccess(false);
     try {
-      await updateConfig(formData);
+      await updateConfig({ ...formData, requireGps: false });
       setSaveSuccess(true);
       showToast({
         type: 'success',
         title: 'Đã lưu cấu hình hệ thống!',
-        description: 'Mọi thiết lập WiFi, GPS, ca làm việc và Firebase đã được cập nhật.',
+        description: 'Mọi thiết lập WiFi, ca làm việc và cửa hàng đã được cập nhật.',
       });
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
@@ -116,34 +113,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       ...formData,
       allowedIps: formData.allowedIps.filter((ip) => ip !== ipToRemove),
     });
-  };
-
-  const handleGetCurrentGps = async () => {
-    setIsLocating(true);
-    try {
-      const pos = await getCurrentPosition();
-      setFormData({
-        ...formData,
-        storeGps: {
-          lat: Number(pos.coords.latitude.toFixed(6)),
-          lng: Number(pos.coords.longitude.toFixed(6)),
-          radiusMeters: formData.storeGps.radiusMeters || 120,
-        },
-      });
-      showToast({
-        type: 'success',
-        title: 'Đã nhận diện tọa độ cửa hàng!',
-        description: `Vĩ độ: ${pos.coords.latitude.toFixed(6)}, Kinh độ: ${pos.coords.longitude.toFixed(6)}`,
-      });
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        title: 'Không thể lấy vị trí GPS',
-        description: err.message || 'Vui lòng cấp quyền định vị GPS trên trình duyệt.',
-      });
-    } finally {
-      setIsLocating(false);
-    }
   };
 
   const handleExportData = () => {
@@ -211,7 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h3 className="text-base font-bold text-zinc-100">Cấu Hình Hệ Thống Cửa Hàng</h3>
-              <p className="text-xs text-zinc-400">Xác thực WiFi, định vị GPS, ca làm & kết nối cơ sở dữ liệu</p>
+              <p className="text-xs text-zinc-400">Xác thực WiFi, ca làm việc & kết nối cơ sở dữ liệu</p>
             </div>
           </div>
           <button
@@ -243,16 +212,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }`}
           >
             <Wifi className="w-3.5 h-3.5" /> Xác Thực WiFi & IP
-          </button>
-          <button
-            onClick={() => setActiveTab('gps')}
-            className={`py-3 px-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              activeTab === 'gps'
-                ? 'border-indigo-500 text-indigo-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <MapPin className="w-3.5 h-3.5" /> Định Vị GPS Quán
           </button>
           <button
             onClick={() => setActiveTab('shifts')}
@@ -457,93 +416,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-            </div>
-          )}
-
-          {/* TAB 3: GPS Geofence */}
-          {activeTab === 'gps' && (
-            <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-zinc-300 flex items-start gap-3">
-                <MapPin className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-indigo-300">Cơ chế Hàng Rào Địa Lý (Geofence):</span>
-                  <p className="mt-0.5 text-zinc-400 leading-relaxed">
-                    Nhân viên bắt buộc phải có mặt trong bán kính cho phép quanh cửa hàng mới có thể bấm Check-in/Check-out. Điều này đảm bảo 100% người chấm công đang đứng tại quán.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs font-semibold text-zinc-300">Tọa Độ Cửa Hàng Hiện Tại</span>
-                <button
-                  type="button"
-                  onClick={handleGetCurrentGps}
-                  disabled={isLocating}
-                  className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  {isLocating ? 'Đang lấy vị trí GPS...' : 'Lấy Tọa Độ Hiện Tại Của Tôi'}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Vĩ Độ (Latitude)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={formData.storeGps.lat}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        storeGps: { ...formData.storeGps, lat: parseFloat(e.target.value) || 0 },
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Kinh Độ (Longitude)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={formData.storeGps.lng}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        storeGps: { ...formData.storeGps, lng: parseFloat(e.target.value) || 0 },
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Bán Kính Cho Phép Chấm Công: <strong className="text-indigo-400">{formData.storeGps.radiusMeters} mét</strong>
-                </label>
-                <input
-                  type="range"
-                  min={30}
-                  max={500}
-                  step={10}
-                  value={formData.storeGps.radiusMeters}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      storeGps: { ...formData.storeGps, radiusMeters: Number(e.target.value) },
-                    })
-                  }
-                  className="w-full accent-indigo-500 cursor-pointer"
-                />
-                <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
-                  <span>30m (Cực chuẩn trong quán)</span>
-                  <span>120m (Khuyến nghị)</span>
-                  <span>500m (Rộng)</span>
-                </div>
-              </div>
             </div>
           )}
 
