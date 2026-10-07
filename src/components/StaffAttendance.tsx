@@ -449,60 +449,57 @@ export const StaffAttendance: React.FC = () => {
 
           </div>
 
-          {/* Today's Multiple Sessions Breakdown */}
-          <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 space-y-3">
+          {/* Today's Sessions Breakdown */}
+          <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-indigo-400" /> Các Lượt Làm Trong Ngày Hôm Nay ({myTodaySessions.length})
+              <span className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-indigo-400" /> Nhật Ký Hôm Nay ({myTodaySessions.length})
               </span>
-              <span className="text-xs font-bold text-emerald-400">
-                Hôm nay: {(myTodayTotalMinutes / 60).toFixed(1)}h ({myTodayTotalMinutes}p)
+              <span className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
+                Tổng: {(myTodayTotalMinutes / 60).toFixed(1)}h ({myTodayTotalMinutes}p)
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {myTodaySessions.length === 0 ? (
-                <p className="text-xs text-zinc-500 py-3 text-center">Hôm nay bạn chưa có lượt check-in nào</p>
+                <p className="text-xs text-zinc-500 py-2 text-center">Chưa có lượt chấm công hôm nay</p>
               ) : (
-                myTodaySessions.map((r, idx) => (
-                  <div
-                    key={r.id}
-                    className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800/60 flex items-center justify-between text-xs"
-                  >
-                    <div>
+                myTodaySessions.map((r, idx) => {
+                  const inTime = new Date(r.checkInTime).toLocaleTimeString('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                  const outTime = r.checkOutTime
+                    ? new Date(r.checkOutTime).toLocaleTimeString('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : 'Đang làm';
+                  return (
+                    <div
+                      key={r.id}
+                      className="px-3 py-2 rounded-xl bg-zinc-950/80 border border-zinc-800/60 flex items-center justify-between text-xs"
+                    >
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-zinc-200">Lượt {myTodaySessions.length - idx}</span>
-                        <span className="text-zinc-400 text-[11px]">({r.shiftName || 'Trong ca'})</span>
-                        {r.status === 'working' ? (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 animate-pulse">
-                            Đang làm
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zinc-800 text-zinc-400">
-                            Đã xong
-                          </span>
-                        )}
-                        {r.autoClosed && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                            Chốt tự động
-                          </span>
-                        )}
+                        <span className="font-semibold text-zinc-200">Ca {myTodaySessions.length - idx}</span>
+                        <span className="text-zinc-400 font-mono tabular-nums">
+                          {inTime} → {outTime}
+                        </span>
                       </div>
-                      <div className="text-[11px] text-zinc-500 mt-1">
-                        Vào: <strong className="text-zinc-300">{new Date(r.checkInTime).toLocaleTimeString('vi-VN')}</strong>
-                        {' → '}
-                        Ra: <strong className="text-zinc-300">{r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('vi-VN') : 'Đang làm...'}</strong>
-                      </div>
-                    </div>
 
-                    <div className="text-right">
-                      <div className="font-mono font-bold text-indigo-400">
-                        {r.totalMinutes > 0 ? `${(r.totalMinutes / 60).toFixed(1)}h` : '--'}
+                      <div className="font-mono tabular-nums text-right">
+                        {r.status === 'working' ? (
+                          <span className="text-emerald-400 font-semibold">Đang làm</span>
+                        ) : (
+                          <span className="font-bold text-indigo-400">
+                            {(r.totalMinutes / 60).toFixed(1)}h{' '}
+                            <span className="text-[11px] font-normal text-zinc-500">({r.totalMinutes}p)</span>
+                          </span>
+                        )}
                       </div>
-                      <div className="text-[10px] text-zinc-500">{r.totalMinutes} phút</div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
