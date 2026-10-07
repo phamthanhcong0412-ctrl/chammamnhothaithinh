@@ -177,7 +177,12 @@ export function enrichUserWithAttendanceStats(
   const totalMinutesWorked = userRecords.reduce((sum, r) => sum + (Number(r.totalMinutes) || 0), 0);
   const totalHoursWorked = Number((totalMinutesWorked / 60).toFixed(2));
   const totalDaysWorked = new Set(userRecords.map((r) => r.date)).size;
-  const totalShifts = userRecords.length;
+  const totalShifts = new Set(
+    userRecords.map(
+      (r) =>
+        `${r.date}_${r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')}`
+    )
+  ).size;
   const lateCount = userRecords.filter((r) => r.isLate).length;
   const hourlyRate = Number(user.hourlyRate) || 28000;
   const estimatedSalary = Math.round((totalMinutesWorked / 60) * hourlyRate);

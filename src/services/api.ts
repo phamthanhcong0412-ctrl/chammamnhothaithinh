@@ -134,6 +134,81 @@ function saveLocal<T>(key: string, data: T): void {
   }
 }
 
+export function consolidateCompletedShifts(
+  records: AttendanceRecord[],
+  users: User[]
+): { consolidated: AttendanceRecord[]; removedIds: string[]; updatedRecords: AttendanceRecord[] } {
+  const working: AttendanceRecord[] = [];
+  const completedByShift = new Map<string, AttendanceRecord[]>();
+
+  for (const r of records) {
+    if (r.status === 'working') {
+      working.push(enrichAttendanceRecord(r, users));
+      continue;
+    }
+    const shiftId =
+      r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
+    const key = `${r.userId}_${r.date}_${shiftId}`;
+    const list = completedByShift.get(key) || [];
+    list.push(r);
+    completedByShift.set(key, list);
+  }
+
+  const consolidatedCompleted: AttendanceRecord[] = [];
+  const removedIds: string[] = [];
+  const updatedRecords: AttendanceRecord[] = [];
+
+  for (const [, group] of completedByShift.entries()) {
+    if (group.length === 1) {
+      consolidatedCompleted.push(enrichAttendanceRecord(group[0], users));
+      continue;
+    }
+
+    // Sort chronologically so earliest check-in is first
+    const sorted = [...group].sort(
+      (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
+    );
+    const base = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const totalMinutes = sorted.reduce((sum, item) => sum + (Number(item.totalMinutes) || 0), 0);
+
+    let latestCheckOut = base.checkOutTime || null;
+    for (const item of sorted) {
+      if (
+        item.checkOutTime &&
+        (!latestCheckOut || new Date(item.checkOutTime).getTime() > new Date(latestCheckOut).getTime())
+      ) {
+        latestCheckOut = item.checkOutTime;
+      }
+    }
+
+    const merged = enrichAttendanceRecord(
+      {
+        ...base,
+        checkInTime: base.checkInTime,
+        checkOutTime: latestCheckOut,
+        totalMinutes,
+        isLate: Boolean(base.isLate),
+        isEarlyLeave: Boolean(last.isEarlyLeave),
+        updatedAt: new Date().toISOString(),
+      },
+      users
+    );
+
+    consolidatedCompleted.push(merged);
+    updatedRecords.push(merged);
+    for (let i = 1; i < sorted.length; i++) {
+      removedIds.push(sorted[i].id);
+    }
+  }
+
+  const all = [...working, ...consolidatedCompleted].sort(
+    (a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime()
+  );
+
+  return { consolidated: all, removedIds, updatedRecords };
+}
+
 async function fetchJsonOrThrow(url: string, options?: RequestInit): Promise<{ ok: boolean; status: number; data: any }> {
   const res = await fetch(url, options);
   const contentType = res.headers.get('content-type') || '';
@@ -469,7 +544,15 @@ export const api = {
     try {
       const fbAtt = await fetchAttendanceFromFirestore();
       if (fbAtt.length > 0) {
-        let list = fbAtt.map((r) => enrichAttendanceRecord(r, localUsers));
+        const { consolidated, removedIds, updatedRecords } = consolidateCompletedShifts(fbAtt, localUsers);
+        if (removedIds.length > 0) {
+          // Clean up duplicate same-shift records in Firestore in background
+          Promise.all([
+            ...updatedRecords.map((r) => saveAttendanceToFirestore(r, localUsers, 'update').catch(() => {})),
+            ...removedIds.map((id) => deleteAttendanceFromFirestore(id).catch(() => {})),
+          ]);
+        }
+        let list = consolidated;
         if (!params) saveLocal(STORAGE_KEYS.ATTENDANCE, list);
         if (params?.date) list = list.filter((r) => r.date === params.date);
         if (params?.userId) list = list.filter((r) => r.userId === params.userId);
@@ -485,9 +568,8 @@ export const api = {
       const query = new URLSearchParams(params as Record<string, string>).toString();
       const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/attendance${query ? `?${query}` : ''}`);
       if (!ok) throw new Error('Không thể tải lịch sử chấm công');
-      const enriched = (Array.isArray(data) ? data : []).map((r) =>
-        enrichAttendanceRecord(r, localUsers)
-      );
+      const rawList = Array.isArray(data) ? data : [];
+      const { consolidated: enriched } = consolidateCompletedShifts(rawList, localUsers);
       if (!params) {
         saveLocal(STORAGE_KEYS.ATTENDANCE, enriched);
         for (const r of enriched) {
@@ -496,9 +578,8 @@ export const api = {
       }
       return enriched;
     } catch {
-      let list = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []).map((r) =>
-        enrichAttendanceRecord(r, localUsers)
-      );
+      const rawLocal = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      let { consolidated: list } = consolidateCompletedShifts(rawLocal, localUsers);
       if (params?.date) list = list.filter((r) => r.date === params.date);
       if (params?.userId) list = list.filter((r) => r.userId === params.userId);
       if (params?.month) list = list.filter((r) => r.date.startsWith(params.month!));
@@ -590,7 +671,7 @@ export const api = {
     wifiSsid?: string;
     gps?: { lat: number; lng: number; distance?: number };
     note?: string;
-  }): Promise<{ success: boolean; record: AttendanceRecord }> {
+  }): Promise<{ success: boolean; record: AttendanceRecord; removedId?: string }> {
     const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
     let attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
     let idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
@@ -613,6 +694,64 @@ export const api = {
       1,
       Math.round((now.getTime() - new Date(record.checkInTime).getTime()) / 60000)
     );
+
+    const recordShiftId =
+      record.shiftId || (new Date(record.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
+
+    // Check if employee already has a completed record for this SAME shift today
+    const existingShiftIdx = attendance.findIndex(
+      (r, i) =>
+        i !== idx &&
+        r.userId === payload.userId &&
+        r.date === record.date &&
+        r.status !== 'working' &&
+        (r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')) ===
+          recordShiftId
+    );
+
+    const user = users.find((u) => u.id === payload.userId);
+
+    if (existingShiftIdx !== -1) {
+      // Accumulate this turn's minutes into the existing shift record so 1 shift = 1 record
+      const existing = attendance[existingShiftIdx];
+      const earliestCheckIn =
+        new Date(existing.checkInTime).getTime() <= new Date(record.checkInTime).getTime()
+          ? existing.checkInTime
+          : record.checkInTime;
+      const accumulatedMinutes = (Number(existing.totalMinutes) || 0) + diffMinutes;
+
+      const mergedRecord: AttendanceRecord = enrichAttendanceRecord(
+        {
+          ...existing,
+          checkInTime: earliestCheckIn,
+          checkOutTime,
+          totalMinutes: accumulatedMinutes,
+          status: 'completed',
+          checkOutIp: '14.161.45.88',
+          checkOutGps: payload.gps,
+          updatedAt: checkOutTime,
+        },
+        users
+      );
+
+      attendance[existingShiftIdx] = mergedRecord;
+      attendance.splice(idx, 1);
+      saveLocal(STORAGE_KEYS.ATTENDANCE, attendance);
+
+      Promise.all([
+        saveAttendanceToFirestore(mergedRecord, users, 'update').catch(() => {}),
+        deleteAttendanceFromFirestore(record.id).catch(() => {}),
+        user ? saveUserToFirestore(user, undefined, attendance, 'update').catch(() => {}) : Promise.resolve(),
+        fetch(`${API_BASE}/firebase/sync-attendance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attendance }),
+        }).catch(() => {}),
+      ]);
+
+      return { success: true, record: mergedRecord, removedId: record.id };
+    }
+
     const updatedRecord: AttendanceRecord = enrichAttendanceRecord(
       {
         ...record,
@@ -635,7 +774,6 @@ export const api = {
     saveLocal(STORAGE_KEYS.ATTENDANCE, attendance);
 
     // Persist to live Firebase Firestore and backend in parallel without blocking UI
-    const user = users.find((u) => u.id === payload.userId);
     Promise.all([
       saveAttendanceToFirestore(updatedRecord, users, 'update').catch(() => {}),
       user ? saveUserToFirestore(user, undefined, attendance, 'update').catch(() => {}) : Promise.resolve(),
@@ -764,6 +902,12 @@ export const api = {
     const summaries: MonthlyEmployeeSummary[] = targetUsers.map((user) => {
       const userRecords = monthRecords.filter((r) => r.userId === user.id);
       const totalDaysWorked = new Set(userRecords.map((r) => r.date)).size;
+      const uniqueShiftsCount = new Set(
+        userRecords.map(
+          (r) =>
+            `${r.date}_${r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')}`
+        )
+      ).size;
       const totalMinutes = userRecords.reduce((sum, r) => sum + (r.totalMinutes || 0), 0);
       const totalHours = Number((totalMinutes / 60).toFixed(2));
       const totalLateCount = userRecords.filter((r) => r.isLate).length;
@@ -782,14 +926,21 @@ export const api = {
         totalLateCount,
         totalEarlyCount,
         estimatedSalary,
-        recordsCount: userRecords.length,
+        recordsCount: uniqueShiftsCount,
       };
     });
+
+    const totalStoreUniqueShifts = new Set(
+      monthRecords.map(
+        (r) =>
+          `${r.userId}_${r.date}_${r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')}`
+      )
+    ).size;
 
     return {
       month: targetMonth,
       summaries,
-      totalRecords: monthRecords.length,
+      totalRecords: totalStoreUniqueShifts,
     };
   },
 

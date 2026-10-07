@@ -55,17 +55,82 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const workingRecords = todayRecords.filter((r) => r.status === 'working');
   const workingUserIds = new Set(workingRecords.map((r) => r.userId));
 
-  const completedRecords = todayRecords.filter((r) => r.status === 'completed');
-  const completedUserIds = new Set(completedRecords.map((r) => r.userId));
+  // Group completed records by (userId + shiftId) so multiple check-in/out turns in 1 shift count as 1 completed shift
+  // Also exclude users who are currently actively working in that shift
+  const completedShiftsMap = new Map<
+    string,
+    {
+      key: string;
+      userId: string;
+      userName: string;
+      employeeCode: string;
+      shiftId: string;
+      shiftName: string;
+      firstCheckInTime: string;
+      lastCheckOutTime: string | null;
+      totalMinutes: number;
+      turnsCount: number;
+      isLate: boolean;
+    }
+  >();
+
+  todayRecords
+    .filter((r) => r.status === 'completed' && !workingUserIds.has(r.userId))
+    .forEach((r) => {
+      const inferredShiftId =
+        r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
+      const key = `${r.userId}_${inferredShiftId}`;
+      const existing = completedShiftsMap.get(key);
+      if (!existing) {
+        completedShiftsMap.set(key, {
+          key,
+          userId: r.userId,
+          userName: r.userName,
+          employeeCode: r.employeeCode,
+          shiftId: inferredShiftId,
+          shiftName: inferredShiftId === 'shift_afternoon' ? 'Ca Chiều' : 'Ca Sáng',
+          firstCheckInTime: r.checkInTime,
+          lastCheckOutTime: r.checkOutTime || null,
+          totalMinutes: Number(r.totalMinutes) || 0,
+          turnsCount: 1,
+          isLate: Boolean(r.isLate),
+        });
+      } else {
+        if (new Date(r.checkInTime).getTime() < new Date(existing.firstCheckInTime).getTime()) {
+          existing.firstCheckInTime = r.checkInTime;
+        }
+        if (
+          r.checkOutTime &&
+          (!existing.lastCheckOutTime ||
+            new Date(r.checkOutTime).getTime() > new Date(existing.lastCheckOutTime).getTime())
+        ) {
+          existing.lastCheckOutTime = r.checkOutTime;
+        }
+        existing.totalMinutes += Number(r.totalMinutes) || 0;
+        existing.turnsCount += 1;
+        existing.isLate = existing.isLate || Boolean(r.isLate);
+      }
+    });
+
+  const completedShiftGroups = Array.from(completedShiftsMap.values());
+  const completedUserIds = new Set(
+    todayRecords.filter((r) => r.status === 'completed').map((r) => r.userId)
+  );
 
   const staffUsers = users.filter((u) => u.isActive && u.role === 'staff');
   const absentUsers = staffUsers.filter(
     (u) => !workingUserIds.has(u.id) && !completedUserIds.has(u.id)
   );
 
-  // Stats
+  // Stats (count unique shifts by userId + shiftId, not raw check-in/out turns)
   const totalMinutesToday = todayRecords.reduce((sum, r) => sum + (r.totalMinutes || 0), 0);
   const totalHoursToday = (totalMinutesToday / 60).toFixed(1);
+  const totalUniqueShiftsToday = new Set(
+    todayRecords.map(
+      (r) =>
+        `${r.userId}_${r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')}`
+    )
+  ).size;
   const onTimeCount = todayRecords.filter((r) => !r.isLate).length;
   const onTimeRate = todayRecords.length > 0 ? Math.round((onTimeCount / todayRecords.length) * 100) : 100;
 
@@ -139,7 +204,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div>
             <span className="text-[11px] text-zinc-400 font-medium">Giờ làm hôm nay</span>
             <div className="text-xl font-black text-indigo-400 font-mono tabular-nums mt-0.5">
-              {totalHoursToday}h <span className="text-xs font-normal text-zinc-500">({todayRecords.length} ca)</span>
+              {totalHoursToday}h <span className="text-xs font-normal text-zinc-500">({totalUniqueShiftsToday} ca)</span>
             </div>
           </div>
           <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0">
@@ -224,49 +289,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
 
-        {/* Column 2: ĐÃ XONG CA */}
+        {/* Column 2: ĐÃ XONG CA (Grouped by employee + shift) */}
         <div className="rounded-2xl bg-zinc-900/50 border border-zinc-800/80 p-4 flex flex-col">
           <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
               <h3 className="text-xs font-bold text-zinc-200">
-                Đã xong ca ({completedRecords.length})
+                Đã xong ca ({completedShiftGroups.length})
               </h3>
             </div>
           </div>
 
           <div className="mt-2.5 space-y-2 flex-1">
-            {completedRecords.length === 0 ? (
+            {completedShiftGroups.length === 0 ? (
               <div className="py-6 text-center text-xs text-zinc-500">
                 Chưa có ca hoàn thành
               </div>
             ) : (
-              completedRecords.map((r) => {
-                const user = users.find((u) => u.id === r.userId);
+              completedShiftGroups.map((group) => {
+                const user = users.find((u) => u.id === group.userId);
                 return (
                   <div
-                    key={r.id}
+                    key={group.key}
                     className="px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800/80 flex items-center justify-between gap-2"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
                         src={user?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80'}
-                        alt={r.userName}
+                        alt={group.userName}
                         className="w-7 h-7 rounded-full object-cover border border-zinc-700 shrink-0"
                       />
                       <div className="min-w-0">
-                        <div className="text-xs font-bold text-zinc-200 truncate">{r.userName}</div>
+                        <div className="text-xs font-bold text-zinc-200 truncate">{group.userName}</div>
                         <div className="text-[11px] text-zinc-400 font-mono">
-                          {formatTime(r.checkInTime)} → {r.checkOutTime ? formatTime(r.checkOutTime) : '--'}
+                          {formatTime(group.firstCheckInTime)} → {group.lastCheckOutTime ? formatTime(group.lastCheckOutTime) : '--'}
+                          {group.turnsCount > 1 && (
+                            <span className="text-zinc-500 font-sans ml-1">
+                              ({group.turnsCount} lượt)
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
                       <div className="text-xs font-mono font-bold text-indigo-400 tabular-nums">
-                        {(r.totalMinutes / 60).toFixed(1)}h
+                        {(group.totalMinutes / 60).toFixed(1)}h
                       </div>
-                      <div className="text-[10px] text-zinc-500 font-mono">{r.totalMinutes}p</div>
+                      <div className="text-[10px] text-zinc-500 font-mono">{group.totalMinutes}p</div>
                     </div>
                   </div>
                 );
@@ -433,13 +503,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm('Xoá bản ghi chấm công này?')) {
-                              deleteAttendance(record.id);
-                            }
-                          }}
+                          onClick={() => deleteAttendance(record.id)}
                           className="p-1.5 rounded-lg hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer"
-                          title="Xoá ca"
+                          title="Xoá lượt chấm công này"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

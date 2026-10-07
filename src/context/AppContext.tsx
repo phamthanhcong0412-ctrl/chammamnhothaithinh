@@ -6,7 +6,7 @@ import type {
   NetworkInfo,
   EmailLog,
 } from '../types/index.ts';
-import { api } from '../services/api.ts';
+import { api, consolidateCompletedShifts } from '../services/api.ts';
 import {
   auth,
   googleProvider,
@@ -93,7 +93,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
     try {
       const raw = localStorage.getItem('chammam_attendance_v2');
-      return raw ? JSON.parse(raw) : [];
+      const parsed: AttendanceRecord[] = raw ? JSON.parse(raw) : [];
+      return consolidateCompletedShifts(parsed, []).consolidated;
     } catch {
       return [];
     }
@@ -370,7 +371,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       note: payload?.note,
     });
     const enrichedRec = enrichAttendanceRecord(res.record, users);
-    const nextAtt = attendance.map((r) => (r.id === enrichedRec.id ? enrichedRec : r));
+    const filteredAtt = res.removedId
+      ? attendance.filter((r) => r.id !== res.removedId)
+      : attendance;
+    const nextAtt = filteredAtt.map((r) => (r.id === enrichedRec.id ? enrichedRec : r));
     syncUserAndAttendanceState(nextAtt, currentUser.id);
     return enrichedRec;
   };

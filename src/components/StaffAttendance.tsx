@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import {
   LogIn,
@@ -43,6 +43,7 @@ export const StaffAttendance: React.FC = () => {
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isProcessing, setIsProcessing] = useState(false);
+  const processingRef = useRef(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [wifiVerifiedManually, setWifiVerifiedManually] = useState<boolean>(false);
 
@@ -122,6 +123,7 @@ export const StaffAttendance: React.FC = () => {
 
   // 1-Click Check-In Handler
   const handleCheckIn = async () => {
+    if (processingRef.current || isProcessing) return;
     if (!isWifiValid) {
       setStatusMessage({
         type: 'error',
@@ -138,6 +140,7 @@ export const StaffAttendance: React.FC = () => {
       return;
     }
 
+    processingRef.current = true;
     setIsProcessing(true);
     setStatusMessage(null);
     try {
@@ -161,12 +164,14 @@ export const StaffAttendance: React.FC = () => {
         text: err.message || 'Check-in thất bại.',
       });
     } finally {
+      processingRef.current = false;
       setIsProcessing(false);
     }
   };
 
   // 1-Click Check-Out Handler
   const handleCheckOut = async () => {
+    if (processingRef.current || isProcessing) return;
     if (!isWifiValid) {
       setStatusMessage({
         type: 'error',
@@ -183,6 +188,7 @@ export const StaffAttendance: React.FC = () => {
       return;
     }
 
+    processingRef.current = true;
     setIsProcessing(true);
     setStatusMessage(null);
     try {
@@ -198,7 +204,7 @@ export const StaffAttendance: React.FC = () => {
 
       setStatusMessage({
         type: 'success',
-        text: `Check-out thành công! Lượt làm này được ghi nhận: ${(record.totalMinutes / 60).toFixed(1)} giờ (${record.totalMinutes} phút). Bạn có thể tiếp tục Check-in lại lượt mới bất kỳ lúc nào trong ca!`,
+        text: `Check-out thành công! Tổng thời gian ca này đã ghi nhận: ${(record.totalMinutes / 60).toFixed(1)} giờ (${record.totalMinutes} phút).`,
       });
     } catch (err: any) {
       setStatusMessage({
@@ -206,6 +212,7 @@ export const StaffAttendance: React.FC = () => {
         text: err.message || 'Check-out thất bại.',
       });
     } finally {
+      processingRef.current = false;
       setIsProcessing(false);
     }
   };
@@ -464,7 +471,7 @@ export const StaffAttendance: React.FC = () => {
               {myTodaySessions.length === 0 ? (
                 <p className="text-xs text-zinc-500 py-2 text-center">Chưa có lượt chấm công hôm nay</p>
               ) : (
-                myTodaySessions.map((r, idx) => {
+                myTodaySessions.map((r) => {
                   const inTime = new Date(r.checkInTime).toLocaleTimeString('vi-VN', {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -475,13 +482,17 @@ export const StaffAttendance: React.FC = () => {
                         minute: '2-digit',
                       })
                     : 'Đang làm';
+                  const shiftLabel =
+                    r.shiftId === 'shift_afternoon' || new Date(r.checkInTime).getHours() >= 14
+                      ? 'Ca Chiều'
+                      : 'Ca Sáng';
                   return (
                     <div
                       key={r.id}
                       className="px-3 py-2 rounded-xl bg-zinc-950/80 border border-zinc-800/60 flex items-center justify-between text-xs"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-zinc-200">Ca {myTodaySessions.length - idx}</span>
+                        <span className="font-semibold text-zinc-200">{shiftLabel}</span>
                         <span className="text-zinc-400 font-mono tabular-nums">
                           {inTime} → {outTime}
                         </span>
