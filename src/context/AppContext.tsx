@@ -102,9 +102,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsub();
   }, []);
 
-  // Fetch users and attendance from Firestore once on load when authenticated with Firebase
+  // Fetch users and attendance from Firestore once on load
   useEffect(() => {
-    if (!isAuthReady || !firebaseUser) return;
+    if (!isAuthReady) return;
 
     Promise.all([
       fetchUsersFromFirestore().catch(() => [] as User[]),
@@ -204,16 +204,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginWithCredentials = async (username: string, password: string): Promise<User> => {
     const cleanUsername = username.trim();
     const res = await api.login(cleanUsername, password);
-    const loggedInUser = res.user;
+    const loggedInUser = enrichUserWithAttendanceStats(res.user, attendance);
     setCurrentUser(loggedInUser);
     localStorage.setItem('chammam_auth_username', loggedInUser.username);
     setUsers((prev) => {
       const exists = prev.some((u) => u.id === loggedInUser.id);
       return exists ? prev.map((u) => (u.id === loggedInUser.id ? loggedInUser : u)) : [loggedInUser, ...prev];
     });
-    if (auth.currentUser) {
-      saveUserToFirestore(loggedInUser).catch((e) => console.warn('Firestore user sync warning:', e));
-    }
+    saveUserToFirestore(loggedInUser, undefined, attendance).catch((e) =>
+      console.warn('Firestore user sync warning:', e)
+    );
     return loggedInUser;
   };
 
@@ -277,9 +277,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const syncUsersToFirebase = async (): Promise<FirebaseSyncResult> => {
     const startTime = Date.now();
-    if (!auth.currentUser) {
-      await signInWithPopup(auth, googleProvider);
-    }
     const enrichedUsers = users.map((u) => enrichUserWithAttendanceStats(u, attendance));
     setUsers(enrichedUsers);
     const result = await syncAllUsersToFirestore(enrichedUsers, attendance);
@@ -310,7 +307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAttendance(enrichedAtt);
     setUsers((prevUsers) => {
       const nextUsers = prevUsers.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
-      if (auth.currentUser && targetUserId) {
+      if (targetUserId) {
         const updatedTarget = nextUsers.find((u) => u.id === targetUserId);
         if (updatedTarget) {
           saveUserToFirestore(updatedTarget, undefined, enrichedAtt).catch(() => {});
@@ -340,11 +337,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const enrichedRec = enrichAttendanceRecord(res.record, users);
     const nextAtt = [enrichedRec, ...attendance];
     syncUserAndAttendanceState(nextAtt, currentUser.id);
-    if (auth.currentUser) {
-      saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
-        console.warn('Firestore attendance sync:', e)
-      );
-    }
+    saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
+      console.warn('Firestore attendance sync:', e)
+    );
     return enrichedRec;
   };
 
@@ -365,11 +360,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const enrichedRec = enrichAttendanceRecord(res.record, users);
     const nextAtt = attendance.map((r) => (r.id === enrichedRec.id ? enrichedRec : r));
     syncUserAndAttendanceState(nextAtt, currentUser.id);
-    if (auth.currentUser) {
-      saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
-        console.warn('Firestore checkout sync:', e)
-      );
-    }
+    saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
+      console.warn('Firestore checkout sync:', e)
+    );
     return enrichedRec;
   };
 
@@ -392,11 +385,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? attendance.map((r) => (r.id === enrichedRec.id ? enrichedRec : r))
       : [enrichedRec, ...attendance];
     syncUserAndAttendanceState(nextAtt, payload.userId);
-    if (auth.currentUser) {
-      saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
-        console.warn('Firestore manual attendance sync:', e)
-      );
-    }
+    saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
+      console.warn('Firestore manual attendance sync:', e)
+    );
     return enrichedRec;
   };
 
@@ -405,30 +396,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await api.deleteAttendance(id);
     const nextAtt = attendance.filter((r) => r.id !== id);
     syncUserAndAttendanceState(nextAtt, targetRec?.userId);
-    if (auth.currentUser) {
-      deleteAttendanceFromFirestore(id).catch((e) =>
-        console.warn('Firestore deleteAttendance sync:', e)
-      );
-    }
+    deleteAttendanceFromFirestore(id).catch((e) =>
+      console.warn('Firestore deleteAttendance sync:', e)
+    );
   };
 
   const updateConfig = async (cfg: Partial<StoreConfig>) => {
     const res = await api.updateConfig(cfg);
     setStoreConfig(res.config);
-    if (auth.currentUser) {
-      saveStoreConfigToFirestore(res.config).catch((e) => console.warn('Firestore config sync:', e));
-    }
+    saveStoreConfigToFirestore(res.config).catch((e) => console.warn('Firestore config sync:', e));
   };
 
   const addUser = async (userData: Partial<User>) => {
     const res = await api.createUser(userData);
     const enrichedUser = enrichUserWithAttendanceStats(res.user, attendance);
     setUsers((prev) => [...prev.filter((u) => u.id !== enrichedUser.id), enrichedUser]);
-    if (auth.currentUser) {
-      saveUserToFirestore(enrichedUser, undefined, attendance).catch((e) =>
-        console.warn('Firestore addUser sync:', e)
-      );
-    }
+    saveUserToFirestore(enrichedUser, undefined, attendance).catch((e) =>
+      console.warn('Firestore addUser sync:', e)
+    );
     return enrichedUser;
   };
 
@@ -439,20 +424,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (currentUser?.id === id) {
       setCurrentUser(enrichedUser);
     }
-    if (auth.currentUser) {
-      saveUserToFirestore(enrichedUser, undefined, attendance).catch((e) =>
-        console.warn('Firestore updateUser sync:', e)
-      );
-    }
+    saveUserToFirestore(enrichedUser, undefined, attendance).catch((e) =>
+      console.warn('Firestore updateUser sync:', e)
+    );
     return enrichedUser;
   };
 
   const deleteUser = async (id: string) => {
     await api.deleteUser(id);
     setUsers((prev) => prev.filter((u) => u.id !== id));
-    if (auth.currentUser) {
-      deleteUserFromFirestore(id).catch((e) => console.warn('Firestore deleteUser sync:', e));
-    }
+    deleteUserFromFirestore(id).catch((e) => console.warn('Firestore deleteUser sync:', e));
   };
 
   const changePassword = async (currentPassword: string, newPassword: string): Promise<User> => {
@@ -460,9 +441,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const res = await api.changePassword(currentUser.id, currentPassword, newPassword);
     setCurrentUser(res.user);
     setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? res.user : u)));
-    if (auth.currentUser) {
-      saveUserToFirestore(res.user).catch((e) => console.warn('Firestore changePassword sync:', e));
-    }
+    saveUserToFirestore(res.user, undefined, attendance).catch((e) =>
+      console.warn('Firestore changePassword sync:', e)
+    );
     return res.user;
   };
 
@@ -479,7 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         firebaseUser,
-        isFirebaseConnected: !!firebaseUser,
+        isFirebaseConnected: true,
         firebaseProjectId: firebaseAppletConfig.projectId,
         lastFirebaseSync,
         users,

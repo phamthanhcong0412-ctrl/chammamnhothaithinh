@@ -41,7 +41,7 @@
   ],
   "autoEmailTime": "21:00",
   "managerEmail": "phamthanhcong0412@gmail.com",
-  "lastReportSentDate": null,
+  "lastReportSentDate": "2026-10-06",
   "firebaseConfig": {
     "adminEmail": "phamthanhcong0412@gmail.com",
     "projectId": "gen-lang-client-0980052625",
