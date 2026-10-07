@@ -13,9 +13,14 @@ import type { AttendanceRecord } from './types/index.ts';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 function AppContent() {
-  const { currentUser, isLoading, error } = useApp();
+  const { currentUser, isLoading, error, refreshData } = useApp();
   const isAdmin = currentUser?.role === 'admin';
   const [currentTab, setCurrentTab] = useState<'attendance' | 'dashboard' | 'monthly' | 'employees'>('dashboard');
+
+  const handleSetTab = (tab: 'attendance' | 'dashboard' | 'monthly' | 'employees') => {
+    setCurrentTab(tab);
+    refreshData().catch(() => {});
+  };
 
   // Modals state
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -66,7 +71,7 @@ function AppContent() {
       {/* Navbar */}
       <Navbar
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={handleSetTab}
         onOpenEmailModal={() => setIsEmailModalOpen(true)}
         onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
       />

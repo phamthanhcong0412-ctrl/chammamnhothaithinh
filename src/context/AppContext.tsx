@@ -166,6 +166,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const enrichedUsers = userList.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
       setUsers(enrichedUsers);
       setAttendance(enrichedAtt);
+      try {
+        localStorage.setItem('chammam_users_v1', JSON.stringify(enrichedUsers));
+        localStorage.setItem('chammam_attendance_v1', JSON.stringify(enrichedAtt));
+      } catch {}
       if (netInfo) setNetworkInfo(netInfo);
 
       // Restore current user only if saved in localStorage
@@ -204,14 +208,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginWithCredentials = async (username: string, password: string): Promise<User> => {
     const cleanUsername = username.trim();
     const res = await api.login(cleanUsername, password);
-    const loggedInUser = enrichUserWithAttendanceStats(res.user, attendance);
+    localStorage.setItem('chammam_auth_username', res.user.username);
+    const [latestUsers, latestAtt] = await Promise.all([
+      api.getUsers().catch(() => users),
+      api.getAttendance().catch(() => attendance),
+    ]);
+    const enrichedAtt = latestAtt.map((r) => enrichAttendanceRecord(r, latestUsers));
+    const enrichedUsers = latestUsers.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
+    const loggedInUser =
+      enrichedUsers.find((u) => u.id === res.user.id) ||
+      enrichUserWithAttendanceStats(res.user, enrichedAtt);
+
+    setAttendance(enrichedAtt);
+    setUsers(enrichedUsers);
     setCurrentUser(loggedInUser);
-    localStorage.setItem('chammam_auth_username', loggedInUser.username);
-    setUsers((prev) => {
-      const exists = prev.some((u) => u.id === loggedInUser.id);
-      return exists ? prev.map((u) => (u.id === loggedInUser.id ? loggedInUser : u)) : [loggedInUser, ...prev];
-    });
-    saveUserToFirestore(loggedInUser, undefined, attendance).catch((e) =>
+    saveUserToFirestore(loggedInUser, undefined, enrichedAtt).catch((e) =>
       console.warn('Firestore user sync warning:', e)
     );
     return loggedInUser;

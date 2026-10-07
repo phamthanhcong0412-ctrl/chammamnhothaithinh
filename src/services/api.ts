@@ -321,20 +321,18 @@ export const api = {
   },
 
   async getUsers(): Promise<User[]> {
-    const localAtt = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
-
-    // 1. Primary: Read directly from live Firebase Firestore so Machine B always gets accounts created on Machine A
+    // 1. Primary: Read directly from live Firebase Firestore so Machine B always gets accounts & stats from Machine A
     try {
       const firestoreList = await fetchUsersFromFirestore();
       if (firestoreList.length > 0) {
-        const enriched = firestoreList.map((u) => enrichUserWithAttendanceStats(u, localAtt));
-        saveLocal(STORAGE_KEYS.USERS, enriched);
-        return enriched;
+        saveLocal(STORAGE_KEYS.USERS, firestoreList);
+        return firestoreList;
       }
     } catch (e) {
       console.warn('Firestore direct getUsers warning:', e);
     }
 
+    const localAtt = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
     // 2. Fallback: Read from /api/firebase/users and seed to Firestore
     try {
       const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/firebase/users`);

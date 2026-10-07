@@ -161,6 +161,31 @@ export function enrichUserWithAttendanceStats(
     .filter((r) => r.userId === user.id)
     .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
 
+  if (userRecords.length === 0 && attendanceList.length === 0) {
+    const hourlyRate = Number(user.hourlyRate) || 28000;
+    const totalMinutesWorked = Number(user.totalMinutesWorked) || 0;
+    const totalHoursWorked =
+      user.totalHoursWorked !== undefined
+        ? Number(user.totalHoursWorked)
+        : Number((totalMinutesWorked / 60).toFixed(2));
+    return {
+      ...user,
+      totalMinutesWorked,
+      totalHoursWorked,
+      totalDaysWorked: Number(user.totalDaysWorked) || 0,
+      totalShifts: Number(user.totalShifts) || 0,
+      lateCount: Number(user.lateCount) || 0,
+      estimatedSalary:
+        user.estimatedSalary !== undefined
+          ? Number(user.estimatedSalary)
+          : Math.round((totalMinutesWorked / 60) * hourlyRate),
+      currentStatus: user.currentStatus === 'working' ? 'working' : 'offline',
+      lastCheckInTime: user.lastCheckInTime || null,
+      lastCheckOutTime: user.lastCheckOutTime || null,
+      recentAttendanceSummary: user.recentAttendanceSummary || 'Chưa có lịch sử chấm công',
+    };
+  }
+
   const totalMinutesWorked = userRecords.reduce((sum, r) => sum + (Number(r.totalMinutes) || 0), 0);
   const totalHoursWorked = Number((totalMinutesWorked / 60).toFixed(2));
   const totalDaysWorked = new Set(userRecords.map((r) => r.date)).size;

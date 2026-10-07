@@ -14,6 +14,7 @@ import {
   MapPin,
   Calendar,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import type { AttendanceRecord } from '../types/index.ts';
@@ -27,8 +28,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenManualModal,
   onOpenEmailModal,
 }) => {
-  const { users, attendance, storeConfig, networkInfo, deleteAttendance } = useApp();
+  const { users, attendance, storeConfig, networkInfo, deleteAttendance, refreshData } = useApp();
   const [currentSeconds, setCurrentSeconds] = useState(Date.now());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshData();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 400);
+    }
+  };
 
   // Ticking timer for real-time live working duration
   useEffect(() => {
@@ -94,8 +105,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Quick Manager Actions */}
         <div className="flex flex-wrap items-center gap-2.5">
           <button
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="px-3.5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+            title="Tải dữ liệu mới nhất từ Firebase"
+          >
+            <RefreshCw className={`w-4 h-4 text-emerald-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'Đang tải...' : 'Làm Mới'}</span>
+          </button>
+
+          <button
             onClick={() => onOpenManualModal(null)}
-            className="px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+            className="px-4 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
           >
             <UserCheck className="w-4 h-4 text-amber-400" /> Chấm Công Hộ
           </button>
