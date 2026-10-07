@@ -510,9 +510,6 @@ export const StaffAttendance: React.FC = () => {
                         <span className="text-zinc-400 font-mono tabular-nums">
                           {inTime} → {outTime}
                         </span>
-                        {r.isLate && (
-                          <span className="text-[10px] font-semibold text-amber-400">· Đi muộn</span>
-                        )}
                       </div>
 
                       <div className="font-mono tabular-nums text-right shrink-0">

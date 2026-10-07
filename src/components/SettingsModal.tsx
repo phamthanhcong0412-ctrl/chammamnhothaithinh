@@ -445,7 +445,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <span className="text-[10px] text-zinc-500 font-mono">{shift.id}</span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] text-zinc-400 mb-1">Bắt đầu ca</label>
                       <input
@@ -468,22 +468,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         onChange={(e) => {
                           const updated = [...formData.shifts];
                           updated[idx].endTime = e.target.value;
-                          setFormData({ ...formData, shifts: updated });
-                        }}
-                        className="w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] text-zinc-400 mb-1">Ân hạn trễ (phút)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={60}
-                        value={shift.lateGraceMinutes}
-                        onChange={(e) => {
-                          const updated = [...formData.shifts];
-                          updated[idx].lateGraceMinutes = Number(e.target.value);
                           setFormData({ ...formData, shifts: updated });
                         }}
                         className="w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100"

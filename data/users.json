@@ -40,15 +40,15 @@
     "joinDate": "2026-10-07",
     "isActive": true,
     "note": "",
-    "totalMinutesWorked": 181,
-    "totalHoursWorked": 3.02,
+    "totalMinutesWorked": 176,
+    "totalHoursWorked": 2.93,
     "totalDaysWorked": 1,
-    "totalShifts": 6,
+    "totalShifts": 1,
     "lateCount": 0,
-    "estimatedSalary": 150833,
+    "estimatedSalary": 146667,
     "currentStatus": "offline",
-    "lastCheckInTime": "2026-10-07T01:52:39.093Z",
-    "lastCheckOutTime": "2026-10-07T01:52:42.078Z",
-    "recentAttendanceSummary": "2026-10-07: 01:52-01:52 (0.02h / 1p) | 2026-10-07: 01:09-01:10 (0.02h / 1p) | 2026-10-07: 01:08-01:09 (0.02h / 1p) | 2026-10-07: 01:08-01:08 (0.02h / 1p) | 2026-10-07: 01:05-01:05 (0.02h / 1p)"
+    "lastCheckInTime": "2026-10-07T00:56:00.000Z",
+    "lastCheckOutTime": "2026-10-07T03:52:00.000Z",
+    "recentAttendanceSummary": "2026-10-07: 07:56-10:52 (2.93h / 176p)"
   }
 ]

@@ -166,31 +166,16 @@ export function evaluateShiftTiming(
     shift?.endTime || (isAfternoon ? '20:00' : '12:00'),
     isAfternoon ? 20 * 60 : 12 * 60
   );
-  const graceMins = shift?.lateGraceMinutes ?? 15;
   const checkOutAfterMinutes = shift?.checkOutAfterMinutes ?? 90;
 
-  // Only mark late if checking in within the shift window after start + grace
-  const isLate = inMins > shiftStartMins + graceMins && inMins <= shiftEndMins;
-  const lateMinutes = isLate ? inMins - shiftStartMins : 0;
-
-  let isEarlyLeave = false;
-  let earlyLeaveMinutes = 0;
-  if (checkOutIso) {
-    const outDate = new Date(checkOutIso);
-    const outMins = outDate.getHours() * 60 + outDate.getMinutes();
-    if (outMins < shiftEndMins - 10 && outMins >= shiftStartMins) {
-      isEarlyLeave = true;
-      earlyLeaveMinutes = shiftEndMins - outMins;
-    }
-  }
-
+  // Store does NOT track or penalize late arrival / early leave
   return {
     shiftId,
     shiftName,
-    isLate,
-    lateMinutes,
-    isEarlyLeave,
-    earlyLeaveMinutes,
+    isLate: false,
+    lateMinutes: 0,
+    isEarlyLeave: false,
+    earlyLeaveMinutes: 0,
     shiftStartMins,
     shiftEndMins,
     checkOutAfterMinutes,
@@ -211,7 +196,11 @@ export function consolidateCompletedShifts(
   const updatedRecords: AttendanceRecord[] = [];
 
   for (const rawRec of records) {
-    let r = rawRec;
+    let r: AttendanceRecord = {
+      ...rawRec,
+      isLate: false,
+      isEarlyLeave: false,
+    };
     if (r.status === 'working') {
       const timing = evaluateShiftTiming(r.checkInTime, null, cfg);
       const inDate = new Date(r.checkInTime);
@@ -240,7 +229,7 @@ export function consolidateCompletedShifts(
             status: 'completed',
             shiftId: timing.shiftId,
             shiftName: timing.shiftName,
-            isLate: timing.isLate,
+            isLate: false,
             isEarlyLeave: false,
             note: r.note ? `${r.note} • Tự chốt cuối ca` : 'Tự chốt cuối ca (Quên check-out)',
             updatedAt: new Date().toISOString(),
@@ -267,7 +256,7 @@ export function consolidateCompletedShifts(
 
   for (const [, group] of completedByShift.entries()) {
     if (group.length === 1) {
-      consolidatedCompleted.push(enrichAttendanceRecord(group[0], users));
+      consolidatedCompleted.push(enrichAttendanceRecord({ ...group[0], isLate: false, isEarlyLeave: false }, users));
       continue;
     }
 
@@ -276,7 +265,6 @@ export function consolidateCompletedShifts(
       (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
     );
     const base = sorted[0];
-    const last = sorted[sorted.length - 1];
     const totalMinutes = sorted.reduce((sum, item) => sum + (Number(item.totalMinutes) || 0), 0);
 
     let latestCheckOut = base.checkOutTime || null;
@@ -299,8 +287,8 @@ export function consolidateCompletedShifts(
         totalMinutes,
         shiftId: timing.shiftId,
         shiftName: timing.shiftName,
-        isLate: Boolean(base.isLate || timing.isLate),
-        isEarlyLeave: Boolean(last.isEarlyLeave && timing.isEarlyLeave),
+        isLate: false,
+        isEarlyLeave: false,
         updatedAt: new Date().toISOString(),
       },
       users
@@ -729,24 +717,6 @@ export const api = {
     const todayStr = getTodayString();
     const timing = evaluateShiftTiming(checkInTime, null, cfg);
 
-    // If employee already has a completed record in this shift today, don't mark 2nd turn as late
-    const hasCompletedTurnInShift = attendance.some(
-      (r) =>
-        r.userId === user!.id &&
-        r.date === todayStr &&
-        r.status !== 'working' &&
-        (r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')) ===
-          timing.shiftId
-    );
-
-    const isLate = hasCompletedTurnInShift ? false : timing.isLate;
-    const autoNote =
-      !hasCompletedTurnInShift && timing.isLate
-        ? payload.note
-          ? `${payload.note} (Trễ ${timing.lateMinutes}p)`
-          : `Đi muộn ${timing.lateMinutes} phút`
-        : payload.note || '';
-
     const newRecord: AttendanceRecord = enrichAttendanceRecord(
       {
         id: 'att_' + Date.now(),
@@ -765,9 +735,9 @@ export const api = {
         checkInGps: payload.gps,
         shiftId: timing.shiftId,
         shiftName: timing.shiftName,
-        isLate,
+        isLate: false,
         isEarlyLeave: false,
-        note: autoNote,
+        note: payload.note || '',
         createdAt: checkInTime,
         updatedAt: checkInTime,
       },

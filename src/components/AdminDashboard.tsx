@@ -156,9 +156,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         `${r.userId}_${r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')}`
     )
   ).size;
-  const lateCountToday = todayRecords.filter((r) => r.isLate).length;
-  const onTimeCount = todayRecords.filter((r) => !r.isLate).length;
-  const onTimeRate = todayRecords.length > 0 ? Math.round((onTimeCount / todayRecords.length) * 100) : 100;
   const todayEstimatedPay = todayRecords.reduce((sum, r) => sum + (Number(r.estimatedShiftPay) || 0), 0);
 
   // Filtered Log Records
@@ -267,11 +264,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
           <div>
-            <span className="text-xs text-zinc-400 font-medium">Tỷ lệ đúng giờ</span>
+            <span className="text-xs text-zinc-400 font-medium">Đã xong ca hôm nay</span>
             <div className="text-2xl font-black text-teal-400 font-mono tabular-nums mt-1">
-              {onTimeRate}%{' '}
+              {completedShiftGroups.length} ca{' '}
               <span className="text-xs font-sans font-normal text-zinc-500">
-                ({lateCountToday > 0 ? `${lateCountToday} trễ` : 'Chuẩn giờ'})
+                (Chưa vào: {absentUsers.length} NV)
               </span>
             </div>
           </div>
@@ -337,7 +334,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <span>{isAfternoon ? 'Ca Chiều' : 'Ca Sáng'}</span>
                           <span>·</span>
                           <span>Vào {formatTime(r.checkInTime)}</span>
-                          {r.isLate && <span className="text-amber-400 font-sans font-semibold">· Muộn</span>}
                         </div>
                       </div>
                     </div>
@@ -409,12 +405,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <div className="text-[11px] text-zinc-400 font-mono">
                           {formatTime(group.firstCheckInTime)} →{' '}
                           {group.lastCheckOutTime ? formatTime(group.lastCheckOutTime) : '--'}
-                          {group.isLate && (
-                            <span className="text-amber-400 font-sans ml-1.5">· Đi muộn</span>
-                          )}
-                          {group.isEarlyLeave && (
-                            <span className="text-rose-400 font-sans ml-1.5">· Về sớm</span>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -607,16 +597,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           formatTime(record.checkOutTime)
                         ) : (
                           <span className="text-emerald-400 font-sans font-semibold">Đang làm</span>
-                        )}
-                        {record.isLate && (
-                          <span className="ml-1.5 text-[11px] text-amber-400 font-sans font-medium">
-                            · Muộn
-                          </span>
-                        )}
-                        {record.isEarlyLeave && (
-                          <span className="ml-1.5 text-[11px] text-rose-400 font-sans font-medium">
-                            · Về sớm
-                          </span>
                         )}
                       </td>
 

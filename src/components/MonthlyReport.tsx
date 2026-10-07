@@ -77,8 +77,6 @@ export const MonthlyReport: React.FC = () => {
       'Số Ca',
       'Tổng Phút',
       'Tổng Giờ',
-      'Đi Muộn',
-      'Về Sớm',
       'Lương Thực Lĩnh (VND)',
     ];
     const rows = summaries.map((s) => [
@@ -90,8 +88,6 @@ export const MonthlyReport: React.FC = () => {
       s.recordsCount,
       s.totalMinutes,
       s.totalHours,
-      s.totalLateCount,
-      s.totalEarlyCount,
       s.estimatedSalary,
     ]);
 
@@ -225,7 +221,6 @@ export const MonthlyReport: React.FC = () => {
                 <th className="py-3 px-3 text-center font-semibold">Ngày công</th>
                 <th className="py-3 px-3 text-center font-semibold">Số ca</th>
                 <th className="py-3 px-3 text-center font-semibold">Tổng giờ (phút)</th>
-                <th className="py-3 px-3 text-center font-semibold">Muộn / Sớm</th>
                 <th className="py-3 px-3 text-right font-semibold">Thực lĩnh tạm tính</th>
                 <th className="py-3 px-4 text-right font-semibold">Chi tiết / Phiếu lương</th>
               </tr>
@@ -233,7 +228,7 @@ export const MonthlyReport: React.FC = () => {
             <tbody className="divide-y divide-zinc-800/60">
               {filteredSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-zinc-500">
+                  <td colSpan={7} className="py-8 text-center text-zinc-500">
                     Chưa có dữ liệu chấm công trong tháng {selectedMonth}.
                   </td>
                 </tr>
@@ -267,15 +262,6 @@ export const MonthlyReport: React.FC = () => {
                           <span className="text-[11px] text-zinc-500">
                             ({summary.totalMinutes.toLocaleString('vi-VN')}p)
                           </span>
-                        </td>
-                        <td className="py-3 px-3 text-center font-mono tabular-nums">
-                          {summary.totalLateCount > 0 || summary.totalEarlyCount > 0 ? (
-                            <span className="text-amber-400 font-semibold">
-                              {summary.totalLateCount} trễ · {summary.totalEarlyCount} sớm
-                            </span>
-                          ) : (
-                            <span className="text-emerald-400/80 font-sans text-[11px]">Chuẩn giờ</span>
-                          )}
                         </td>
                         <td className="py-3 px-3 text-right font-mono tabular-nums font-bold text-emerald-400 text-sm">
                           {summary.estimatedSalary.toLocaleString('vi-VN')}đ
@@ -314,7 +300,7 @@ export const MonthlyReport: React.FC = () => {
                       {/* Expanded Daily Shift Breakdown */}
                       {isExpanded && (
                         <tr className="bg-zinc-950/70">
-                          <td colSpan={8} className="p-3.5 border-b border-zinc-800">
+                          <td colSpan={7} className="p-3.5 border-b border-zinc-800">
                             <div className="rounded-xl border border-zinc-800/80 overflow-x-auto bg-zinc-900/60 px-3 py-2">
                               {userMonthRecords.length === 0 ? (
                                 <div className="py-4 text-center text-xs text-zinc-500">
@@ -355,9 +341,6 @@ export const MonthlyReport: React.FC = () => {
                                                   minute: '2-digit',
                                                 })
                                               : 'Đang làm'}
-                                            {r.isLate && (
-                                              <span className="text-amber-400 font-sans ml-1.5">· Muộn</span>
-                                            )}
                                           </td>
                                           <td className="py-2 px-2 font-mono tabular-nums font-semibold text-indigo-300">
                                             {(r.totalMinutes / 60).toFixed(1)}h{' '}
@@ -443,12 +426,6 @@ export const MonthlyReport: React.FC = () => {
                   <span className="text-zinc-400">Tổng thời gian làm việc</span>
                   <span className="font-mono font-bold text-indigo-400">
                     {payslipUser.totalHours} giờ ({payslipUser.totalMinutes.toLocaleString('vi-VN')} phút)
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-zinc-800/70">
-                  <span className="text-zinc-400">Chuyên cần (Đi muộn / Về sớm)</span>
-                  <span className="font-mono text-zinc-200">
-                    {payslipUser.totalLateCount} lần muộn · {payslipUser.totalEarlyCount} lần về sớm
                   </span>
                 </div>
               </div>
