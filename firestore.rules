@@ -156,7 +156,7 @@ service cloud.firestore {
         ]) &&
         data.keys().hasOnly([
           'id', 'ownerId', 'storeName', 'storeAddress', 'wifiSsid',
-          'allowedIpsJson', 'shiftsJson',
+          'wifiBssid', 'allowedIpsJson', 'storeGpsJson', 'shiftsJson',
           'bypassIpCheck', 'requireWifi', 'requireQr', 'requireGps',
           'qrRefreshSeconds', 'autoEmailTime', 'managerEmail', 'updatedAt'
         ]) &&
@@ -165,7 +165,9 @@ service cloud.firestore {
         data.storeName is string && data.storeName.size() >= 1 && data.storeName.size() <= 150 &&
         data.storeAddress is string && data.storeAddress.size() >= 1 && data.storeAddress.size() <= 250 &&
         data.wifiSsid is string && data.wifiSsid.size() >= 1 && data.wifiSsid.size() <= 100 &&
+        (!('wifiBssid' in data) || (data.wifiBssid is string && data.wifiBssid.size() <= 100)) &&
         (!('allowedIpsJson' in data) || (data.allowedIpsJson is string && data.allowedIpsJson.size() <= 2000)) &&
+        (!('storeGpsJson' in data) || (data.storeGpsJson is string && data.storeGpsJson.size() <= 500)) &&
         (!('shiftsJson' in data) || (data.shiftsJson is string && data.shiftsJson.size() <= 4000)) &&
         data.bypassIpCheck is bool &&
         data.requireWifi is bool &&
@@ -276,9 +278,9 @@ service cloud.firestore {
         incoming().updatedAt == request.time &&
         isAdmin() &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'storeName', 'storeAddress', 'wifiSsid', 'allowedIpsJson', 'shiftsJson',
-          'bypassIpCheck', 'requireWifi', 'requireQr', 'requireGps', 'qrRefreshSeconds',
-          'autoEmailTime', 'managerEmail', 'updatedAt'
+          'storeName', 'storeAddress', 'wifiSsid', 'wifiBssid', 'allowedIpsJson',
+          'storeGpsJson', 'shiftsJson', 'bypassIpCheck', 'requireWifi', 'requireQr',
+          'requireGps', 'qrRefreshSeconds', 'autoEmailTime', 'managerEmail', 'updatedAt'
         ]);
       allow delete: if isSignedIn() && isValidId(configId) && isAdmin();
     }

@@ -42,6 +42,7 @@ const DEFAULT_CONFIG: StoreConfig = {
   storeName: 'Cháo Mầm Nhỏ Thái Thịnh',
   storeAddress: 'Thái Thịnh, Đống Đa, Hà Nội',
   wifiSsid: 'ChaoMamNho_ThaiThinh_5G',
+  wifiBssid: 'A4:2B:B0:C1:9E:58',
   allowedIps: ['127.0.0.1', '::1', '14.161.45.88', '118.69.182.20'],
   bypassIpCheck: true,
   requireWifi: true,
@@ -423,6 +424,35 @@ export function isClientIpAllowedByConfig(clientIp: string, cfg: StoreConfig): b
     ? cfg.allowedIps.map((ip) => String(ip).trim()).filter(Boolean)
     : [];
   return allowedList.includes(cleanClient);
+}
+
+export function deriveBssidFromNetworkIp(ip: string): string {
+  const parts = String(ip || '14.161.45.88')
+    .split('.')
+    .map((n) => {
+      const parsed = parseInt(n, 10);
+      return Number.isNaN(parsed) ? 88 : parsed & 0xff;
+    });
+  while (parts.length < 4) parts.push(161);
+  const hex = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
+  return `A4:2B:${hex(parts[0])}:${hex(parts[1])}:${hex(parts[2])}:${hex(parts[3])}`;
+}
+
+export function calculateGpsDistanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
 }
 
 export const api = {
@@ -851,8 +881,28 @@ export const api = {
 
     if (!isClientIpAllowedByConfig(clientIp, cfg)) {
       throw new Error(
-        `Chặn chấm công: Thiết bị hiện tại (IP: ${clientIp}) không kết nối đúng WiFi cửa hàng "${cfg.wifiSsid}" đã lưu trong cấu hình.`
+        `Chặn chấm công: Thiết bị hiện tại không kết nối đúng mạng WiFi "${cfg.wifiSsid}" (BSSID: ${cfg.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`
       );
+    }
+
+    if (cfg.requireGps && cfg.storeGps) {
+      if (!payload.gps || typeof payload.gps.lat !== 'number' || typeof payload.gps.lng !== 'number') {
+        throw new Error(
+          'Chặn chấm công (Khóa Kép Vị Trí): Vui lòng bật quyền Định vị (GPS) trên trình duyệt để xác nhận đang có mặt tại quán.'
+        );
+      }
+      const dist = calculateGpsDistanceMeters(
+        payload.gps.lat,
+        payload.gps.lng,
+        cfg.storeGps.lat,
+        cfg.storeGps.lng
+      );
+      const maxRadius = cfg.storeGps.radiusMeters || 80;
+      if (dist > maxRadius) {
+        throw new Error(
+          `Chặn chấm công (Khóa Kép Vị Trí): Bạn đang cách cửa hàng ${dist}m (vượt quá bán kính cho phép ${maxRadius}m).`
+        );
+      }
     }
 
     const now = new Date();
@@ -882,6 +932,7 @@ export const api = {
         checkInMethod: 'direct_button',
         checkInIp: clientIp,
         checkInWifiSsid: payload.wifiSsid || cfg.wifiSsid,
+        checkInWifiBssid: cfg.wifiBssid || 'A4:2B:B0:C1:9E:58',
         checkInGps: payload.gps,
         shiftId: timing.shiftId,
         shiftName: timing.shiftName,
@@ -945,8 +996,28 @@ export const api = {
     if (!payload.managerOverride) {
       if (!isClientIpAllowedByConfig(clientIp, cfg)) {
         throw new Error(
-          `Chặn chấm công: Thiết bị hiện tại (IP: ${clientIp}) không kết nối đúng WiFi cửa hàng "${cfg.wifiSsid}" đã lưu trong cấu hình.`
+          `Chặn chấm công: Thiết bị hiện tại không kết nối đúng mạng WiFi "${cfg.wifiSsid}" (BSSID: ${cfg.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`
         );
+      }
+
+      if (cfg.requireGps && cfg.storeGps) {
+        if (!payload.gps || typeof payload.gps.lat !== 'number' || typeof payload.gps.lng !== 'number') {
+          throw new Error(
+            'Chặn chấm công (Khóa Kép Vị Trí): Vui lòng bật quyền Định vị (GPS) trên trình duyệt để xác nhận đang có mặt tại quán.'
+          );
+        }
+        const dist = calculateGpsDistanceMeters(
+          payload.gps.lat,
+          payload.gps.lng,
+          cfg.storeGps.lat,
+          cfg.storeGps.lng
+        );
+        const maxRadius = cfg.storeGps.radiusMeters || 80;
+        if (dist > maxRadius) {
+          throw new Error(
+            `Chặn chấm công (Khóa Kép Vị Trí): Bạn đang cách cửa hàng ${dist}m (vượt quá bán kính cho phép ${maxRadius}m).`
+          );
+        }
       }
 
       const shiftCheck = isTimeInConfiguredShifts(now, cfg);

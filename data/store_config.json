@@ -3,10 +3,7 @@
   "storeAddress": "Thái Thịnh, Đống Đa, Hà Nội",
   "wifiSsid": "ChaoMamNho_ThaiThinh_5G",
   "allowedIps": [
-    "127.0.0.1",
-    "::1",
-    "14.161.45.88",
-    "118.69.182.20"
+    "210.245.52.70"
   ],
   "bypassIpCheck": false,
   "requireWifi": true,

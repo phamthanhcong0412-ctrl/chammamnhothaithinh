@@ -15,9 +15,10 @@ import {
   Sun,
   Sunset,
   RefreshCw,
+  MapPin,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
-import { isClientIpAllowedByConfig } from '../services/api.ts';
+import { isClientIpAllowedByConfig, calculateGpsDistanceMeters } from '../services/api.ts';
 
 function parseTimeMinutes(timeStr: string, fallbackMins: number): number {
   const parts = String(timeStr || '').split(':');
@@ -53,6 +54,8 @@ export const StaffAttendance: React.FC = () => {
   const processingRef = useRef(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [shiftNote, setShiftNote] = useState('');
+  const [userGps, setUserGps] = useState<{ lat: number; lng: number; accuracy?: number; distance?: number } | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
 
   // Clock ticker
   useEffect(() => {
@@ -65,6 +68,51 @@ export const StaffAttendance: React.FC = () => {
     if (!storeConfig) return true;
     return isClientIpAllowedByConfig(networkInfo?.clientIp || '', storeConfig);
   }, [storeConfig, networkInfo?.clientIp]);
+
+  // Dual-Lock GPS Verification when requireGps is enabled in storeConfig
+  const checkEmployeeGps = () => {
+    if (!storeConfig?.requireGps) {
+      setGpsError(null);
+      return;
+    }
+    if (!navigator.geolocation) {
+      setGpsError('Thiết bị không hỗ trợ định vị GPS');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const storeLat = storeConfig.storeGps?.lat ?? 21.0116;
+        const storeLng = storeConfig.storeGps?.lng ?? 105.8174;
+        const dist = calculateGpsDistanceMeters(lat, lng, storeLat, storeLng);
+        setUserGps({
+          lat,
+          lng,
+          accuracy: Math.round(pos.coords.accuracy || 0),
+          distance: dist,
+        });
+        setGpsError(null);
+      },
+      () => {
+        setGpsError('Chưa cấp quyền vị trí GPS trên trình duyệt');
+      },
+      { enableHighAccuracy: true, timeout: 7000 }
+    );
+  };
+
+  useEffect(() => {
+    if (storeConfig?.requireGps) {
+      checkEmployeeGps();
+    }
+  }, [storeConfig?.requireGps, storeConfig?.storeGps?.lat, storeConfig?.storeGps?.lng]);
+
+  const isGpsValid = useMemo(() => {
+    if (!storeConfig?.requireGps) return true;
+    if (!userGps || typeof userGps.distance !== 'number') return false;
+    const maxRadius = storeConfig.storeGps?.radiusMeters || 80;
+    return userGps.distance <= maxRadius;
+  }, [storeConfig?.requireGps, storeConfig?.storeGps?.radiusMeters, userGps]);
 
   // Current Shift Window Calculation (from Check-in start to Check-out end)
   const shiftStatus = useMemo(() => {
@@ -123,13 +171,16 @@ export const StaffAttendance: React.FC = () => {
   }, [currentTime, storeConfig]);
 
   const isShiftTimeValid = shiftStatus.inShiftWindow;
-  const canCheckInOrOut = isWifiValid && isShiftTimeValid;
+  const canCheckInOrOut = isWifiValid && isShiftTimeValid && isGpsValid;
 
   const handleRecheckWifiAndConfig = async () => {
     setIsRecheckingNetwork(true);
     setStatusMessage(null);
     try {
       await refreshData();
+      if (storeConfig?.requireGps) {
+        checkEmployeeGps();
+      }
     } finally {
       setIsRecheckingNetwork(false);
     }
@@ -167,7 +218,15 @@ export const StaffAttendance: React.FC = () => {
     if (!isWifiValid) {
       setStatusMessage({
         type: 'error',
-        text: `Chặn chấm công: Thiết bị hiện tại (IP: ${networkInfo?.clientIp || '...'}) không kết nối đúng WiFi cửa hàng "${storeConfig?.wifiSsid}".`,
+        text: `Chặn chấm công: Thiết bị của bạn không kết nối đúng WiFi "${storeConfig?.wifiSsid}" (BSSID: ${storeConfig?.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`,
+      });
+      return;
+    }
+
+    if (!isGpsValid) {
+      setStatusMessage({
+        type: 'error',
+        text: gpsError || `Chặn chấm công (Khóa Kép Vị Trí): Bạn không đứng trong bán kính ${storeConfig?.storeGps?.radiusMeters || 80}m tại cửa hàng.`,
       });
       return;
     }
@@ -194,6 +253,7 @@ export const StaffAttendance: React.FC = () => {
     try {
       const record = await checkIn({
         wifiSsid: storeConfig?.wifiSsid,
+        gps: userGps || undefined,
         note: shiftNote.trim() || undefined,
       });
 
@@ -225,7 +285,15 @@ export const StaffAttendance: React.FC = () => {
     if (!isWifiValid) {
       setStatusMessage({
         type: 'error',
-        text: `Chặn chấm công: Thiết bị hiện tại (IP: ${networkInfo?.clientIp || '...'}) không kết nối đúng WiFi cửa hàng "${storeConfig?.wifiSsid}".`,
+        text: `Chặn chấm công: Thiết bị của bạn không kết nối đúng WiFi "${storeConfig?.wifiSsid}" (BSSID: ${storeConfig?.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`,
+      });
+      return;
+    }
+
+    if (!isGpsValid) {
+      setStatusMessage({
+        type: 'error',
+        text: gpsError || `Chặn chấm công (Khóa Kép Vị Trí): Bạn không đứng trong bán kính ${storeConfig?.storeGps?.radiusMeters || 80}m tại cửa hàng.`,
       });
       return;
     }
@@ -252,6 +320,7 @@ export const StaffAttendance: React.FC = () => {
     try {
       const record = await checkOut({
         wifiSsid: storeConfig?.wifiSsid,
+        gps: userGps || undefined,
         note: shiftNote.trim() || undefined,
       });
 
@@ -294,7 +363,7 @@ export const StaffAttendance: React.FC = () => {
         </p>
       </div>
 
-      {/* Unified Shift Window & Store WiFi Status Card */}
+      {/* Unified Shift Window & Store WiFi/BSSID Status Card */}
       <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 space-y-3">
         {/* Active Shift Window Row */}
         <div className="flex items-center justify-between gap-2">
@@ -336,16 +405,16 @@ export const StaffAttendance: React.FC = () => {
           </span>
         </div>
 
-        {/* Store WiFi Verification Row */}
+        {/* Store WiFi & BSSID Verification Row (IP strictly hidden from employees) */}
         <div className="pt-2.5 border-t border-zinc-800/80 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs min-w-0">
             <Wifi className={`w-4 h-4 shrink-0 ${isWifiValid ? 'text-emerald-400' : 'text-rose-400'}`} />
             <div className="min-w-0">
               <span className="text-zinc-400 truncate block">
-                WiFi chuẩn: <strong className="text-zinc-200">{storeConfig?.wifiSsid}</strong>
+                WiFi quán: <strong className="text-zinc-200">{storeConfig?.wifiSsid}</strong>
               </span>
               <span className="text-[10px] text-zinc-500 font-mono block truncate">
-                IP máy hiện tại: {networkInfo?.clientIp || 'Đang kiểm tra...'}
+                BSSID: {storeConfig?.wifiBssid || 'A4:2B:B0:C1:9E:58'}
               </span>
             </div>
           </div>
@@ -372,6 +441,41 @@ export const StaffAttendance: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Optional Dual-Lock GPS Verification Row when enabled by Manager */}
+        {storeConfig?.requireGps && (
+          <div className="pt-2.5 border-t border-zinc-800/80 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs min-w-0">
+              <MapPin className={`w-4 h-4 shrink-0 ${isGpsValid ? 'text-emerald-400' : 'text-rose-400'}`} />
+              <div className="min-w-0">
+                <span className="text-zinc-400 truncate block">
+                  Khóa kép vị trí cửa hàng (Bán kính {storeConfig.storeGps?.radiusMeters || 80}m)
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono block truncate">
+                  {gpsError
+                    ? gpsError
+                    : userGps?.distance !== undefined
+                    ? `Khoảng cách tới quán: ${userGps.distance}m`
+                    : 'Đang xác thực vị trí GPS...'}
+                </span>
+              </div>
+            </div>
+
+            {isGpsValid ? (
+              <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1 shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Tại quán
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={checkEmployeeGps}
+                className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 font-semibold text-[11px] shrink-0 cursor-pointer"
+              >
+                Lấy lại GPS
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Feedback Notification Banner */}
@@ -503,15 +607,26 @@ export const StaffAttendance: React.FC = () => {
               <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-semibold flex items-start gap-2">
                 <Lock className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                 <div className="leading-relaxed">
-                  <strong>Đã chặn Check-in / Check-out:</strong> Thiết bị hiện tại (IP:{' '}
-                  <code className="font-mono text-rose-300">{networkInfo?.clientIp || '...'}</code>) không khớp với cấu hình WiFi{' '}
-                  <strong>"{storeConfig?.wifiSsid}"</strong> của cửa hàng. Vui lòng kết nối đúng WiFi quán và bấm{' '}
+                  <strong>Đã chặn Check-in / Check-out:</strong> Thiết bị của bạn không kết nối đúng mạng WiFi{' '}
+                  <strong>"{storeConfig?.wifiSsid}"</strong> (BSSID:{' '}
+                  <code className="font-mono text-rose-300">{storeConfig?.wifiBssid || 'A4:2B:B0:C1:9E:58'}</code>) tại cửa hàng. Vui lòng kết nối đúng WiFi quán và bấm{' '}
                   <strong>"Kiểm tra lại"</strong>.
                 </div>
               </div>
             )}
 
-            {isWifiValid && !isShiftTimeValid && (
+            {isWifiValid && !isGpsValid && (
+              <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-semibold flex items-start gap-2">
+                <Lock className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong>Đã chặn Check-in / Check-out (Khóa Kép Vị Trí):</strong>{' '}
+                  {gpsError ||
+                    `Bạn đang cách quán ${userGps?.distance ?? '...'}m (vượt quá bán kính cho phép ${storeConfig?.storeGps?.radiusMeters || 80}m).`}
+                </div>
+              </div>
+            )}
+
+            {isWifiValid && isGpsValid && !isShiftTimeValid && (
               <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs font-semibold flex items-start gap-2">
                 <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div className="leading-relaxed">

@@ -49,6 +49,7 @@ export interface AttendanceRecord {
     distance?: number;
   };
   checkInWifiSsid?: string;
+  checkInWifiBssid?: string;
   checkOutIp?: string;
   checkOutGps?: {
     lat: number;
@@ -81,6 +82,7 @@ export interface StoreConfig {
   storeName: string;
   storeAddress: string;
   wifiSsid: string;
+  wifiBssid?: string;
   allowedIps: string[];
   bypassIpCheck: boolean;
   requireWifi: boolean;

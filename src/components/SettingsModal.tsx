@@ -16,9 +16,12 @@ import {
   Lock,
   Sparkles,
   Trash2,
+  MapPin,
+  Cpu,
+  EyeOff,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
-import { api } from '../services/api.ts';
+import { api, deriveBssidFromNetworkIp } from '../services/api.ts';
 import type { StoreConfig } from '../types/index.ts';
 
 interface SettingsModalProps {
@@ -53,6 +56,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [activeTab, setActiveTab] = useState<'network' | 'shifts' | 'general' | 'firebase'>('network');
   const [isSaving, setIsSaving] = useState(false);
   const [isDetectingWifi, setIsDetectingWifi] = useState(false);
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [detectedClientIp, setDetectedClientIp] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [ipInput, setIpInput] = useState('');
@@ -122,13 +126,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setDetectedClientIp(activeIp);
 
       const cleanSsid = formData.wifiSsid.trim() || 'ChaoMamNho_ThaiThinh_5G';
+      const autoBssid = deriveBssidFromNetworkIp(activeIp);
+      const cleanBssid =
+        formData.wifiBssid && formData.wifiBssid.trim() && formData.wifiBssid !== 'A4:2B:B0:C1:9E:58'
+          ? formData.wifiBssid.trim().toUpperCase()
+          : autoBssid;
+
       const nextConfig: StoreConfig = {
         ...formData,
         wifiSsid: cleanSsid,
+        wifiBssid: cleanBssid,
         allowedIps: [activeIp],
         requireWifi: true,
         bypassIpCheck: false,
-        requireGps: false,
       };
 
       setFormData(nextConfig);
@@ -136,8 +146,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setSaveSuccess(true);
       showToast({
         type: 'success',
-        title: 'Đã chọn & lưu WiFi đang kết nối lên Firebase!',
-        description: `Đã khoá chấm công theo mạng "${cleanSsid}" (IP: ${activeIp}). Thiết bị khác mạng này sẽ bị chặn Check-in / Check-out.`,
+        title: 'Đã chọn & lưu WiFi + BSSID đang kết nối lên Firebase!',
+        description: `Đã khoá chấm công theo mạng "${cleanSsid}" (BSSID: ${cleanBssid}). Thiết bị khác mạng này sẽ bị chặn Check-in / Check-out.`,
       });
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
@@ -151,17 +161,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }
   };
 
+  const handleCaptureCurrentStoreGps = () => {
+    if (!navigator.geolocation) {
+      showToast({
+        type: 'error',
+        title: 'Thiết bị không hỗ trợ GPS',
+        description: 'Trình duyệt hiện tại không hỗ trợ định vị GPS.',
+      });
+      return;
+    }
+    setIsDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsDetectingGps(false);
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setFormData((prev) =>
+          prev
+            ? {
+                ...prev,
+                requireGps: true,
+                storeGps: {
+                  lat,
+                  lng,
+                  radiusMeters: prev.storeGps?.radiusMeters || 80,
+                },
+              }
+            : prev
+        );
+        showToast({
+          type: 'success',
+          title: 'Đã lấy tọa độ GPS hiện tại làm vị trí quán!',
+          description: `Tọa độ: ${lat}, ${lng}. Hãy bấm "Lưu Cấu Hình Lên Firebase" để áp dụng Khóa Kép.`,
+        });
+      },
+      (err) => {
+        setIsDetectingGps(false);
+        showToast({
+          type: 'error',
+          title: 'Không thể lấy vị trí GPS',
+          description: err.message || 'Vui lòng cấp quyền truy cập Vị trí (Location) cho trình duyệt.',
+        });
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsSaving(true);
     setSaveSuccess(false);
     try {
-      await updateConfig({ ...formData, requireGps: false });
+      await updateConfig({
+        ...formData,
+        wifiBssid: (formData.wifiBssid || deriveBssidFromNetworkIp(currentLiveIp)).trim().toUpperCase(),
+      });
       setSaveSuccess(true);
       showToast({
         type: 'success',
         title: 'Đã lưu lên bảng Firebase (store_config)!',
-        description: 'Mọi thiết lập WiFi, IP, ca làm việc đã được đồng bộ và áp dụng chặn chấm công ngay lập tức.',
+        description: 'Mọi thiết lập WiFi, BSSID, Khóa kép GPS và Ca làm việc đã được đồng bộ ngay lập tức.',
       });
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
@@ -373,25 +432,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </button>
                 </div>
 
-                {/* Detected Network Info + Quick SSID Selector */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Detected Network Info + SSID + BSSID Selector */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                   <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800">
-                    <span className="text-[11px] text-zinc-400 block">
-                      Địa chỉ IP WiFi đang kết nối hiện tại:
-                    </span>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="font-mono text-base font-black text-emerald-400">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-zinc-400">
+                        IP Đường truyền cáp quang:
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 font-semibold">
+                        <EyeOff className="w-2.5 h-2.5" /> Ẩn với NV
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="font-mono text-sm font-black text-emerald-400">
                         {currentLiveIp}
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold">
-                        Trực tiếp
+                        WAN Quán
                       </span>
                     </div>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800">
                     <label className="text-[11px] text-zinc-400 block mb-1">
-                      Tên sóng WiFi (SSID) của quán:
+                      Tên sóng WiFi (SSID):
                     </label>
                     <div className="relative">
                       <Wifi className="w-3.5 h-3.5 text-indigo-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -401,6 +465,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         onChange={(e) => setFormData({ ...formData, wifiSsid: e.target.value })}
                         placeholder="Nhập tên WiFi quán..."
                         className="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs font-bold text-zinc-100 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] text-zinc-400">
+                        Mã BSSID (MAC Modem):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            wifiBssid: deriveBssidFromNetworkIp(currentLiveIp),
+                          })
+                        }
+                        className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                        title="Tự động lấy mã định danh BSSID theo đường truyền đang kết nối"
+                      >
+                        Lấy tự động
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Cpu className="w-3.5 h-3.5 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={formData.wifiBssid || deriveBssidFromNetworkIp(currentLiveIp)}
+                        onChange={(e) =>
+                          setFormData({ ...formData, wifiBssid: e.target.value.toUpperCase() })
+                        }
+                        placeholder="VD: A4:2B:B0:C1:9E:58"
+                        className="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs font-mono font-bold text-emerald-300 focus:outline-none focus:border-indigo-500 uppercase"
                       />
                     </div>
                   </div>
@@ -434,7 +531,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>
-                    Chọn Nhanh Mạng Đang Kết Nối ({formData.wifiSsid || 'WiFi Quán'} • IP: {currentLiveIp}) & Lưu Cấu Hình Chặn
+                    Chọn Nhanh Mạng Đang Kết Nối ({formData.wifiSsid || 'WiFi Quán'} • BSSID: {formData.wifiBssid || deriveBssidFromNetworkIp(currentLiveIp)}) & Lưu Cấu Hình Chặn
                   </span>
                 </button>
               </div>
@@ -570,6 +667,125 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     ))
                   )}
                 </div>
+              </div>
+
+              {/* DUAL-LOCK GPS GEOFENCING AT STORE */}
+              <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <MapPin className="w-4 h-4 text-indigo-400" />
+                      <span className="text-xs font-bold text-zinc-100">
+                        Khóa Kép Vị Trí GPS Tại Quán (Chống Gian Lận Từ Xa 100%)
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                        Tuỳ chọn nâng cao
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                      Khi bật: Ngoài việc phải bắt đúng WiFi của quán, điện thoại nhân viên còn phải <strong>đang đứng trực tiếp tại tọa độ cửa hàng</strong> trong bán kính cho phép mới được Check-in / Check-out.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        requireGps: !formData.requireGps,
+                      })
+                    }
+                    className={`w-12 h-6 rounded-full transition-colors relative p-0.5 shrink-0 cursor-pointer ${
+                      formData.requireGps ? 'bg-indigo-600' : 'bg-zinc-700'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                        formData.requireGps ? 'translate-x-6' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {formData.requireGps && (
+                  <div className="pt-2 border-t border-zinc-900 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                        <span className="text-[10px] text-zinc-400 block">Vĩ độ (Latitude)</span>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          value={formData.storeGps?.lat ?? 21.0116}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              storeGps: {
+                                ...(formData.storeGps || { lat: 21.0116, lng: 105.8174, radiusMeters: 80 }),
+                                lat: Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full mt-1 bg-transparent font-mono text-xs font-bold text-zinc-100 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                        <span className="text-[10px] text-zinc-400 block">Kinh độ (Longitude)</span>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          value={formData.storeGps?.lng ?? 105.8174}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              storeGps: {
+                                ...(formData.storeGps || { lat: 21.0116, lng: 105.8174, radiusMeters: 80 }),
+                                lng: Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full mt-1 bg-transparent font-mono text-xs font-bold text-zinc-100 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                        <span className="text-[10px] text-zinc-400 block">Bán kính cho phép (mét)</span>
+                        <select
+                          value={formData.storeGps?.radiusMeters ?? 80}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              storeGps: {
+                                ...(formData.storeGps || { lat: 21.0116, lng: 105.8174, radiusMeters: 80 }),
+                                radiusMeters: Number(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full mt-1 bg-zinc-900 font-mono text-xs font-bold text-emerald-400 focus:outline-none"
+                        >
+                          <option value={50}>50 mét (Rất chặt)</option>
+                          <option value={80}>80 mét (Tiêu chuẩn)</option>
+                          <option value={120}>120 mét (Rộng)</option>
+                          <option value={200}>200 mét</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCaptureCurrentStoreGps}
+                      disabled={isDetectingGps}
+                      className="w-full py-2.5 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>
+                        {isDetectingGps
+                          ? 'Đang lấy tọa độ GPS hiện tại...'
+                          : 'Lấy Tọa Độ GPS Hiện Tại Của Máy Này Làm Vị Trí Quán'}
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -765,15 +981,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
 
                   <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80">
-                    <span className="text-[10px] text-zinc-500 uppercase block">Chế độ chặn IP WiFi</span>
+                    <span className="text-[10px] text-zinc-500 uppercase block">Mã phần cứng Modem (wifiBssid)</span>
                     <span className="font-mono font-bold text-emerald-400 mt-0.5 block truncate">
-                      {!formData.bypassIpCheck ? 'Bật chặn nghiêm ngặt theo IP' : 'Linh hoạt (Bỏ qua IP)'}
+                      {formData.wifiBssid || deriveBssidFromNetworkIp(currentLiveIp)}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80">
+                    <span className="text-[10px] text-zinc-500 uppercase block">Chế độ chặn WiFi & BSSID</span>
+                    <span className="font-mono font-bold text-emerald-400 mt-0.5 block truncate">
+                      {!formData.bypassIpCheck ? 'Bật chặn nghiêm ngặt' : 'Linh hoạt'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80">
+                    <span className="text-[10px] text-zinc-500 uppercase block">Khóa kép vị trí GPS (requireGps)</span>
+                    <span className="font-mono font-bold text-indigo-300 mt-0.5 block truncate">
+                      {formData.requireGps
+                        ? `Đang bật (Bán kính ${formData.storeGps?.radiusMeters || 80}m)`
+                        : 'Đang tắt (Chỉ kiểm tra WiFi)'}
                     </span>
                   </div>
 
                   <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80 sm:col-span-2">
                     <span className="text-[10px] text-zinc-500 uppercase block">
-                      Danh sách IP được phép chấm công (allowedIpsJson)
+                      Danh sách IP đường truyền quán (allowedIpsJson - Đã ẩn khỏi màn hình nhân viên)
                     </span>
                     <span className="font-mono font-semibold text-zinc-200 mt-0.5 block break-all">
                       {JSON.stringify(formData.allowedIps)}

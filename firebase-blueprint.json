@@ -389,10 +389,20 @@
           "minLength": 1,
           "maxLength": 100
         },
+        "wifiBssid": {
+          "type": "string",
+          "description": "Required WiFi router hardware BSSID / MAC identifier.",
+          "maxLength": 100
+        },
         "allowedIpsJson": {
           "type": "string",
           "description": "JSON serialized list of allowed public WiFi IP addresses.",
           "maxLength": 2000
+        },
+        "storeGpsJson": {
+          "type": "string",
+          "description": "JSON serialized store GPS coordinates and radius.",
+          "maxLength": 500
         },
         "shiftsJson": {
           "type": "string",

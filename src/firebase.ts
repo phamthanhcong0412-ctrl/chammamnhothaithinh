@@ -704,10 +704,26 @@ export async function fetchStoreConfigFromFirestore(): Promise<Partial<StoreConf
       } catch {}
     }
 
+    let storeGps: StoreConfig['storeGps'] | undefined = undefined;
+    if (typeof data.storeGpsJson === 'string' && data.storeGpsJson.trim()) {
+      try {
+        const parsed = JSON.parse(data.storeGpsJson);
+        if (
+          parsed &&
+          typeof parsed.lat === 'number' &&
+          typeof parsed.lng === 'number' &&
+          typeof parsed.radiusMeters === 'number'
+        ) {
+          storeGps = parsed;
+        }
+      } catch {}
+    }
+
     const result: Partial<StoreConfig> = {
       storeName: data.storeName,
       storeAddress: data.storeAddress,
       wifiSsid: data.wifiSsid,
+      wifiBssid: typeof data.wifiBssid === 'string' && data.wifiBssid.trim() ? data.wifiBssid.trim() : undefined,
       bypassIpCheck: Boolean(data.bypassIpCheck),
       requireWifi: Boolean(data.requireWifi),
       requireQr: Boolean(data.requireQr),
@@ -719,6 +735,7 @@ export async function fetchStoreConfigFromFirestore(): Promise<Partial<StoreConf
 
     if (allowedIps) result.allowedIps = allowedIps;
     if (shifts) result.shifts = shifts;
+    if (storeGps) result.storeGps = storeGps;
 
     return result;
   } catch (error) {
@@ -740,7 +757,11 @@ export async function saveStoreConfigToFirestore(cfg: StoreConfig): Promise<void
     storeName: String(cfg.storeName || 'Cháo Mầm Nhỏ Thái Thịnh').slice(0, 150),
     storeAddress: String(cfg.storeAddress || 'Thái Thịnh, Đống Đa, Hà Nội').slice(0, 250),
     wifiSsid: String(cfg.wifiSsid || 'ChaoMamNho_ThaiThinh_5G').slice(0, 100),
+    wifiBssid: String(cfg.wifiBssid || 'A4:2B:B0:C1:9E:58').slice(0, 100),
     allowedIpsJson: JSON.stringify(cleanAllowedIps).slice(0, 2000),
+    storeGpsJson: JSON.stringify(
+      cfg.storeGps || { lat: 21.0085, lng: 105.8185, radiusMeters: 80 }
+    ).slice(0, 500),
     shiftsJson: JSON.stringify(cfg.shifts || []).slice(0, 4000),
     bypassIpCheck: Boolean(cfg.bypassIpCheck),
     requireWifi: Boolean(cfg.requireWifi),
