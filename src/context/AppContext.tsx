@@ -82,55 +82,64 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>(() => {
+    try {
+      const raw = localStorage.getItem('chammam_users_v2');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
+    try {
+      const raw = localStorage.getItem('chammam_attendance_v2');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [storeConfig, setStoreConfig] = useState<StoreConfig | null>(() => {
+    try {
+      const raw = localStorage.getItem('chammam_store_config_v2');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const savedUsername = localStorage.getItem('chammam_auth_username');
+      const rawUsers = localStorage.getItem('chammam_users_v2');
+      if (savedUsername && rawUsers) {
+        const parsed: User[] = JSON.parse(rawUsers);
+        return (
+          parsed.find(
+            (u) => u.username?.toLowerCase() === savedUsername.toLowerCase() && u.isActive !== false
+          ) || null
+        );
+      }
+    } catch {}
+    return null;
+  });
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [lastFirebaseSync, setLastFirebaseSync] = useState<FirebaseSyncResult | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
-  const [users, setUsers] = useState<User[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [storeConfig, setStoreConfig] = useState<StoreConfig | null>(null);
   const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('chammam_users_v2');
+    } catch {
+      return true;
+    }
+  });
   const [error, setError] = useState<string | null>(null);
 
   // Track Firebase Auth state
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
-      setIsAuthReady(true);
     });
     return () => unsub();
   }, []);
-
-  // Fetch users and attendance from Firestore once on load
-  useEffect(() => {
-    if (!isAuthReady) return;
-
-    Promise.all([
-      fetchUsersFromFirestore().catch(() => [] as User[]),
-      fetchAttendanceFromFirestore().catch(() => [] as AttendanceRecord[]),
-    ])
-      .then(([firestoreUsers, firestoreAtt]) => {
-        if (firestoreAtt.length > 0) {
-          setAttendance((prev) => {
-            const map = new Map<string, AttendanceRecord>();
-            prev.forEach((r) => map.set(r.id, r));
-            firestoreAtt.forEach((r) => map.set(r.id, r));
-            return Array.from(map.values()).sort(
-              (a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime()
-            );
-          });
-        }
-        if (firestoreUsers.length > 0) {
-          setUsers((prevUsers) => {
-            const baseAtt = firestoreAtt.length > 0 ? firestoreAtt : attendance;
-            const enriched = firestoreUsers.map((u) => enrichUserWithAttendanceStats(u, baseAtt));
-            return enriched.length > 0 ? enriched : prevUsers;
-          });
-        }
-      })
-      .catch((err) => console.warn('Initial Firestore load warning:', err));
-  }, [isAuthReady, firebaseUser]);
 
   // Compute active record for current user
   const activeRecord = currentUser
@@ -211,23 +220,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanUsername = username.trim();
     const res = await api.login(cleanUsername, password);
     localStorage.setItem('chammam_auth_username', res.user.username);
-    const [latestUsers, latestAtt] = await Promise.all([
+    const immediateUser = enrichUserWithAttendanceStats(res.user, attendance);
+    setCurrentUser(immediateUser);
+
+    // Refresh latest users & attendance in the background without blocking login transition
+    Promise.all([
       api.getUsers().catch(() => users),
       api.getAttendance().catch(() => attendance),
-    ]);
-    const enrichedAtt = latestAtt.map((r) => enrichAttendanceRecord(r, latestUsers));
-    const enrichedUsers = latestUsers.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
-    const loggedInUser =
-      enrichedUsers.find((u) => u.id === res.user.id) ||
-      enrichUserWithAttendanceStats(res.user, enrichedAtt);
+    ]).then(([latestUsers, latestAtt]) => {
+      const enrichedAtt = latestAtt.map((r) => enrichAttendanceRecord(r, latestUsers));
+      const enrichedUsers = latestUsers.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
+      const updatedUser =
+        enrichedUsers.find((u) => u.id === res.user.id) ||
+        enrichUserWithAttendanceStats(res.user, enrichedAtt);
+      setAttendance(enrichedAtt);
+      setUsers(enrichedUsers);
+      setCurrentUser(updatedUser);
+    });
 
-    setAttendance(enrichedAtt);
-    setUsers(enrichedUsers);
-    setCurrentUser(loggedInUser);
-    saveUserToFirestore(loggedInUser, undefined, enrichedAtt).catch((e) =>
-      console.warn('Firestore user sync warning:', e)
-    );
-    return loggedInUser;
+    return immediateUser;
   };
 
   const loginWithGoogle = async (): Promise<User> => {
@@ -318,16 +329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncUserAndAttendanceState = (nextAttendance: AttendanceRecord[], targetUserId?: string) => {
     const enrichedAtt = nextAttendance.map((r) => enrichAttendanceRecord(r, users));
     setAttendance(enrichedAtt);
-    setUsers((prevUsers) => {
-      const nextUsers = prevUsers.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
-      if (targetUserId) {
-        const updatedTarget = nextUsers.find((u) => u.id === targetUserId);
-        if (updatedTarget) {
-          saveUserToFirestore(updatedTarget, undefined, enrichedAtt).catch(() => {});
-        }
-      }
-      return nextUsers;
-    });
+    setUsers((prevUsers) => prevUsers.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt)));
     if (currentUser && (!targetUserId || currentUser.id === targetUserId)) {
       setCurrentUser((prev) => (prev ? enrichUserWithAttendanceStats(prev, enrichedAtt) : null));
     }
@@ -350,9 +352,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const enrichedRec = enrichAttendanceRecord(res.record, users);
     const nextAtt = [enrichedRec, ...attendance];
     syncUserAndAttendanceState(nextAtt, currentUser.id);
-    saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
-      console.warn('Firestore attendance sync:', e)
-    );
     return enrichedRec;
   };
 
@@ -373,9 +372,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const enrichedRec = enrichAttendanceRecord(res.record, users);
     const nextAtt = attendance.map((r) => (r.id === enrichedRec.id ? enrichedRec : r));
     syncUserAndAttendanceState(nextAtt, currentUser.id);
-    saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
-      console.warn('Firestore checkout sync:', e)
-    );
     return enrichedRec;
   };
 

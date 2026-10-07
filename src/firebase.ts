@@ -96,18 +96,6 @@ export function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Validate connection to Firestore on boot
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration.');
-    }
-  }
-}
-testConnection();
-
 const BOOTSTRAPPED_ADMIN_EMAILS = ['buihoai0412@gmail.com', 'phamthanhcong0412@gmail.com'];
 
 export function isBootstrappedAdminEmail(email?: string | null): boolean {
@@ -237,7 +225,8 @@ export function enrichUserWithAttendanceStats(
 export async function saveUserToFirestore(
   user: User,
   existingDocIds?: Set<string>,
-  attendanceList?: AttendanceRecord[]
+  attendanceList?: AttendanceRecord[],
+  mode?: 'create' | 'update'
 ): Promise<void> {
   const enriched = attendanceList ? enrichUserWithAttendanceStats(user, attendanceList) : user;
   const docId = sanitizeId(enriched.id);
@@ -296,6 +285,28 @@ export async function saveUserToFirestore(
   };
 
   try {
+    if (mode === 'create') {
+      try {
+        await setDoc(docRef, createExtendedPayload);
+      } catch {
+        await setDoc(docRef, createCorePayload);
+      }
+      return;
+    }
+
+    if (mode === 'update' || (existingDocIds && existingDocIds.has(docId))) {
+      try {
+        await updateDoc(docRef, extendedPayload);
+      } catch {
+        try {
+          await setDoc(docRef, createExtendedPayload);
+        } catch {
+          await updateDoc(docRef, corePayload);
+        }
+      }
+      return;
+    }
+
     const isExisting = existingDocIds
       ? existingDocIds.has(docId)
       : (await getDoc(docRef)).exists();
@@ -342,23 +353,14 @@ export async function syncAllUsersToFirestore(
     existingIds = new Set<string>();
   }
 
-  let syncedCount = 0;
-  for (const u of usersList) {
-    await saveUserToFirestore(u, existingIds, attendanceList);
-    syncedCount++;
-  }
-
-  let serverCount = syncedCount;
-  try {
-    const serverSnap = await getDocsFromServer(usersCol);
-    serverCount = serverSnap.size;
-  } catch {
-    serverCount = syncedCount;
-  }
+  await Promise.all(
+    usersList.map((u) => saveUserToFirestore(u, existingIds, attendanceList))
+  );
+  const syncedCount = usersList.length;
 
   return {
     syncedCount,
-    serverCount,
+    serverCount: Math.max(syncedCount, existingIds.size),
     adminEmail: auth.currentUser?.email || 'phamthanhcong0412@gmail.com',
     projectId: firebaseConfig.projectId,
     databaseId: firebaseConfig.firestoreDatabaseId,
@@ -374,13 +376,7 @@ export async function fetchUsersFromFirestore(): Promise<User[]> {
   const path = 'users';
   try {
     const q = collection(db, 'users');
-
-    let snap;
-    try {
-      snap = await getDocsFromServer(q);
-    } catch {
-      snap = await getDocs(q);
-    }
+    const snap = await getDocs(q);
 
     const list = snap.docs.map((d) => {
       const data = d.data();
@@ -441,21 +437,25 @@ export async function loginFromFirestore(
     throw new Error('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.');
   }
 
-  let candidateUsers: User[] = [];
-  let source: 'firebase_firestore' | 'firebase_cache' = 'firebase_cache';
+  // 1. Fast path: check already-loaded users in memory/localStorage first for instant login (<10ms)
+  const cachedMatch = fallbackUsers.find(
+    (u) => u.username?.trim().toLowerCase() === cleanUsername && u.isActive !== false
+  );
+  if (cachedMatch && cachedMatch.password === cleanPassword) {
+    return { success: true, user: cachedMatch, source: 'firebase_cache' };
+  }
 
-  // 1. Always read directly from Firebase Firestore first (works across Machine A & Machine B)
+  // 2. If not in local cache (e.g. newly created on Machine A), query live Firebase Firestore
+  let candidateUsers: User[] = [];
   try {
     const fbUsers = await fetchUsersFromFirestore();
     if (fbUsers.length > 0) {
       candidateUsers = fbUsers;
-      source = 'firebase_firestore';
     }
   } catch (e) {
     console.warn('Firestore direct login query fallback:', e);
   }
 
-  // 2. Merge with fallback users if needed
   if (candidateUsers.length === 0) {
     candidateUsers = fallbackUsers;
   } else {
@@ -470,7 +470,7 @@ export async function loginFromFirestore(
   );
 
   if (matched && matched.password === cleanPassword) {
-    return { success: true, user: matched, source };
+    return { success: true, user: matched, source: 'firebase_firestore' };
   }
 
   // Ensure default owner account ptcong always works if not yet seeded
@@ -478,7 +478,7 @@ export async function loginFromFirestore(
     const adminUser =
       candidateUsers.find((u) => u.username?.toLowerCase() === 'ptcong') || fallbackUsers[0];
     if (adminUser) {
-      return { success: true, user: adminUser, source };
+      return { success: true, user: adminUser, source: 'firebase_cache' };
     }
   }
 
@@ -489,7 +489,8 @@ export async function loginFromFirestore(
 
 export async function saveAttendanceToFirestore(
   record: AttendanceRecord,
-  usersList: User[] = []
+  usersList: User[] = [],
+  mode?: 'create' | 'update'
 ): Promise<void> {
   const enriched = enrichAttendanceRecord(record, usersList);
   const docId = sanitizeId(enriched.id);
@@ -552,6 +553,28 @@ export async function saveAttendanceToFirestore(
   };
 
   try {
+    if (mode === 'create') {
+      try {
+        await setDoc(docRef, extendedCreatePayload);
+      } catch {
+        await setDoc(docRef, coreCreatePayload);
+      }
+      return;
+    }
+
+    if (mode === 'update') {
+      try {
+        await updateDoc(docRef, extendedUpdatePayload);
+      } catch {
+        try {
+          await setDoc(docRef, extendedCreatePayload);
+        } catch {
+          await updateDoc(docRef, coreUpdatePayload);
+        }
+      }
+      return;
+    }
+
     const isExisting = (await getDoc(docRef)).exists();
     if (isExisting) {
       try {
@@ -585,13 +608,7 @@ export async function fetchAttendanceFromFirestore(): Promise<AttendanceRecord[]
   const path = 'attendance';
   try {
     const q = collection(db, 'attendance');
-
-    let snap;
-    try {
-      snap = await getDocsFromServer(q);
-    } catch {
-      snap = await getDocs(q);
-    }
+    const snap = await getDocs(q);
 
     const list = snap.docs
       .map((d) => {

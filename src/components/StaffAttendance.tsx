@@ -9,13 +9,26 @@ import {
   ShieldCheck,
   Wifi,
   Sparkles,
-  TrendingUp,
   Lock,
   Layers,
-  KeyRound,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
-import { ChangePasswordModal } from './ChangePasswordModal.tsx';
+
+function parseTimeMinutes(timeStr: string, fallbackMins: number): number {
+  const parts = String(timeStr || '').split(':');
+  if (parts.length !== 2) return fallbackMins;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return fallbackMins;
+  return h * 60 + m;
+}
+
+function formatMinutesToTime(mins: number): string {
+  const normalized = ((mins % 1440) + 1440) % 1440;
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
 
 export const StaffAttendance: React.FC = () => {
   const {
@@ -32,35 +45,12 @@ export const StaffAttendance: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [wifiVerifiedManually, setWifiVerifiedManually] = useState<boolean>(false);
-  const [isChangePwOpen, setIsChangePwOpen] = useState(false);
-
-  // Personal Monthly Stats
-  const [myMonthlyHours, setMyMonthlyHours] = useState<number>(0);
-  const [myMonthlyDays, setMyMonthlyDays] = useState<number>(0);
-  const [myEstimatedSalary, setMyEstimatedSalary] = useState<number>(0);
 
   // Clock ticker
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Load personal stats
-  useEffect(() => {
-    if (!currentUser) return;
-    const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-    const myMonthRecords = attendance.filter(
-      (r) => r.userId === currentUser.id && r.date.startsWith(currentMonth)
-    );
-    const totalMinutes = myMonthRecords.reduce((sum, r) => sum + (r.totalMinutes || 0), 0);
-    const hours = Number((totalMinutes / 60).toFixed(1));
-    const days = new Set(myMonthRecords.map((r) => r.date)).size;
-    const salary = Math.round(hours * currentUser.hourlyRate);
-
-    setMyMonthlyHours(hours);
-    setMyMonthlyDays(days);
-    setMyEstimatedSalary(salary);
-  }, [attendance, currentUser]);
 
   // WiFi Verification
   const isWifiValid = useMemo(() => {
@@ -70,65 +60,57 @@ export const StaffAttendance: React.FC = () => {
     return networkInfo?.isAllowedIp ?? false;
   }, [storeConfig, wifiVerifiedManually, networkInfo]);
 
-  // Current Shift Window Calculation
+  // Current Shift Window Calculation (from Check-in start to Check-out end)
   const shiftStatus = useMemo(() => {
     const nowMins = currentTime.getHours() * 60 + currentTime.getMinutes();
-    const morningShift = storeConfig?.shifts?.find((s) => s.id === 'shift_morning') || {
-      startTime: '06:00',
-      endTime: '12:00',
-      checkInBeforeMinutes: 30,
-      checkOutAfterMinutes: 90,
-    };
-    const afternoonShift = storeConfig?.shifts?.find((s) => s.id === 'shift_afternoon') || {
-      startTime: '15:30',
-      endTime: '20:00',
-      checkInBeforeMinutes: 30,
-      checkOutAfterMinutes: 90,
-    };
 
-    // Morning: Check-in 05:30 - 12:00, Check-out 06:00 - 13:30
-    const mCheckInStart = 5 * 60 + 30;
-    const mCheckInEnd = 12 * 60;
-    const mCheckOutStart = 6 * 60;
-    const mCheckOutEnd = 13 * 60 + 30;
+    const morningCfg = storeConfig?.shifts?.find((s) => s.id === 'shift_morning');
+    const afternoonCfg = storeConfig?.shifts?.find((s) => s.id === 'shift_afternoon');
 
-    // Afternoon: Check-in 15:00 - 20:00, Check-out 15:30 - 21:30
-    const aCheckInStart = 15 * 60;
-    const aCheckInEnd = 20 * 60;
-    const aCheckOutStart = 15 * 60 + 30;
-    const aCheckOutEnd = 21 * 60 + 30;
+    const mStart = parseTimeMinutes(morningCfg?.startTime || '06:00', 6 * 60);
+    const mEnd = parseTimeMinutes(morningCfg?.endTime || '12:00', 12 * 60);
+    const mBefore = morningCfg?.checkInBeforeMinutes ?? 30;
+    const mAfter = morningCfg?.checkOutAfterMinutes ?? 90;
+    const mCheckInStart = mStart - mBefore;
+    const mCheckOutEnd = mEnd + mAfter;
 
-    const inMorningCheckIn = nowMins >= mCheckInStart && nowMins <= mCheckInEnd;
-    const inMorningCheckOut = nowMins >= mCheckOutStart && nowMins <= mCheckOutEnd;
+    const aStart = parseTimeMinutes(afternoonCfg?.startTime || '15:30', 15 * 60 + 30);
+    const aEnd = parseTimeMinutes(afternoonCfg?.endTime || '20:00', 20 * 60);
+    const aBefore = afternoonCfg?.checkInBeforeMinutes ?? 30;
+    const aAfter = afternoonCfg?.checkOutAfterMinutes ?? 90;
+    const aCheckInStart = aStart - aBefore;
+    const aCheckOutEnd = aEnd + aAfter;
 
-    const inAfternoonCheckIn = nowMins >= aCheckInStart && nowMins <= aCheckInEnd;
-    const inAfternoonCheckOut = nowMins >= aCheckOutStart && nowMins <= aCheckOutEnd;
-
-    if (inMorningCheckIn || inMorningCheckOut) {
+    if (nowMins >= mCheckInStart && nowMins <= mCheckOutEnd) {
       return {
-        activeShiftName: 'Ca Sáng (06:00 - 12:00)',
-        canCheckIn: inMorningCheckIn,
-        canCheckOut: inMorningCheckOut,
-        message: 'Đang trong khung giờ Ca Sáng',
-        windowDetails: 'Check-in: 05:30 - 12:00 | Check-out: 06:00 - 13:30',
-      };
-    } else if (inAfternoonCheckIn || inAfternoonCheckOut) {
-      return {
-        activeShiftName: 'Ca Chiều (15:30 - 20:00)',
-        canCheckIn: inAfternoonCheckIn,
-        canCheckOut: inAfternoonCheckOut,
-        message: 'Đang trong khung giờ Ca Chiều',
-        windowDetails: 'Check-in: 15:00 - 20:00 | Check-out: 15:30 - 21:30',
-      };
-    } else {
-      return {
-        activeShiftName: 'Ngoài giờ ca',
-        canCheckIn: false,
-        canCheckOut: false,
-        message: 'Hiện tại ngoài khung giờ ca',
-        windowDetails: 'Ca Sáng (05:30 - 12:00) | Ca Chiều (15:00 - 20:00)',
+        inShiftWindow: true,
+        activeShiftTitle: `Ca Sáng: ${formatMinutesToTime(mStart)} - ${formatMinutesToTime(mEnd)}`,
+        badgeText: 'Đang trong Ca Sáng',
+        checkInRange: `${formatMinutesToTime(mCheckInStart)} - ${formatMinutesToTime(mEnd)}`,
+        checkOutRange: `${formatMinutesToTime(mStart)} - ${formatMinutesToTime(mCheckOutEnd)}`,
+        endTimeStr: formatMinutesToTime(mEnd),
       };
     }
+
+    if (nowMins >= aCheckInStart && nowMins <= aCheckOutEnd) {
+      return {
+        inShiftWindow: true,
+        activeShiftTitle: `Ca Chiều: ${formatMinutesToTime(aStart)} - ${formatMinutesToTime(aEnd)}`,
+        badgeText: 'Đang trong Ca Chiều',
+        checkInRange: `${formatMinutesToTime(aCheckInStart)} - ${formatMinutesToTime(aEnd)}`,
+        checkOutRange: `${formatMinutesToTime(aStart)} - ${formatMinutesToTime(aCheckOutEnd)}`,
+        endTimeStr: formatMinutesToTime(aEnd),
+      };
+    }
+
+    return {
+      inShiftWindow: false,
+      activeShiftTitle: 'Chưa đến giờ làm việc',
+      badgeText: 'Chưa đến giờ làm việc',
+      checkInRange: '',
+      checkOutRange: '',
+      endTimeStr: '',
+    };
   }, [currentTime, storeConfig]);
 
   // Today's multiple sessions for current staff
@@ -261,88 +243,52 @@ export const StaffAttendance: React.FC = () => {
         </p>
       </div>
 
-      {/* Staff Profile Header Card */}
-      <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-xl flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <img
-            src={currentUser?.avatar}
-            alt={currentUser?.name}
-            className="w-12 h-12 rounded-2xl object-cover bg-zinc-800 border border-zinc-700 shadow-inner"
-          />
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-zinc-100">{currentUser?.name}</h3>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono">
-                {currentUser?.employeeCode}
-              </span>
-            </div>
-            <p className="text-xs text-zinc-400">{currentUser?.position}</p>
-            <p className="text-[11px] font-mono text-zinc-500 truncate">
-              Tài khoản: {currentUser?.username}
-            </p>
-          </div>
-        </div>
-
-        <div className="text-right space-y-1.5">
-          <div>
-            <span className="text-[11px] text-zinc-500 block">Lương của bạn</span>
-            <span className="text-xs font-bold text-emerald-400">
-              {currentUser?.hourlyRate.toLocaleString('vi-VN')} đ/h
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsChangePwOpen(true)}
-            className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[11px] font-semibold text-indigo-300 flex items-center gap-1 ml-auto transition-colors cursor-pointer"
-          >
-            <KeyRound className="w-3 h-3 text-indigo-400" />
-            <span>Đổi mật khẩu</span>
-          </button>
-        </div>
-      </div>
-
-      <ChangePasswordModal
-        isOpen={isChangePwOpen}
-        onClose={() => setIsChangePwOpen(false)}
-      />
-
-      {/* Shift Windows Information Card */}
+      {/* Shift Windows Information Card (Only shows current active shift or 'Chưa đến giờ làm việc') */}
       <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 space-y-2.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-indigo-400" /> Quy Định 2 Ca Làm Việc
+            <Clock className="w-3.5 h-3.5 text-indigo-400" /> Quy Định Ca Làm Việc
           </span>
-          <span className="text-[11px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
-            {shiftStatus.activeShiftName}
+          <span
+            className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-lg ${
+              shiftStatus.inShiftWindow
+                ? 'text-emerald-300 bg-emerald-500/15 border border-emerald-500/30'
+                : 'text-amber-300 bg-amber-500/15 border border-amber-500/30'
+            }`}
+          >
+            {shiftStatus.badgeText}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          <div className="p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800/80">
-            <div className="font-bold text-zinc-200">Ca Sáng: 06:00 - 12:00</div>
-            <div className="text-[11px] text-zinc-400 mt-0.5">
-              • Check-in: <span className="text-emerald-400">05:30 - 12:00</span>
+        {shiftStatus.inShiftWindow ? (
+          <>
+            <div className="p-3 rounded-xl bg-zinc-950/90 border border-indigo-500/30 text-xs space-y-1">
+              <div className="font-bold text-zinc-100 text-sm">{shiftStatus.activeShiftTitle}</div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-400 pt-0.5">
+                <div>
+                  • Giờ Check-in: <span className="font-mono font-semibold text-emerald-400">{shiftStatus.checkInRange}</span>
+                </div>
+                <div>
+                  • Giờ Check-out: <span className="font-mono font-semibold text-indigo-400">{shiftStatus.checkOutRange}</span>
+                </div>
+              </div>
             </div>
-            <div className="text-[11px] text-zinc-400">
-              • Check-out: <span className="text-indigo-400">06:00 - 13:30</span>
+            <div className="text-[11px] text-zinc-500 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Nếu quên check-out, hệ thống mặc định chốt giờ kết thúc ca ({shiftStatus.endTimeStr}).</span>
+            </div>
+          </>
+        ) : (
+          <div className="p-3.5 rounded-xl bg-zinc-950/80 border border-amber-500/25 flex items-center gap-2.5 text-xs text-amber-200">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <div className="font-bold text-amber-300">Chưa đến giờ làm việc</div>
+              <p className="text-[11px] text-zinc-400 mt-0.5">
+                Hiện tại nằm ngoài khung giờ từ Check-in đến Check-out của các ca làm việc.
+              </p>
             </div>
           </div>
-
-          <div className="p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800/80">
-            <div className="font-bold text-zinc-200">Ca Chiều: 15:30 - 20:00</div>
-            <div className="text-[11px] text-zinc-400 mt-0.5">
-              • Check-in: <span className="text-emerald-400">15:00 - 20:00</span>
-            </div>
-            <div className="text-[11px] text-zinc-400">
-              • Check-out: <span className="text-indigo-400">15:30 - 21:30</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-[11px] text-zinc-500 flex items-center gap-1">
-          <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span>Nếu quên check-out, hệ thống mặc định chốt giờ kết thúc ca (12:00 hoặc 20:00).</span>
-        </div>
+        )}
       </div>
 
       {/* Strict WiFi Requirement Banner */}
@@ -562,37 +508,6 @@ export const StaffAttendance: React.FC = () => {
           </div>
         </>
       )}
-
-      {/* Personal Monthly Work Hours & Salary Widget (Staff ONLY sees their own) */}
-      <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-indigo-400" /> Bảng Công Cá Nhân Của Bạn (Tháng Này)
-          </span>
-          <span className="text-[10px] text-indigo-400 font-semibold bg-indigo-500/10 px-2 py-0.5 rounded">
-            Dữ liệu riêng tư
-          </span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2.5">
-          <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800/80 text-center">
-            <span className="text-[10px] text-zinc-500 uppercase block">Số ngày làm</span>
-            <div className="text-lg font-black text-zinc-100 mt-0.5">{myMonthlyDays} ngày</div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800/80 text-center">
-            <span className="text-[10px] text-zinc-500 uppercase block">Tổng giờ công</span>
-            <div className="text-lg font-black text-indigo-400 mt-0.5">{myMonthlyHours}h</div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800/80 text-center">
-            <span className="text-[10px] text-zinc-500 uppercase block">Lương dự tính</span>
-            <div className="text-lg font-black text-emerald-400 mt-0.5">
-              {myEstimatedSalary.toLocaleString('vi-VN')} đ
-            </div>
-          </div>
-        </div>
-      </div>
 
     </div>
   );

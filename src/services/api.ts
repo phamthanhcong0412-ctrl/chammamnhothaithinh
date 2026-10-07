@@ -183,24 +183,20 @@ export const api = {
   // Store Config (PRIMARY SOURCE OF TRUTH: Live Firebase Firestore)
   async getConfig(): Promise<StoreConfig> {
     let baseConfig = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
-    try {
-      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/config`);
-      if (ok && data) {
-        baseConfig = { ...baseConfig, ...data };
-      }
-    } catch {}
-
-    try {
-      const fbCfg = await fetchStoreConfigFromFirestore();
-      if (fbCfg) {
-        baseConfig = {
-          ...baseConfig,
-          ...fbCfg,
-          firebaseConfig: DEFAULT_CONFIG.firebaseConfig,
-        };
-      }
-    } catch {}
-
+    const [apiRes, fbCfg] = await Promise.all([
+      fetchJsonOrThrow(`${API_BASE}/config`).catch(() => null),
+      fetchStoreConfigFromFirestore().catch(() => null),
+    ]);
+    if (apiRes?.ok && apiRes.data) {
+      baseConfig = { ...baseConfig, ...apiRes.data };
+    }
+    if (fbCfg) {
+      baseConfig = {
+        ...baseConfig,
+        ...fbCfg,
+        firebaseConfig: DEFAULT_CONFIG.firebaseConfig,
+      };
+    }
     saveLocal(STORAGE_KEYS.CONFIG, baseConfig);
     return baseConfig;
   },
@@ -518,25 +514,31 @@ export const api = {
     note?: string;
   }): Promise<{ success: boolean; record: AttendanceRecord }> {
     let users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
-    try {
-      const fbUsers = await fetchUsersFromFirestore();
-      if (fbUsers.length > 0) users = fbUsers;
-    } catch {}
-
-    let attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
-    try {
-      const fbAtt = await fetchAttendanceFromFirestore();
-      if (fbAtt.length > 0) attendance = fbAtt;
-    } catch {}
-
-    const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
-    const user = users.find((u) => u.id === payload.userId);
+    let user = users.find((u) => u.id === payload.userId);
+    if (!user) {
+      try {
+        const fbUsers = await fetchUsersFromFirestore();
+        if (fbUsers.length > 0) {
+          users = fbUsers;
+          user = users.find((u) => u.id === payload.userId);
+        }
+      } catch {}
+    }
     if (!user) throw new Error('Không tìm thấy thông tin nhân viên trên Firebase.');
+
+    const attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
     if (attendance.some((r) => r.userId === payload.userId && r.status === 'working')) {
       throw new Error('Bạn đang trong một lượt làm việc chưa Check-out.');
     }
 
+    const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
     const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const isAfternoon = nowMins >= 14 * 60;
+    const matchedShift =
+      cfg.shifts.find((s) => s.id === (isAfternoon ? 'shift_afternoon' : 'shift_morning')) ||
+      cfg.shifts[0];
+
     const checkInTime = now.toISOString();
     const newRecord: AttendanceRecord = enrichAttendanceRecord(
       {
@@ -554,8 +556,8 @@ export const api = {
         checkInIp: '14.161.45.88',
         checkInWifiSsid: payload.wifiSsid || cfg.wifiSsid,
         checkInGps: payload.gps,
-        shiftId: cfg.shifts[0]?.id || 'shift_morning',
-        shiftName: cfg.shifts[0]?.name || 'Ca làm việc',
+        shiftId: matchedShift?.id || 'shift_morning',
+        shiftName: matchedShift?.name || 'Ca làm việc',
         isLate: false,
         isEarlyLeave: false,
         note: payload.note || '',
@@ -568,16 +570,16 @@ export const api = {
     const nextAttendance = [newRecord, ...attendance];
     saveLocal(STORAGE_KEYS.ATTENDANCE, nextAttendance);
 
-    // 1. Save directly to live Firebase Firestore FIRST
-    await saveAttendanceToFirestore(newRecord, users);
-    await saveUserToFirestore(user, undefined, nextAttendance);
-
-    // 2. Sync to backend server if running
-    fetch(`${API_BASE}/firebase/sync-attendance`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attendance: nextAttendance }),
-    }).catch(() => {});
+    // Persist to live Firebase Firestore and backend in parallel without blocking UI
+    Promise.all([
+      saveAttendanceToFirestore(newRecord, users, 'create').catch(() => {}),
+      saveUserToFirestore(user, undefined, nextAttendance, 'update').catch(() => {}),
+      fetch(`${API_BASE}/firebase/sync-attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendance: nextAttendance }),
+      }).catch(() => {}),
+    ]);
 
     return { success: true, record: newRecord };
   },
@@ -589,19 +591,20 @@ export const api = {
     gps?: { lat: number; lng: number; distance?: number };
     note?: string;
   }): Promise<{ success: boolean; record: AttendanceRecord }> {
-    let users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
-    try {
-      const fbUsers = await fetchUsersFromFirestore();
-      if (fbUsers.length > 0) users = fbUsers;
-    } catch {}
-
+    const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
     let attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
-    try {
-      const fbAtt = await fetchAttendanceFromFirestore();
-      if (fbAtt.length > 0) attendance = fbAtt;
-    } catch {}
+    let idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
 
-    const idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
+    if (idx === -1) {
+      try {
+        const fbAtt = await fetchAttendanceFromFirestore();
+        if (fbAtt.length > 0) {
+          attendance = fbAtt;
+          idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
+        }
+      } catch {}
+    }
+
     if (idx === -1) throw new Error('Không tìm thấy ca làm việc đang mở để check-out.');
     const record = attendance[idx];
     const now = new Date();
@@ -631,19 +634,17 @@ export const api = {
     attendance[idx] = updatedRecord;
     saveLocal(STORAGE_KEYS.ATTENDANCE, attendance);
 
-    // 1. Save directly to live Firebase Firestore FIRST
-    await saveAttendanceToFirestore(updatedRecord, users);
+    // Persist to live Firebase Firestore and backend in parallel without blocking UI
     const user = users.find((u) => u.id === payload.userId);
-    if (user) {
-      await saveUserToFirestore(user, undefined, attendance);
-    }
-
-    // 2. Sync to backend server if running
-    fetch(`${API_BASE}/firebase/sync-attendance`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attendance }),
-    }).catch(() => {});
+    Promise.all([
+      saveAttendanceToFirestore(updatedRecord, users, 'update').catch(() => {}),
+      user ? saveUserToFirestore(user, undefined, attendance, 'update').catch(() => {}) : Promise.resolve(),
+      fetch(`${API_BASE}/firebase/sync-attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendance }),
+      }).catch(() => {}),
+    ]);
 
     return { success: true, record: updatedRecord };
   },

@@ -42,13 +42,13 @@
     "note": "",
     "totalMinutesWorked": 0,
     "totalHoursWorked": 0,
-    "totalDaysWorked": 0,
-    "totalShifts": 0,
+    "totalDaysWorked": 1,
+    "totalShifts": 1,
     "lateCount": 0,
     "estimatedSalary": 0,
-    "currentStatus": "offline",
-    "lastCheckInTime": null,
+    "currentStatus": "working",
+    "lastCheckInTime": "2026-10-07T00:56:51.475Z",
     "lastCheckOutTime": null,
-    "recentAttendanceSummary": "Chưa có lịch sử chấm công"
+    "recentAttendanceSummary": "2026-10-07: 00:56-Đang làm (0h / 0p)"
   }
 ]
