@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import { isClientIpAllowedByConfig, calculateGpsDistanceMeters } from '../services/api.ts';
+import { deduplicateAndMergeOverlappingTurns } from '../firebase.ts';
 
 function parseTimeMinutes(timeStr: string, fallbackMins: number): number {
   const parts = String(timeStr || '').split(':');
@@ -46,6 +47,7 @@ export const StaffAttendance: React.FC = () => {
     checkOut,
     attendance,
     refreshData,
+    runWithHudLoading,
   } = useApp();
 
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -177,10 +179,12 @@ export const StaffAttendance: React.FC = () => {
     setIsRecheckingNetwork(true);
     setStatusMessage(null);
     try {
-      await refreshData();
-      if (storeConfig?.requireGps) {
-        checkEmployeeGps();
-      }
+      await runWithHudLoading('Đang kiểm tra lại kết nối WiFi & cấu hình quán...', async () => {
+        await refreshData();
+        if (storeConfig?.requireGps) {
+          checkEmployeeGps();
+        }
+      });
     } finally {
       setIsRecheckingNetwork(false);
     }
@@ -191,7 +195,9 @@ export const StaffAttendance: React.FC = () => {
   const myTodaySessions = attendance.filter(
     (r) => r.userId === currentUser?.id && r.date === todayStr
   );
-  const myTodayCompletedMinutes = myTodaySessions.reduce((sum, r) => sum + (r.totalMinutes || 0), 0);
+  const myTodayCompletedMinutes = myTodaySessions
+    .filter((r) => r.status !== 'working')
+    .reduce((sum, r) => sum + (r.totalMinutes || 0), 0);
 
   // Live active turn duration & estimated pay
   const activeElapsedSec = useMemo(() => {
@@ -692,15 +698,19 @@ export const StaffAttendance: React.FC = () => {
                     };
 
                     if (r.status === 'working') {
-                      group.turns.push({
-                        checkInTime: r.checkInTime,
-                        checkOutTime: null,
-                        minutes: activeElapsedMinutes,
-                        isWorking: true,
-                        note: r.note,
-                      });
+                      // Strictly allow at most 1 active working turn matching activeRecord
+                      if (activeRecord && r.id === activeRecord.id && !group.turns.some((t) => t.isWorking)) {
+                        group.turns.push({
+                          checkInTime: r.checkInTime,
+                          checkOutTime: null,
+                          minutes: activeElapsedMinutes,
+                          isWorking: true,
+                          note: r.note,
+                        });
+                      }
                     } else if (Array.isArray(r.turns) && r.turns.length > 0) {
-                      for (const t of r.turns) {
+                      const deduped = deduplicateAndMergeOverlappingTurns(r.turns);
+                      for (const t of deduped) {
                         group.turns.push({
                           checkInTime: t.checkInTime,
                           checkOutTime: t.checkOutTime,

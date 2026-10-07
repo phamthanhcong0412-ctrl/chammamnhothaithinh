@@ -531,7 +531,39 @@ function enrichUserStatsOnServer(u: User): User {
 }
 
 function syncAllStatsOnServer(): void {
-  attendance = attendance.map((r) => enrichAttendanceRecordOnServer(r));
+  // Deduplicate working records:
+  // 1. Discard any working record whose checkInTime is already covered by a completed shift on the same day
+  // 2. Keep at most 1 working record per userId
+  const completedList = attendance.filter((r) => r.status !== 'working');
+  const workingByUser = new Map<string, AttendanceRecord[]>();
+
+  for (const r of attendance) {
+    if (r.status !== 'working') continue;
+    const wInMs = new Date(r.checkInTime).getTime();
+    const covered = completedList.some((comp) => {
+      if (comp.userId !== r.userId || comp.date !== r.date) return false;
+      const outMs = comp.checkOutTime ? new Date(comp.checkOutTime).getTime() : 0;
+      return outMs > 0 && wInMs <= outMs + 60000;
+    });
+    if (covered) continue;
+
+    const list = workingByUser.get(r.userId) || [];
+    list.push(r);
+    workingByUser.set(r.userId, list);
+  }
+
+  const dedupedWorking: AttendanceRecord[] = [];
+  for (const [, list] of workingByUser.entries()) {
+    const sorted = [...list].sort(
+      (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
+    );
+    dedupedWorking.push(sorted[0]);
+  }
+
+  attendance = [...dedupedWorking, ...completedList]
+    .map((r) => enrichAttendanceRecordOnServer(r))
+    .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+
   users = users.map((u) => enrichUserStatsOnServer(u));
   saveData(ATTENDANCE_FILE, attendance);
   saveData(USERS_FILE, users);
@@ -571,11 +603,20 @@ app.get('/api/firebase/attendance', (_req, res) => {
 
 app.post('/api/firebase/sync-attendance', (req, res) => {
   const incomingAttendance = req.body?.attendance;
-  if (Array.isArray(incomingAttendance) && incomingAttendance.length > 0) {
+  const replace = Boolean(req.body?.replace);
+  const removedIds: string[] = Array.isArray(req.body?.removedIds) ? req.body.removedIds : [];
+
+  if (Array.isArray(incomingAttendance)) {
     const mergedMap = new Map<string, AttendanceRecord>();
-    attendance.forEach((r) => mergedMap.set(r.id, r));
+    if (!replace) {
+      attendance.forEach((r) => {
+        if (!removedIds.includes(r.id)) {
+          mergedMap.set(r.id, r);
+        }
+      });
+    }
     incomingAttendance.forEach((r: AttendanceRecord) => {
-      if (r && r.id && r.userId) {
+      if (r && r.id && r.userId && !removedIds.includes(r.id)) {
         mergedMap.set(r.id, r);
       }
     });

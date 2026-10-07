@@ -18,6 +18,7 @@ import {
   deleteAttendanceFromFirestore,
   enrichUserWithAttendanceStats,
   enrichAttendanceRecord,
+  deduplicateAndMergeOverlappingTurns,
 } from '../firebase.ts';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 
@@ -192,11 +193,17 @@ export function consolidateCompletedShifts(
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
 
-  const working: AttendanceRecord[] = [];
+  const rawWorking: AttendanceRecord[] = [];
   const completedByShift = new Map<string, AttendanceRecord[]>();
   const updatedRecords: AttendanceRecord[] = [];
+  const removedIds: string[] = [];
+  const seenIds = new Set<string>();
 
   for (const rawRec of records) {
+    if (!rawRec || !rawRec.id) continue;
+    if (seenIds.has(rawRec.id)) continue;
+    seenIds.add(rawRec.id);
+
     let r: AttendanceRecord = {
       ...rawRec,
       isLate: false,
@@ -239,7 +246,7 @@ export function consolidateCompletedShifts(
         );
         updatedRecords.push(r);
       } else {
-        working.push(enrichAttendanceRecord(r, users));
+        rawWorking.push(enrichAttendanceRecord(r, users));
         continue;
       }
     }
@@ -253,22 +260,16 @@ export function consolidateCompletedShifts(
   }
 
   const consolidatedCompleted: AttendanceRecord[] = [];
-  const removedIds: string[] = [];
 
   for (const [, group] of completedByShift.entries()) {
-    if (group.length === 1) {
-      consolidatedCompleted.push(enrichAttendanceRecord({ ...group[0], isLate: false, isEarlyLeave: false }, users));
-      continue;
-    }
-
     // Sort chronologically so earliest check-in is first
     const sorted = [...group].sort(
       (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
     );
     const base = sorted[0];
 
-    // Collect and deduplicate all individual turns across records in this shift
-    const turnMap = new Map<string, { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }>();
+    // Collect all individual turns across records in this shift and merge any overlapping/duplicate timestamps
+    const rawTurns: { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }[] = [];
     for (const item of sorted) {
       const itemTurns =
         Array.isArray(item.turns) && item.turns.length > 0
@@ -282,30 +283,16 @@ export function consolidateCompletedShifts(
               },
             ];
       for (const t of itemTurns) {
-        const key = `${t.checkInTime}_${t.checkOutTime || ''}`;
-        if (!turnMap.has(key)) {
-          const calcMins =
-            t.checkOutTime && (!t.minutes || t.minutes <= 0)
-              ? Math.max(
-                  1,
-                  Math.round(
-                    (new Date(t.checkOutTime).getTime() - new Date(t.checkInTime).getTime()) / 60000
-                  )
-                )
-              : Math.max(0, Number(t.minutes) || 0);
-          turnMap.set(key, {
-            checkInTime: t.checkInTime,
-            checkOutTime: t.checkOutTime || null,
-            minutes: calcMins,
-            note: t.note || '',
-          });
-        }
+        rawTurns.push({
+          checkInTime: t.checkInTime,
+          checkOutTime: t.checkOutTime || null,
+          minutes: Number(t.minutes) || 0,
+          note: t.note || '',
+        });
       }
     }
 
-    const mergedTurns = Array.from(turnMap.values()).sort(
-      (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
-    );
+    const mergedTurns = deduplicateAndMergeOverlappingTurns(rawTurns);
     const totalMinutes = mergedTurns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
 
     let latestCheckOut = base.checkOutTime || null;
@@ -318,12 +305,13 @@ export function consolidateCompletedShifts(
       }
     }
 
-    const timing = evaluateShiftTiming(base.checkInTime, latestCheckOut, cfg);
+    const earliestCheckIn = mergedTurns[0]?.checkInTime || base.checkInTime;
+    const timing = evaluateShiftTiming(earliestCheckIn, latestCheckOut, cfg);
 
     const merged = enrichAttendanceRecord(
       {
         ...base,
-        checkInTime: mergedTurns[0]?.checkInTime || base.checkInTime,
+        checkInTime: earliestCheckIn,
         checkOutTime: latestCheckOut,
         totalMinutes,
         turns: mergedTurns,
@@ -337,9 +325,44 @@ export function consolidateCompletedShifts(
     );
 
     consolidatedCompleted.push(merged);
-    updatedRecords.push(merged);
+    if (sorted.length > 1 || (Array.isArray(base.turns) && base.turns.length !== mergedTurns.length)) {
+      updatedRecords.push(merged);
+    }
     for (let i = 1; i < sorted.length; i++) {
       removedIds.push(sorted[i].id);
+    }
+  }
+
+  // Deduplicate active `working` records:
+  // 1. Discard any `working` record whose checkInTime was ALREADY covered by a completed shift on the same day
+  // 2. Enforce strictly AT MOST 1 active `working` record per userId at any time
+  const workingByUser = new Map<string, AttendanceRecord[]>();
+  for (const w of rawWorking) {
+    const wInMs = new Date(w.checkInTime).getTime();
+    const alreadyCoveredByCompleted = consolidatedCompleted.some((comp) => {
+      if (comp.userId !== w.userId || comp.date !== w.date) return false;
+      const compOutMs = comp.checkOutTime ? new Date(comp.checkOutTime).getTime() : 0;
+      return compOutMs > 0 && wInMs <= compOutMs + 60000;
+    });
+
+    if (alreadyCoveredByCompleted) {
+      removedIds.push(w.id);
+      continue;
+    }
+
+    const list = workingByUser.get(w.userId) || [];
+    list.push(w);
+    workingByUser.set(w.userId, list);
+  }
+
+  const working: AttendanceRecord[] = [];
+  for (const [, userWorkingList] of workingByUser.entries()) {
+    const sortedW = [...userWorkingList].sort(
+      (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
+    );
+    working.push(sortedW[0]);
+    for (let i = 1; i < sortedW.length; i++) {
+      removedIds.push(sortedW[i].id);
     }
   }
 
@@ -361,9 +384,10 @@ async function fetchJsonOrThrow(url: string, options?: RequestInit): Promise<{ o
 }
 
 let cachedPublicIp: { ip: string; fetchedAt: number } | null = null;
+const activeCheckActionLocks = new Set<string>();
 
 async function detectClientPublicIp(forceRefresh = false): Promise<string> {
-  if (!forceRefresh && cachedPublicIp && Date.now() - cachedPublicIp.fetchedAt < 15000) {
+  if (!forceRefresh && cachedPublicIp && Date.now() - cachedPublicIp.fetchedAt < 300000) {
     return cachedPublicIp.ip;
   }
 
@@ -376,7 +400,7 @@ async function detectClientPublicIp(forceRefresh = false): Promise<string> {
   for (const url of endpoints) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2500);
+      const timeout = setTimeout(() => controller.abort(), 1500);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
       if (res.ok) {
@@ -896,145 +920,37 @@ export const api = {
     gps?: { lat: number; lng: number; accuracy?: number; distance?: number };
     note?: string;
   }): Promise<{ success: boolean; record: AttendanceRecord }> {
-    let users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
-    let user = users.find((u) => u.id === payload.userId);
-    if (!user) {
-      try {
-        const fbUsers = await fetchUsersFromFirestore();
-        if (fbUsers.length > 0) {
-          users = fbUsers;
-          user = users.find((u) => u.id === payload.userId);
-        }
-      } catch {}
+    const lockKey = `check_${payload.userId}`;
+    if (activeCheckActionLocks.has(lockKey)) {
+      throw new Error('Hệ thống đang xử lý thao tác chấm công của bạn, vui lòng không bấm lặp lại.');
     }
-    if (!user) throw new Error('Không tìm thấy thông tin nhân viên trên Firebase.');
+    activeCheckActionLocks.add(lockKey);
 
-    const attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
-    if (attendance.some((r) => r.userId === payload.userId && r.status === 'working')) {
-      throw new Error('Bạn đang trong một lượt làm việc chưa Check-out.');
-    }
-
-    // Fetch latest store configuration & client network IP to strictly enforce rules
-    const [cfg, clientIp] = await Promise.all([
-      this.getConfig().catch(() => loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG)),
-      detectClientPublicIp(false),
-    ]);
-
-    if (!isClientIpAllowedByConfig(clientIp, cfg)) {
-      throw new Error(
-        `Chặn chấm công: Thiết bị hiện tại không kết nối đúng mạng WiFi "${cfg.wifiSsid}" (BSSID: ${cfg.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`
-      );
-    }
-
-    if (cfg.requireGps && cfg.storeGps) {
-      if (!payload.gps || typeof payload.gps.lat !== 'number' || typeof payload.gps.lng !== 'number') {
-        throw new Error(
-          'Chặn chấm công (Khóa Kép Vị Trí): Vui lòng bật quyền Định vị (GPS) trên trình duyệt để xác nhận đang có mặt tại quán.'
-        );
+    try {
+      let users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      let user = users.find((u) => u.id === payload.userId);
+      if (!user) {
+        try {
+          const fbUsers = await fetchUsersFromFirestore();
+          if (fbUsers.length > 0) {
+            users = fbUsers;
+            user = users.find((u) => u.id === payload.userId);
+          }
+        } catch {}
       }
-      const dist = calculateGpsDistanceMeters(
-        payload.gps.lat,
-        payload.gps.lng,
-        cfg.storeGps.lat,
-        cfg.storeGps.lng
-      );
-      const maxRadius = cfg.storeGps.radiusMeters || 80;
-      if (dist > maxRadius) {
-        throw new Error(
-          `Chặn chấm công (Khóa Kép Vị Trí): Bạn đang cách cửa hàng ${dist}m (vượt quá bán kính cho phép ${maxRadius}m).`
-        );
+      if (!user) throw new Error('Không tìm thấy thông tin nhân viên trên Firebase.');
+
+      const rawAttendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      const { consolidated: attendance } = consolidateCompletedShifts(rawAttendance, users);
+
+      if (attendance.some((r) => r.userId === payload.userId && r.status === 'working')) {
+        throw new Error('Bạn đang trong một lượt làm việc chưa Check-out, không thể Check-in trùng lặp.');
       }
-    }
 
-    const now = new Date();
-    const shiftCheck = isTimeInConfiguredShifts(now, cfg);
-    if (!shiftCheck.inShiftWindow) {
-      throw new Error(
-        `Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình (${shiftCheck.allowedRangesText}).`
-      );
-    }
+      // Use cached storeConfig & cached clientIp for instant check-in (<100ms)
+      const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
+      const clientIp = await detectClientPublicIp(false);
 
-    const checkInTime = now.toISOString();
-    const todayStr = getTodayString();
-    const timing = evaluateShiftTiming(checkInTime, null, cfg);
-
-    const newRecord: AttendanceRecord = enrichAttendanceRecord(
-      {
-        id: 'att_' + Date.now(),
-        userId: user.id,
-        userName: user.name,
-        userEmail: user.email,
-        employeeCode: user.employeeCode,
-        date: todayStr,
-        checkInTime,
-        checkOutTime: null,
-        totalMinutes: 0,
-        status: 'working',
-        checkInMethod: 'direct_button',
-        checkInIp: clientIp,
-        checkInWifiSsid: payload.wifiSsid || cfg.wifiSsid,
-        checkInWifiBssid: cfg.wifiBssid || 'A4:2B:B0:C1:9E:58',
-        checkInGps: payload.gps,
-        shiftId: timing.shiftId,
-        shiftName: timing.shiftName,
-        isLate: false,
-        isEarlyLeave: false,
-        note: payload.note || '',
-        createdAt: checkInTime,
-        updatedAt: checkInTime,
-      },
-      users
-    );
-
-    const nextAttendance = [newRecord, ...attendance];
-    saveLocal(STORAGE_KEYS.ATTENDANCE, nextAttendance);
-
-    // Persist to live Firebase Firestore and backend in parallel without blocking UI
-    Promise.all([
-      saveAttendanceToFirestore(newRecord, users, 'create').catch(() => {}),
-      saveUserToFirestore(user, undefined, nextAttendance, 'update').catch(() => {}),
-      fetch(`${API_BASE}/firebase/sync-attendance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance: nextAttendance }),
-      }).catch(() => {}),
-    ]);
-
-    return { success: true, record: newRecord };
-  },
-
-  async checkOut(payload: {
-    userId: string;
-    qrToken?: string;
-    wifiSsid?: string;
-    gps?: { lat: number; lng: number; distance?: number };
-    note?: string;
-    managerOverride?: boolean;
-  }): Promise<{ success: boolean; record: AttendanceRecord; removedId?: string }> {
-    const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
-    let attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
-    let idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
-
-    if (idx === -1) {
-      try {
-        const fbAtt = await fetchAttendanceFromFirestore();
-        if (fbAtt.length > 0) {
-          attendance = fbAtt;
-          idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
-        }
-      } catch {}
-    }
-
-    if (idx === -1) throw new Error('Không tìm thấy ca làm việc đang mở để check-out.');
-    const record = attendance[idx];
-    const now = new Date();
-
-    const [cfg, clientIp] = await Promise.all([
-      this.getConfig().catch(() => loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG)),
-      detectClientPublicIp(false),
-    ]);
-
-    if (!payload.managerOverride) {
       if (!isClientIpAllowedByConfig(clientIp, cfg)) {
         throw new Error(
           `Chặn chấm công: Thiết bị hiện tại không kết nối đúng mạng WiFi "${cfg.wifiSsid}" (BSSID: ${cfg.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`
@@ -1061,156 +977,330 @@ export const api = {
         }
       }
 
+      const now = new Date();
       const shiftCheck = isTimeInConfiguredShifts(now, cfg);
       if (!shiftCheck.inShiftWindow) {
         throw new Error(
           `Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình (${shiftCheck.allowedRangesText}).`
         );
       }
-    }
 
-    const checkOutTime = now.toISOString();
-    const diffMinutes = Math.max(
-      1,
-      Math.round((now.getTime() - new Date(record.checkInTime).getTime()) / 60000)
-    );
+      // Prevent duplicate check-in at the exact same minute as an already completed turn
+      const todayStr = getTodayString();
+      const nowMs = now.getTime();
+      const hasDuplicateSameTimestamp = attendance.some((r) => {
+        if (r.userId !== payload.userId || r.date !== todayStr) return false;
+        const inDiff = Math.abs(nowMs - new Date(r.checkInTime).getTime());
+        const outDiff = r.checkOutTime ? Math.abs(nowMs - new Date(r.checkOutTime).getTime()) : Infinity;
+        return inDiff < 15000 || outDiff < 5000;
+      });
+      if (hasDuplicateSameTimestamp) {
+        throw new Error('Bạn vừa thao tác chấm công cách đây vài giây, vui lòng không bấm liên tục.');
+      }
 
-    const recordShiftId =
-      record.shiftId || (new Date(record.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
+      const checkInTime = now.toISOString();
+      const timing = evaluateShiftTiming(checkInTime, null, cfg);
 
-    // Check if employee already has a completed record for this SAME shift today
-    const existingShiftIdx = attendance.findIndex(
-      (r, i) =>
-        i !== idx &&
-        r.userId === payload.userId &&
-        r.date === record.date &&
-        r.status !== 'working' &&
-        (r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')) ===
-          recordShiftId
-    );
-
-    const user = users.find((u) => u.id === payload.userId);
-    const outTiming = evaluateShiftTiming(record.checkInTime, checkOutTime, cfg);
-
-    if (existingShiftIdx !== -1) {
-      // Accumulate this turn's minutes & turn details into the existing shift record so 1 shift = 1 record
-      const existing = attendance[existingShiftIdx];
-      const existingTurns =
-        Array.isArray(existing.turns) && existing.turns.length > 0
-          ? existing.turns
-          : [
-              {
-                checkInTime: existing.checkInTime,
-                checkOutTime: existing.checkOutTime,
-                minutes: Number(existing.totalMinutes) || 0,
-                note: existing.note || '',
-              },
-            ];
-
-      const newTurn = {
-        checkInTime: record.checkInTime,
-        checkOutTime,
-        minutes: diffMinutes,
-        note: payload.note || record.note || '',
-      };
-
-      const mergedTurns = [...existingTurns, newTurn].sort(
-        (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
-      );
-      const earliestCheckIn = mergedTurns[0].checkInTime;
-      const accumulatedMinutes = mergedTurns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
-      const mergedTiming = evaluateShiftTiming(earliestCheckIn, checkOutTime, cfg);
-
-      const mergedNote = [existing.note, payload.note || record.note]
-        .map((s) => (s || '').trim())
-        .filter(Boolean)
-        .join(' | ');
-
-      const mergedRecord: AttendanceRecord = enrichAttendanceRecord(
+      const newRecord: AttendanceRecord = enrichAttendanceRecord(
         {
-          ...existing,
-          checkInTime: earliestCheckIn,
+          id: `att_${user.id}_${Date.now()}`,
+          userId: user.id,
+          userName: user.name,
+          userEmail: user.email,
+          employeeCode: user.employeeCode,
+          date: todayStr,
+          checkInTime,
+          checkOutTime: null,
+          totalMinutes: 0,
+          status: 'working',
+          checkInMethod: 'direct_button',
+          checkInIp: clientIp,
+          checkInWifiSsid: payload.wifiSsid || cfg.wifiSsid,
+          checkInWifiBssid: cfg.wifiBssid || 'A4:2B:B0:C1:9E:58',
+          checkInGps: payload.gps,
+          shiftId: timing.shiftId,
+          shiftName: timing.shiftName,
+          isLate: false,
+          isEarlyLeave: false,
+          note: payload.note || '',
+          createdAt: checkInTime,
+          updatedAt: checkInTime,
+        },
+        users
+      );
+
+      const nextAttendance = [newRecord, ...attendance];
+      saveLocal(STORAGE_KEYS.ATTENDANCE, nextAttendance);
+
+      await Promise.race([
+        Promise.all([
+          saveAttendanceToFirestore(newRecord, users, 'create').catch(() => {}),
+          saveUserToFirestore(user, undefined, nextAttendance, 'update').catch(() => {}),
+          fetch(`${API_BASE}/firebase/sync-attendance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attendance: nextAttendance, replace: true }),
+          }).catch(() => {}),
+        ]),
+        new Promise((r) => setTimeout(r, 1800)),
+      ]);
+
+      return { success: true, record: newRecord };
+    } finally {
+      activeCheckActionLocks.delete(lockKey);
+    }
+  },
+
+  async checkOut(payload: {
+    userId: string;
+    qrToken?: string;
+    wifiSsid?: string;
+    gps?: { lat: number; lng: number; distance?: number };
+    note?: string;
+    managerOverride?: boolean;
+  }): Promise<{ success: boolean; record: AttendanceRecord; removedId?: string; removedIds?: string[] }> {
+    const lockKey = `check_${payload.userId}`;
+    if (activeCheckActionLocks.has(lockKey)) {
+      throw new Error('Hệ thống đang xử lý thao tác chấm công của bạn, vui lòng không bấm lặp lại.');
+    }
+    activeCheckActionLocks.add(lockKey);
+
+    try {
+      const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
+      let rawAttendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      let { consolidated: attendance, removedIds: consolidatedRemovedIds } = consolidateCompletedShifts(
+        rawAttendance,
+        users
+      );
+      let idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
+
+      if (idx === -1) {
+        try {
+          const fbAtt = await fetchAttendanceFromFirestore();
+          if (fbAtt.length > 0) {
+            const consolidatedFb = consolidateCompletedShifts(fbAtt, users);
+            attendance = consolidatedFb.consolidated;
+            consolidatedRemovedIds = [
+              ...consolidatedRemovedIds,
+              ...consolidatedFb.removedIds,
+            ];
+            idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
+          }
+        } catch {}
+      }
+
+      if (idx === -1) throw new Error('Không tìm thấy ca làm việc đang mở để check-out.');
+      const record = attendance[idx];
+      const now = new Date();
+
+      const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
+      const clientIp = payload.managerOverride ? '127.0.0.1' : await detectClientPublicIp(false);
+
+      if (!payload.managerOverride) {
+        if (!isClientIpAllowedByConfig(clientIp, cfg)) {
+          throw new Error(
+            `Chặn chấm công: Thiết bị hiện tại không kết nối đúng mạng WiFi "${cfg.wifiSsid}" (BSSID: ${cfg.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`
+          );
+        }
+
+        if (cfg.requireGps && cfg.storeGps) {
+          if (!payload.gps || typeof payload.gps.lat !== 'number' || typeof payload.gps.lng !== 'number') {
+            throw new Error(
+              'Chặn chấm công (Khóa Kép Vị Trí): Vui lòng bật quyền Định vị (GPS) trên trình duyệt để xác nhận đang có mặt tại quán.'
+            );
+          }
+          const dist = calculateGpsDistanceMeters(
+            payload.gps.lat,
+            payload.gps.lng,
+            cfg.storeGps.lat,
+            cfg.storeGps.lng
+          );
+          const maxRadius = cfg.storeGps.radiusMeters || 80;
+          if (dist > maxRadius) {
+            throw new Error(
+              `Chặn chấm công (Khóa Kép Vị Trí): Bạn đang cách cửa hàng ${dist}m (vượt quá bán kính cho phép ${maxRadius}m).`
+            );
+          }
+        }
+
+        const shiftCheck = isTimeInConfiguredShifts(now, cfg);
+        if (!shiftCheck.inShiftWindow) {
+          throw new Error(
+            `Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình (${shiftCheck.allowedRangesText}).`
+          );
+        }
+      }
+
+      const checkOutTime = now.toISOString();
+      const diffMinutes = Math.max(
+        1,
+        Math.round((now.getTime() - new Date(record.checkInTime).getTime()) / 60000)
+      );
+
+      const recordShiftId =
+        record.shiftId || (new Date(record.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
+
+      // Check if employee already has a completed record for this SAME shift today
+      const existingShiftIdx = attendance.findIndex(
+        (r, i) =>
+          i !== idx &&
+          r.userId === payload.userId &&
+          r.date === record.date &&
+          r.status !== 'working' &&
+          (r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')) ===
+            recordShiftId
+      );
+
+      const user = users.find((u) => u.id === payload.userId);
+      const outTiming = evaluateShiftTiming(record.checkInTime, checkOutTime, cfg);
+
+      if (existingShiftIdx !== -1) {
+        // Accumulate this turn's minutes & turn details into the existing shift record so 1 shift = 1 record
+        const existing = attendance[existingShiftIdx];
+        const existingTurns =
+          Array.isArray(existing.turns) && existing.turns.length > 0
+            ? existing.turns
+            : [
+                {
+                  checkInTime: existing.checkInTime,
+                  checkOutTime: existing.checkOutTime,
+                  minutes: Number(existing.totalMinutes) || 0,
+                  note: existing.note || '',
+                },
+              ];
+
+        const newTurn = {
+          checkInTime: record.checkInTime,
           checkOutTime,
-          totalMinutes: accumulatedMinutes,
-          turns: mergedTurns,
+          minutes: diffMinutes,
+          note: payload.note || record.note || '',
+        };
+
+        const mergedTurns = deduplicateAndMergeOverlappingTurns([...existingTurns, newTurn]);
+        const earliestCheckIn = mergedTurns[0]?.checkInTime || existing.checkInTime;
+        const accumulatedMinutes = mergedTurns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
+        const mergedTiming = evaluateShiftTiming(earliestCheckIn, checkOutTime, cfg);
+
+        const mergedNote = Array.from(
+          new Set(
+            [existing.note, payload.note || record.note]
+              .map((s) => (s || '').trim())
+              .filter(Boolean)
+          )
+        ).join(' | ');
+
+        const mergedRecord: AttendanceRecord = enrichAttendanceRecord(
+          {
+            ...existing,
+            checkInTime: earliestCheckIn,
+            checkOutTime,
+            totalMinutes: accumulatedMinutes,
+            turns: mergedTurns,
+            status: 'completed',
+            shiftId: mergedTiming.shiftId,
+            shiftName: mergedTiming.shiftName,
+            isLate: false,
+            isEarlyLeave: false,
+            checkOutIp: clientIp,
+            checkOutGps: payload.gps,
+            note: mergedNote || existing.note || '',
+            updatedAt: checkOutTime,
+          },
+          users
+        );
+
+        attendance[existingShiftIdx] = mergedRecord;
+        // Remove the closed working record and any other working records for this user
+        const allRemovedIds = [
+          record.id,
+          ...consolidatedRemovedIds,
+          ...attendance
+            .filter((r, i) => i !== existingShiftIdx && r.userId === payload.userId && r.status === 'working')
+            .map((r) => r.id),
+        ];
+        attendance = attendance.filter((r) => !allRemovedIds.includes(r.id));
+        saveLocal(STORAGE_KEYS.ATTENDANCE, attendance);
+
+        await Promise.race([
+          Promise.all([
+            saveAttendanceToFirestore(mergedRecord, users, 'update').catch(() => {}),
+            ...allRemovedIds.map((rid) => deleteAttendanceFromFirestore(rid).catch(() => {})),
+            user ? saveUserToFirestore(user, undefined, attendance, 'update').catch(() => {}) : Promise.resolve(),
+            fetch(`${API_BASE}/firebase/sync-attendance`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attendance, replace: true, removedIds: allRemovedIds }),
+            }).catch(() => {}),
+          ]),
+          new Promise((r) => setTimeout(r, 1800)),
+        ]);
+
+        return { success: true, record: mergedRecord, removedId: record.id, removedIds: allRemovedIds };
+      }
+
+      const singleTurnNote = payload.note
+        ? record.note
+          ? `${record.note} | ${payload.note}`
+          : payload.note
+        : record.note;
+
+      const updatedRecord: AttendanceRecord = enrichAttendanceRecord(
+        {
+          ...record,
+          checkOutTime,
+          totalMinutes: diffMinutes,
+          turns: [
+            {
+              checkInTime: record.checkInTime,
+              checkOutTime,
+              minutes: diffMinutes,
+              note: singleTurnNote || '',
+            },
+          ],
           status: 'completed',
-          shiftId: mergedTiming.shiftId,
-          shiftName: mergedTiming.shiftName,
+          shiftId: outTiming.shiftId,
+          shiftName: outTiming.shiftName,
           isLate: false,
           isEarlyLeave: false,
           checkOutIp: clientIp,
           checkOutGps: payload.gps,
-          note: mergedNote || existing.note || '',
+          note: singleTurnNote,
           updatedAt: checkOutTime,
         },
         users
       );
 
-      attendance[existingShiftIdx] = mergedRecord;
-      attendance.splice(idx, 1);
+      attendance[idx] = updatedRecord;
+      // Also clean up any other duplicate working records for this user
+      const extraWorkingIds = [
+        ...consolidatedRemovedIds,
+        ...attendance
+          .filter((r, i) => i !== idx && r.userId === payload.userId && r.status === 'working')
+          .map((r) => r.id),
+      ];
+      if (extraWorkingIds.length > 0) {
+        attendance = attendance.filter((r) => !extraWorkingIds.includes(r.id));
+      }
       saveLocal(STORAGE_KEYS.ATTENDANCE, attendance);
 
-      Promise.all([
-        saveAttendanceToFirestore(mergedRecord, users, 'update').catch(() => {}),
-        deleteAttendanceFromFirestore(record.id).catch(() => {}),
-        user ? saveUserToFirestore(user, undefined, attendance, 'update').catch(() => {}) : Promise.resolve(),
-        fetch(`${API_BASE}/firebase/sync-attendance`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attendance }),
-        }).catch(() => {}),
+      await Promise.race([
+        Promise.all([
+          saveAttendanceToFirestore(updatedRecord, users, 'update').catch(() => {}),
+          ...extraWorkingIds.map((rid) => deleteAttendanceFromFirestore(rid).catch(() => {})),
+          user ? saveUserToFirestore(user, undefined, attendance, 'update').catch(() => {}) : Promise.resolve(),
+          fetch(`${API_BASE}/firebase/sync-attendance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attendance, replace: true, removedIds: extraWorkingIds }),
+          }).catch(() => {}),
+        ]),
+        new Promise((r) => setTimeout(r, 1800)),
       ]);
 
-      return { success: true, record: mergedRecord, removedId: record.id };
+      return { success: true, record: updatedRecord, removedIds: extraWorkingIds };
+    } finally {
+      activeCheckActionLocks.delete(lockKey);
     }
-
-    const singleTurnNote = payload.note
-      ? record.note
-        ? `${record.note} | ${payload.note}`
-        : payload.note
-      : record.note;
-
-    const updatedRecord: AttendanceRecord = enrichAttendanceRecord(
-      {
-        ...record,
-        checkOutTime,
-        totalMinutes: diffMinutes,
-        turns: [
-          {
-            checkInTime: record.checkInTime,
-            checkOutTime,
-            minutes: diffMinutes,
-            note: singleTurnNote || '',
-          },
-        ],
-        status: 'completed',
-        shiftId: outTiming.shiftId,
-        shiftName: outTiming.shiftName,
-        isLate: false,
-        isEarlyLeave: false,
-        checkOutIp: clientIp,
-        checkOutGps: payload.gps,
-        note: singleTurnNote,
-        updatedAt: checkOutTime,
-      },
-      users
-    );
-
-    attendance[idx] = updatedRecord;
-    saveLocal(STORAGE_KEYS.ATTENDANCE, attendance);
-
-    // Persist to live Firebase Firestore and backend in parallel without blocking UI
-    Promise.all([
-      saveAttendanceToFirestore(updatedRecord, users, 'update').catch(() => {}),
-      user ? saveUserToFirestore(user, undefined, attendance, 'update').catch(() => {}) : Promise.resolve(),
-      fetch(`${API_BASE}/firebase/sync-attendance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance }),
-      }).catch(() => {}),
-    ]);
-
-    return { success: true, record: updatedRecord };
   },
 
   async manualAttendance(payload: {

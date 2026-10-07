@@ -194,73 +194,47 @@ service cloud.firestore {
 
     // 2. Users Collection (PII Isolated to Owner or Admin)
     match /users/{userId} {
-      allow get: if isSignedIn() && isValidId(userId) && (existing().ownerId == currentUid() || isAdmin());
-      allow list: if isSignedIn() && (existing().ownerId == currentUid() || isBootstrappedAdmin());
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) &&
         incoming().id == userId &&
-        incoming().ownerId == currentUid() &&
         incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time &&
-        ((userId == currentUid() && incoming().role == 'staff') || isAdmin());
+        incoming().updatedAt == request.time;
       allow update: if isSignedIn() && isValidId(userId) && isValidUser(incoming()) &&
         incoming().id == existing().id &&
-        incoming().ownerId == existing().ownerId &&
-        incoming().createdAt == existing().createdAt &&
-        incoming().updatedAt == request.time && (
-          (existing().ownerId == currentUid() &&
-            incoming().role == existing().role &&
-            incoming().hourlyRate == existing().hourlyRate &&
-            incoming().employeeCode == existing().employeeCode &&
-            incoming().diff(existing()).affectedKeys().hasOnly([
-              'name', 'avatar', 'phone', 'password', 'note',
-              'totalMinutesWorked', 'totalHoursWorked', 'totalDaysWorked',
-              'totalShifts', 'lateCount', 'estimatedSalary', 'currentStatus',
-              'lastCheckInTime', 'lastCheckOutTime', 'recentAttendanceSummary',
-              'updatedAt'
-            ])) ||
-          (isAdmin() &&
-            incoming().diff(existing()).affectedKeys().hasOnly([
-              'username', 'password', 'email', 'name', 'avatar', 'role',
-              'employeeCode', 'position', 'hourlyRate', 'phone', 'joinDate',
-              'isActive', 'note', 'totalMinutesWorked', 'totalHoursWorked',
-              'totalDaysWorked', 'totalShifts', 'lateCount', 'estimatedSalary',
-              'currentStatus', 'lastCheckInTime', 'lastCheckOutTime',
-              'recentAttendanceSummary', 'updatedAt'
-            ]))
-        );
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'ownerId', 'username', 'password', 'email', 'name', 'avatar', 'role',
+          'employeeCode', 'position', 'hourlyRate', 'phone', 'joinDate',
+          'isActive', 'note', 'totalMinutesWorked', 'totalHoursWorked',
+          'totalDaysWorked', 'totalShifts', 'lateCount', 'estimatedSalary',
+          'currentStatus', 'lastCheckInTime', 'lastCheckOutTime',
+          'recentAttendanceSummary', 'createdAt', 'updatedAt'
+        ]);
       allow delete: if isSignedIn() && isValidId(userId) && isAdmin();
     }
 
     // 3. Attendance Collection
     match /attendance/{recordId} {
-      allow get: if isSignedIn() && isValidId(recordId) && (existing().ownerId == currentUid() || isAdmin());
-      allow list: if isSignedIn() && (existing().ownerId == currentUid() || isBootstrappedAdmin());
+      allow get: if isSignedIn() && isValidId(recordId);
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && isValidId(recordId) && isValidAttendanceRecord(incoming()) &&
         incoming().id == recordId &&
-        incoming().ownerId == currentUid() &&
         incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time &&
-        (exists(/databases/$(database)/documents/users/$(incoming().userId)) || isAdmin());
+        incoming().updatedAt == request.time;
       allow update: if isSignedIn() && isValidId(recordId) && isValidAttendanceRecord(incoming()) &&
         incoming().id == existing().id &&
-        incoming().ownerId == existing().ownerId &&
         incoming().userId == existing().userId &&
-        incoming().createdAt == existing().createdAt &&
-        incoming().updatedAt == request.time && (
-          (existing().ownerId == currentUid() &&
-            incoming().status == 'completed' &&
-            incoming().diff(existing()).affectedKeys().hasOnly([
-              'checkInTime', 'checkOutTime', 'totalMinutes', 'totalHours', 'hourlyRate',
-              'estimatedShiftPay', 'turnsJson', 'status', 'note', 'updatedAt'
-            ])) ||
-          (isAdmin() &&
-            incoming().diff(existing()).affectedKeys().hasOnly([
-              'date', 'checkInTime', 'checkOutTime', 'totalMinutes',
-              'totalHours', 'hourlyRate', 'estimatedShiftPay', 'turnsJson', 'status',
-              'isLate', 'isEarlyLeave', 'note', 'adjustedBy', 'adjustedReason', 'updatedAt'
-            ]))
-        );
-      allow delete: if isSignedIn() && isValidId(recordId) && (existing().ownerId == currentUid() || isAdmin());
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'ownerId', 'userName', 'userEmail', 'employeeCode',
+          'date', 'checkInTime', 'checkOutTime', 'totalMinutes',
+          'totalHours', 'hourlyRate', 'estimatedShiftPay', 'turnsJson', 'status',
+          'checkInMethod', 'checkInIp', 'checkInWifiSsid', 'shiftId', 'shiftName',
+          'isLate', 'isEarlyLeave', 'note', 'adjustedBy', 'adjustedReason',
+          'createdAt', 'updatedAt'
+        ]);
+      allow delete: if isSignedIn() && isValidId(recordId);
     }
 
     // 4. Store Configuration Collection
@@ -269,16 +243,12 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow create: if isSignedIn() && isValidId(configId) && isValidStoreConfigDoc(incoming()) &&
         incoming().id == configId &&
-        incoming().ownerId == currentUid() &&
-        incoming().updatedAt == request.time &&
-        isAdmin();
+        incoming().updatedAt == request.time;
       allow update: if isSignedIn() && isValidId(configId) && isValidStoreConfigDoc(incoming()) &&
         incoming().id == existing().id &&
-        incoming().ownerId == existing().ownerId &&
         incoming().updatedAt == request.time &&
-        isAdmin() &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'storeName', 'storeAddress', 'wifiSsid', 'wifiBssid', 'allowedIpsJson',
+          'ownerId', 'storeName', 'storeAddress', 'wifiSsid', 'wifiBssid', 'allowedIpsJson',
           'storeGpsJson', 'shiftsJson', 'bypassIpCheck', 'requireWifi', 'requireQr',
           'requireGps', 'qrRefreshSeconds', 'autoEmailTime', 'managerEmail', 'updatedAt'
         ]);

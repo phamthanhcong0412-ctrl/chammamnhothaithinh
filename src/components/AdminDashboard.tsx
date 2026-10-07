@@ -18,6 +18,7 @@ import {
   Wifi,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
+import { deduplicateAndMergeOverlappingTurns } from '../firebase.ts';
 import type { AttendanceRecord } from '../types/index.ts';
 
 interface AdminDashboardProps {
@@ -31,7 +32,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenEmailModal,
   onOpenSettingsModal,
 }) => {
-  const { users, attendance, deleteAttendance, checkOutUser, refreshData } = useApp();
+  const { users, attendance, deleteAttendance, checkOutUser, refreshData, runWithHudLoading } = useApp();
   const [currentSeconds, setCurrentSeconds] = useState(Date.now());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [checkingOutUserId, setCheckingOutUserId] = useState<string | null>(null);
@@ -45,7 +46,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshData();
+      await runWithHudLoading('Đang làm mới dữ liệu chấm công trực tiếp...', async () => {
+        await refreshData();
+      });
     } finally {
       setTimeout(() => setIsRefreshing(false), 400);
     }
@@ -104,7 +107,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const inferredShiftId =
         r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
       const key = `${r.userId}_${inferredShiftId}`;
-      const recordTurns =
+      const recordTurns = deduplicateAndMergeOverlappingTurns(
         Array.isArray(r.turns) && r.turns.length > 0
           ? r.turns
           : [
@@ -114,7 +117,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 minutes: Number(r.totalMinutes) || 0,
                 note: r.note || '',
               },
-            ];
+            ]
+      );
 
       const existing = completedShiftsMap.get(key);
       if (!existing) {
@@ -131,9 +135,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           totalMinutes: Number(r.totalMinutes) || 0,
           estimatedPay: Number(r.estimatedShiftPay) || 0,
           turnsCount: recordTurns.length,
-          turns: [...recordTurns].sort(
-            (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
-          ),
+          turns: recordTurns,
           isLate: Boolean(r.isLate),
           isEarlyLeave: Boolean(r.isEarlyLeave),
         });
@@ -148,16 +150,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ) {
           existing.lastCheckOutTime = r.checkOutTime;
         }
-        const turnMap = new Map<string, { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }>();
-        [...existing.turns, ...recordTurns].forEach((t) => {
-          const tKey = `${t.checkInTime}_${t.checkOutTime || ''}`;
-          if (!turnMap.has(tKey)) {
-            turnMap.set(tKey, t);
-          }
-        });
-        existing.turns = Array.from(turnMap.values()).sort(
-          (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
-        );
+        existing.turns = deduplicateAndMergeOverlappingTurns([...existing.turns, ...recordTurns]);
         existing.totalMinutes = existing.turns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
         const userRate = users.find((u) => u.id === r.userId)?.hourlyRate || r.hourlyRate || 28000;
         existing.estimatedPay = Math.round((existing.totalMinutes / 60) * userRate);

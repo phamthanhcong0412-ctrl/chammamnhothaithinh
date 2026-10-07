@@ -122,6 +122,81 @@ function sanitizeUsername(raw: string): string {
   return cleaned || 'nv_' + Date.now();
 }
 
+export function deduplicateAndMergeOverlappingTurns(
+  rawTurns: { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }[]
+): { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }[] {
+  if (!Array.isArray(rawTurns) || rawTurns.length === 0) return [];
+
+  const valid = rawTurns
+    .filter((t) => t && t.checkInTime && !Number.isNaN(new Date(t.checkInTime).getTime()))
+    .map((t) => {
+      const inMs = new Date(t.checkInTime).getTime();
+      const outMs =
+        t.checkOutTime && !Number.isNaN(new Date(t.checkOutTime).getTime())
+          ? new Date(t.checkOutTime).getTime()
+          : null;
+      const calcMins =
+        outMs !== null && outMs > inMs
+          ? Math.max(1, Math.round((outMs - inMs) / 60000))
+          : Math.max(0, Number(t.minutes) || 0);
+      return {
+        checkInTime: new Date(inMs).toISOString(),
+        checkOutTime: outMs !== null ? new Date(outMs).toISOString() : null,
+        minutes: calcMins,
+        note: (t.note || '').trim(),
+      };
+    })
+    .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
+
+  const merged: { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }[] = [];
+
+  for (const turn of valid) {
+    if (merged.length === 0) {
+      merged.push({ ...turn });
+      continue;
+    }
+
+    const prev = merged[merged.length - 1];
+    const prevInMs = new Date(prev.checkInTime).getTime();
+    const prevOutMs = prev.checkOutTime ? new Date(prev.checkOutTime).getTime() : null;
+    const curInMs = new Date(turn.checkInTime).getTime();
+    const curOutMs = turn.checkOutTime ? new Date(turn.checkOutTime).getTime() : null;
+
+    // Overlap or duplicate check-in at same timestamp:
+    // 1. Checked in within 60 seconds of each other
+    // 2. Or previous turn is still open (null checkOutTime)
+    // 3. Or current checkInTime is earlier than or within 60 seconds of previous checkOutTime
+    const isSameOrOverlapping =
+      Math.abs(curInMs - prevInMs) < 60000 ||
+      prevOutMs === null ||
+      curInMs <= prevOutMs + 60000;
+
+    if (isSameOrOverlapping) {
+      const minInMs = Math.min(prevInMs, curInMs);
+      let maxOutMs: number | null = null;
+      if (prevOutMs !== null && curOutMs !== null) {
+        maxOutMs = Math.max(prevOutMs, curOutMs);
+      } else {
+        maxOutMs = prevOutMs ?? curOutMs;
+      }
+
+      prev.checkInTime = new Date(minInMs).toISOString();
+      prev.checkOutTime = maxOutMs !== null ? new Date(maxOutMs).toISOString() : null;
+      prev.minutes =
+        maxOutMs !== null && maxOutMs > minInMs
+          ? Math.max(1, Math.round((maxOutMs - minInMs) / 60000))
+          : Math.max(prev.minutes, turn.minutes);
+      if (turn.note && !prev.note?.includes(turn.note)) {
+        prev.note = prev.note ? `${prev.note} | ${turn.note}` : turn.note;
+      }
+    } else {
+      merged.push({ ...turn });
+    }
+  }
+
+  return merged;
+}
+
 export function enrichAttendanceRecord(
   record: AttendanceRecord,
   usersList: User[] = []
@@ -129,31 +204,23 @@ export function enrichAttendanceRecord(
   const matchedUser = usersList.find((u) => u.id === record.userId);
   const hourlyRate = Number(record.hourlyRate || matchedUser?.hourlyRate || 28000);
 
-  let normalizedTurns = Array.isArray(record.turns) && record.turns.length > 0
-    ? record.turns.map((t) => {
-        const computedMins =
-          t.checkOutTime && (!t.minutes || t.minutes <= 0)
-            ? Math.max(
-                1,
-                Math.round(
-                  (new Date(t.checkOutTime).getTime() - new Date(t.checkInTime).getTime()) / 60000
-                )
-              )
-            : Math.max(0, Number(t.minutes) || 0);
-        return {
-          checkInTime: t.checkInTime,
-          checkOutTime: t.checkOutTime || null,
-          minutes: computedMins,
-          note: t.note || '',
-        };
-      })
-    : undefined;
+  let normalizedTurns =
+    Array.isArray(record.turns) && record.turns.length > 0
+      ? deduplicateAndMergeOverlappingTurns(record.turns)
+      : undefined;
 
   let totalMinutes = Math.max(0, Number(record.totalMinutes) || 0);
   if (normalizedTurns && normalizedTurns.length > 0 && record.status !== 'working') {
     const sumTurns = normalizedTurns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
     if (sumTurns > 0) {
       totalMinutes = sumTurns;
+    }
+  } else if (record.status !== 'working' && record.checkOutTime && record.checkInTime) {
+    const diff = Math.round(
+      (new Date(record.checkOutTime).getTime() - new Date(record.checkInTime).getTime()) / 60000
+    );
+    if (diff > 0 && totalMinutes <= 0) {
+      totalMinutes = diff;
     }
   }
 
@@ -162,17 +229,25 @@ export function enrichAttendanceRecord(
       {
         checkInTime: record.checkInTime,
         checkOutTime: record.checkOutTime || null,
-        minutes: totalMinutes,
+        minutes: record.status === 'working' ? 0 : totalMinutes,
         note: record.note || '',
       },
     ];
   }
+
+  const earliestCheckIn = normalizedTurns[0]?.checkInTime || record.checkInTime;
+  const latestCheckOut =
+    record.status === 'working'
+      ? null
+      : normalizedTurns[normalizedTurns.length - 1]?.checkOutTime || record.checkOutTime || null;
 
   const totalHours = Number((totalMinutes / 60).toFixed(2));
   const estimatedShiftPay = Math.round((totalMinutes / 60) * hourlyRate);
 
   return {
     ...record,
+    checkInTime: earliestCheckIn,
+    checkOutTime: latestCheckOut,
     totalMinutes,
     totalHours,
     hourlyRate,
@@ -711,17 +786,6 @@ export async function fetchAttendanceFromFirestore(): Promise<AttendanceRecord[]
       })
       .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
 
-    if (list.length > 0) {
-      try {
-        localStorage.setItem('chammam_attendance_v2', JSON.stringify(list));
-        fetch('/api/firebase/sync-attendance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attendance: list }),
-        }).catch(() => {});
-      } catch {}
-    }
-
     return list;
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
@@ -847,6 +911,197 @@ export async function saveStoreConfigToFirestore(cfg: StoreConfig): Promise<void
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
+}
+
+export function subscribeToRealtimeStoreData(handlers: {
+  onAttendanceChange?: (records: AttendanceRecord[]) => void;
+  onUsersChange?: (users: User[]) => void;
+  onStoreConfigChange?: (cfg: Partial<StoreConfig>) => void;
+}): () => void {
+  const unsubs: (() => void)[] = [];
+
+  if (handlers.onAttendanceChange) {
+    const unsubAtt = onSnapshot(
+      collection(db, 'attendance'),
+      (snap) => {
+        const list = snap.docs
+          .map((d) => {
+            const data = d.data();
+            const totalMinutes = Number(data.totalMinutes) || 0;
+            const hourlyRate = Number(data.hourlyRate) || 28000;
+            let parsedTurns: AttendanceRecord['turns'] = undefined;
+            if (typeof data.turnsJson === 'string' && data.turnsJson.trim()) {
+              try {
+                const parsed = JSON.parse(data.turnsJson);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  parsedTurns = parsed;
+                }
+              } catch {}
+            }
+            return enrichAttendanceRecord({
+              id: data.id || d.id,
+              userId: data.userId || '',
+              userName: data.userName || 'Nhân Viên',
+              userEmail: data.userEmail || '',
+              employeeCode: data.employeeCode || 'NV-001',
+              date: data.date || new Date().toISOString().slice(0, 10),
+              checkInTime: data.checkInTime || new Date().toISOString(),
+              checkOutTime: data.checkOutTime || null,
+              totalMinutes,
+              totalHours:
+                data.totalHours !== undefined
+                  ? Number(data.totalHours)
+                  : Number((totalMinutes / 60).toFixed(2)),
+              hourlyRate,
+              estimatedShiftPay:
+                data.estimatedShiftPay !== undefined
+                  ? Number(data.estimatedShiftPay)
+                  : Math.round((totalMinutes / 60) * hourlyRate),
+              turns: parsedTurns,
+              status:
+                data.status === 'working' || data.status === 'adjusted' ? data.status : 'completed',
+              checkInMethod: data.checkInMethod || 'direct_button',
+              checkInIp: data.checkInIp || '127.0.0.1',
+              checkInWifiSsid: data.checkInWifiSsid || '',
+              shiftId: data.shiftId || 'shift_morning',
+              shiftName: data.shiftName || 'Ca làm việc',
+              isLate: Boolean(data.isLate),
+              isEarlyLeave: Boolean(data.isEarlyLeave),
+              note: data.note || '',
+              adjustedBy: data.adjustedBy || '',
+              adjustedReason: data.adjustedReason || '',
+              createdAt:
+                typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+              updatedAt:
+                typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+            });
+          })
+          .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+
+        handlers.onAttendanceChange?.(list);
+      },
+      (err) => {
+        console.warn('Realtime attendance listener warning:', err);
+      }
+    );
+    unsubs.push(unsubAtt);
+  }
+
+  if (handlers.onUsersChange) {
+    const unsubUsers = onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        if (snap.empty) return;
+        const list = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: data.id || d.id,
+            username: data.username || d.id,
+            password: data.password || '123456',
+            email: data.email || '',
+            name: data.name || 'Nhân Viên',
+            avatar: data.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${d.id}`,
+            role: data.role === 'admin' ? 'admin' : 'staff',
+            employeeCode: data.employeeCode || 'NV-001',
+            position: data.position || 'Nhân Viên',
+            hourlyRate: Number(data.hourlyRate) || 28000,
+            phone: data.phone || '',
+            joinDate: data.joinDate || '2025-01-01',
+            isActive: data.isActive !== false,
+            note: data.note || '',
+            totalMinutesWorked: Number(data.totalMinutesWorked) || 0,
+            totalHoursWorked: Number(data.totalHoursWorked) || 0,
+            totalDaysWorked: Number(data.totalDaysWorked) || 0,
+            totalShifts: Number(data.totalShifts) || 0,
+            lateCount: Number(data.lateCount) || 0,
+            estimatedSalary: Number(data.estimatedSalary) || 0,
+            currentStatus: data.currentStatus === 'working' ? 'working' : 'offline',
+            lastCheckInTime: data.lastCheckInTime || null,
+            lastCheckOutTime: data.lastCheckOutTime || null,
+            recentAttendanceSummary: data.recentAttendanceSummary || '',
+          } satisfies User;
+        });
+        handlers.onUsersChange?.(list);
+      },
+      (err) => {
+        console.warn('Realtime users listener warning:', err);
+      }
+    );
+    unsubs.push(unsubUsers);
+  }
+
+  if (handlers.onStoreConfigChange) {
+    const unsubCfg = onSnapshot(
+      doc(db, 'store_config', 'main_store'),
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        let allowedIps: string[] | undefined = undefined;
+        if (typeof data.allowedIpsJson === 'string' && data.allowedIpsJson.trim()) {
+          try {
+            const parsed = JSON.parse(data.allowedIpsJson);
+            if (Array.isArray(parsed)) {
+              allowedIps = parsed.map((ip) => String(ip).trim()).filter(Boolean);
+            }
+          } catch {}
+        }
+
+        let shifts: StoreConfig['shifts'] | undefined = undefined;
+        if (typeof data.shiftsJson === 'string' && data.shiftsJson.trim()) {
+          try {
+            const parsed = JSON.parse(data.shiftsJson);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              shifts = parsed;
+            }
+          } catch {}
+        }
+
+        let storeGps: StoreConfig['storeGps'] | undefined = undefined;
+        if (typeof data.storeGpsJson === 'string' && data.storeGpsJson.trim()) {
+          try {
+            const parsed = JSON.parse(data.storeGpsJson);
+            if (
+              parsed &&
+              typeof parsed.lat === 'number' &&
+              typeof parsed.lng === 'number' &&
+              typeof parsed.radiusMeters === 'number'
+            ) {
+              storeGps = parsed;
+            }
+          } catch {}
+        }
+
+        const result: Partial<StoreConfig> = {
+          storeName: data.storeName,
+          storeAddress: data.storeAddress,
+          wifiSsid: data.wifiSsid,
+          wifiBssid:
+            typeof data.wifiBssid === 'string' && data.wifiBssid.trim()
+              ? data.wifiBssid.trim()
+              : undefined,
+          bypassIpCheck: Boolean(data.bypassIpCheck),
+          requireWifi: Boolean(data.requireWifi),
+          requireQr: Boolean(data.requireQr),
+          requireGps: Boolean(data.requireGps),
+          qrRefreshSeconds: Number(data.qrRefreshSeconds) || 45,
+          autoEmailTime: data.autoEmailTime || '21:00',
+          managerEmail: data.managerEmail || 'phamthanhcong0412@gmail.com',
+        };
+        if (allowedIps) result.allowedIps = allowedIps;
+        if (shifts) result.shifts = shifts;
+        if (storeGps) result.storeGps = storeGps;
+        handlers.onStoreConfigChange?.(result);
+      },
+      (err) => {
+        console.warn('Realtime store_config listener warning:', err);
+      }
+    );
+    unsubs.push(unsubCfg);
+  }
+
+  return () => {
+    unsubs.forEach((fn) => fn());
+  };
 }
 
 export { signInWithPopup, fbSignOut, onAuthStateChanged, collection, query, where, onSnapshot };

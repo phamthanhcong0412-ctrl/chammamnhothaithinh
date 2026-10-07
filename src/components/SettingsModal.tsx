@@ -51,6 +51,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     attendance,
     users,
     firebaseProjectId,
+    runWithHudLoading,
   } = useApp();
   const [formData, setFormData] = useState<StoreConfig | null>(null);
   const [activeTab, setActiveTab] = useState<'network' | 'shifts' | 'general' | 'firebase'>('network');
@@ -94,7 +95,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const handleScanConnectedWifi = async () => {
     setIsDetectingWifi(true);
     try {
-      const net = await api.getNetworkInfo(true);
+      const net = await runWithHudLoading('Đang quét mạng WiFi & BSSID đang kết nối...', async () => {
+        return await api.getNetworkInfo(true);
+      });
       setDetectedClientIp(net.clientIp);
       showToast({
         type: 'success',
