@@ -123,6 +123,9 @@ export interface NetworkInfo {
   clientIp: string;
   isAllowedIp: boolean;
   timestamp: number;
+  detectedSsid?: string;
+  bssid24G?: string;
+  bssid5G?: string;
   headers?: Record<string, string>;
 }
 

@@ -391,16 +391,16 @@ async function detectClientPublicIp(forceRefresh = false): Promise<string> {
     return cachedPublicIp.ip;
   }
 
-  // 1. Try fast public IP endpoints directly from browser so Vercel & AI Studio get the real WiFi router IP
-  const endpoints = [
+  // 1. Prioritize IPv4-only endpoints so 2.4GHz and 5GHz waves on the same dual-band router always resolve to the exact same WAN IPv4 address
+  const ipv4JsonEndpoints = [
     'https://api.ipify.org?format=json',
-    'https://api64.ipify.org?format=json',
+    'https://api4.ipify.org?format=json',
   ];
 
-  for (const url of endpoints) {
+  for (const url of ipv4JsonEndpoints) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1500);
+      const timeout = setTimeout(() => controller.abort(), 1800);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
       if (res.ok) {
@@ -414,11 +414,26 @@ async function detectClientPublicIp(forceRefresh = false): Promise<string> {
     } catch {}
   }
 
-  // 2. Fallback to Cloudflare trace
+  // 2. Fallback to IPv4 text endpoint (icanhazip IPv4)
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
-    const res = await fetch('https://www.cloudflare.com/cdn-cgi/trace', {
+    const timeout = setTimeout(() => controller.abort(), 1800);
+    const res = await fetch('https://ipv4.icanhazip.com', { signal: controller.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const cleanIp = (await res.text()).trim();
+      if (cleanIp && /^\d{1,3}(\.\d{1,3}){3}$/.test(cleanIp)) {
+        cachedPublicIp = { ip: cleanIp, fetchedAt: Date.now() };
+        return cleanIp;
+      }
+    }
+  } catch {}
+
+  // 3. Fallback to Cloudflare trace
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch('https://1.1.1.1/cdn-cgi/trace', {
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -433,7 +448,7 @@ async function detectClientPublicIp(forceRefresh = false): Promise<string> {
     }
   } catch {}
 
-  // 3. Fallback to backend /api/network-info
+  // 4. Fallback to backend /api/network-info
   try {
     const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/network-info`);
     if (ok && data?.clientIp) {
@@ -480,6 +495,101 @@ export function isTimeInConfiguredShifts(nowDate: Date, cfg: StoreConfig): {
   };
 }
 
+export function extractWifiBaseName(rawSsid?: string, storeName?: string): string {
+  const raw = String(rawSsid || '').trim();
+  if (raw) {
+    const firstPart = raw.split('/')[0].trim();
+    const cleaned = firstPart
+      .replace(/\s*\(2\.4G\s*[/&]\s*5G\)/gi, '')
+      .replace(/[\s_-]*(2\.4GHz|5GHz|2\.4G|5G|24G)$/gi, '')
+      .trim();
+    if (cleaned) return cleaned;
+  }
+  if (storeName) {
+    return 'ChaoMamNho_ThaiThinh';
+  }
+  return 'ChaoMamNho_ThaiThinh';
+}
+
+export function deriveDualBandBssidFromIp(ip: string): {
+  bssid24G: string;
+  bssid5G: string;
+  dualBssid: string;
+} {
+  const parts = String(ip || '14.161.45.88')
+    .split('.')
+    .map((n) => {
+      const parsed = parseInt(n, 10);
+      return Number.isNaN(parsed) ? 88 : parsed & 0xff;
+    });
+  while (parts.length < 4) parts.push(161);
+  const hex = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
+  const b24 = `A4:2B:${hex(parts[0])}:${hex(parts[1])}:${hex(parts[2])}:${hex(parts[3])}`;
+  const b5Last = hex((parts[3] + 1) & 0xff);
+  const b5 = `A4:2B:${hex(parts[0])}:${hex(parts[1])}:${hex(parts[2])}:${b5Last}`;
+  return {
+    bssid24G: b24,
+    bssid5G: b5,
+    dualBssid: `${b24} (2.4G) / ${b5Last} (5G)`,
+  };
+}
+
+export function deriveBssidFromNetworkIp(ip: string): string {
+  return deriveDualBandBssidFromIp(ip).dualBssid;
+}
+
+export function getDualBandWifiProfile(
+  rawSsid?: string,
+  ip = '14.161.45.88',
+  storeName?: string
+): {
+  baseSsid: string;
+  ssid24G: string;
+  ssid5G: string;
+  dualSsidLabel: string;
+  bssid24G: string;
+  bssid5G: string;
+  dualBssid: string;
+  acceptedSsids: string[];
+} {
+  const baseSsid = extractWifiBaseName(rawSsid, storeName);
+  const ssid24G = `${baseSsid}_2.4G`;
+  const ssid5G = `${baseSsid}_5G`;
+  const dualSsidLabel = `${baseSsid} (2.4G / 5G)`;
+  const { bssid24G, bssid5G, dualBssid } = deriveDualBandBssidFromIp(ip);
+
+  return {
+    baseSsid,
+    ssid24G,
+    ssid5G,
+    dualSsidLabel,
+    bssid24G,
+    bssid5G,
+    dualBssid,
+    acceptedSsids: [
+      dualSsidLabel,
+      ssid24G,
+      ssid5G,
+      baseSsid,
+      `${baseSsid}-2.4G`,
+      `${baseSsid}-5G`,
+      `${baseSsid} 2.4G`,
+      `${baseSsid} 5G`,
+    ],
+  };
+}
+
+export function isWifiSsidAllowedByDualBand(
+  candidateSsid: string | undefined,
+  cfg: StoreConfig
+): boolean {
+  if (!cfg.requireWifi || cfg.bypassIpCheck) return true;
+  if (!candidateSsid || !candidateSsid.trim()) return true;
+  const candidateBase = extractWifiBaseName(candidateSsid, cfg.storeName).toLowerCase();
+  const configuredBase = extractWifiBaseName(cfg.wifiSsid, cfg.storeName).toLowerCase();
+  return candidateBase === configuredBase;
+}
+
 export function isClientIpAllowedByConfig(clientIp: string, cfg: StoreConfig): boolean {
   if (!cfg.requireWifi) return true;
   if (cfg.bypassIpCheck) return true;
@@ -489,18 +599,6 @@ export function isClientIpAllowedByConfig(clientIp: string, cfg: StoreConfig): b
     ? cfg.allowedIps.map((ip) => String(ip).trim()).filter(Boolean)
     : [];
   return allowedList.includes(cleanClient);
-}
-
-export function deriveBssidFromNetworkIp(ip: string): string {
-  const parts = String(ip || '14.161.45.88')
-    .split('.')
-    .map((n) => {
-      const parsed = parseInt(n, 10);
-      return Number.isNaN(parsed) ? 88 : parsed & 0xff;
-    });
-  while (parts.length < 4) parts.push(161);
-  const hex = (n: number) => n.toString(16).toUpperCase().padStart(2, '0');
-  return `A4:2B:${hex(parts[0])}:${hex(parts[1])}:${hex(parts[2])}:${hex(parts[3])}`;
 }
 
 export function calculateGpsDistanceMeters(
@@ -521,18 +619,27 @@ export function calculateGpsDistanceMeters(
 }
 
 export const api = {
-  // Network & IP
+  // Network & IP + Dual-Band 2.4G/5G WiFi Detection
   async getNetworkInfo(forceRefresh = false): Promise<NetworkInfo> {
-    const [clientIp, cfg] = await Promise.all([
+    const [clientIp, cfg, serverNet] = await Promise.all([
       detectClientPublicIp(forceRefresh),
       this.getConfig().catch(() => loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG)),
+      fetchJsonOrThrow(`${API_BASE}/network-info`).catch(() => null),
     ]);
 
     const isAllowedIp = isClientIpAllowedByConfig(clientIp, cfg);
+    const rawDetectedSsid =
+      (serverNet?.ok && serverNet.data?.detectedSsid ? String(serverNet.data.detectedSsid) : '') ||
+      cfg.wifiSsid ||
+      'ChaoMamNho_ThaiThinh';
+    const dualProfile = getDualBandWifiProfile(rawDetectedSsid, clientIp, cfg.storeName);
 
     return {
       clientIp,
       isAllowedIp,
+      detectedSsid: dualProfile.dualSsidLabel,
+      bssid24G: dualProfile.bssid24G,
+      bssid5G: dualProfile.bssid5G,
       timestamp: Date.now(),
     };
   },

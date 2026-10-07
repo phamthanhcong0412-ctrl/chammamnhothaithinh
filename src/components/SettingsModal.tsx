@@ -21,7 +21,11 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
-import { api, deriveBssidFromNetworkIp } from '../services/api.ts';
+import {
+  api,
+  deriveBssidFromNetworkIp,
+  getDualBandWifiProfile,
+} from '../services/api.ts';
 import type { StoreConfig } from '../types/index.ts';
 
 interface SettingsModalProps {
@@ -37,10 +41,10 @@ interface SyncToastState {
 }
 
 const SUGGESTED_WIFI_NAMES = [
+  'ChaoMamNho_ThaiThinh (2.4G / 5G)',
   'ChaoMamNho_ThaiThinh_5G',
   'ChaoMamNho_ThaiThinh_2.4G',
-  'ChaoMamNho_ThaiThinh',
-  'ChaoMamNho_Staff',
+  'ChaoMamNho_Staff (2.4G / 5G)',
 ];
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
@@ -91,18 +95,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const currentLiveIp = detectedClientIp || networkInfo?.clientIp || '14.161.45.88';
   const isCurrentIpInAllowedList =
     Array.isArray(formData.allowedIps) && formData.allowedIps.includes(currentLiveIp);
+  const liveDualBandProfile = getDualBandWifiProfile(
+    formData.wifiSsid,
+    currentLiveIp,
+    formData.storeName
+  );
 
   const handleScanConnectedWifi = async () => {
     setIsDetectingWifi(true);
     try {
-      const net = await runWithHudLoading('Đang quét mạng WiFi & BSSID đang kết nối...', async () => {
+      const net = await runWithHudLoading('Đang quét Tên WiFi (2.4G / 5G) & BSSID đang kết nối...', async () => {
         return await api.getNetworkInfo(true);
       });
-      setDetectedClientIp(net.clientIp);
+      const activeIp = net.clientIp || currentLiveIp;
+      setDetectedClientIp(activeIp);
+
+      const dualProfile = getDualBandWifiProfile(
+        formData.wifiSsid || net.detectedSsid,
+        activeIp,
+        formData.storeName
+      );
+
+      setFormData((prev) => {
+        if (!prev) return prev;
+        const nextAllowedIps = prev.allowedIps.includes(activeIp)
+          ? prev.allowedIps
+          : [...prev.allowedIps, activeIp];
+        return {
+          ...prev,
+          wifiSsid: dualProfile.dualSsidLabel,
+          wifiBssid: dualProfile.dualBssid,
+          allowedIps: nextAllowedIps,
+        };
+      });
+
       showToast({
         type: 'success',
-        title: 'Đã quét mạng WiFi đang kết nối!',
-        description: `Phát hiện thiết bị đang kết nối qua địa chỉ IP mạng: ${net.clientIp}`,
+        title: 'Đã quét & lấy Tên WiFi (2.4G / 5G) vào thiết lập!',
+        description: `Đã tự động điền tên WiFi "${dualProfile.dualSsidLabel}" (chấp nhận cả 2 sóng ${dualProfile.ssid24G} & ${dualProfile.ssid5G}), BSSID: ${dualProfile.dualBssid}.`,
       });
     } catch {
       showToast({
@@ -123,22 +153,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       const net = await api.getNetworkInfo(true).catch(() => ({
         clientIp: currentLiveIp,
         isAllowedIp: true,
+        detectedSsid: formData.wifiSsid,
         timestamp: Date.now(),
       }));
       const activeIp = net.clientIp || currentLiveIp;
       setDetectedClientIp(activeIp);
 
-      const cleanSsid = formData.wifiSsid.trim() || 'ChaoMamNho_ThaiThinh_5G';
-      const autoBssid = deriveBssidFromNetworkIp(activeIp);
-      const cleanBssid =
-        formData.wifiBssid && formData.wifiBssid.trim() && formData.wifiBssid !== 'A4:2B:B0:C1:9E:58'
-          ? formData.wifiBssid.trim().toUpperCase()
-          : autoBssid;
+      const dualProfile = getDualBandWifiProfile(
+        formData.wifiSsid || net.detectedSsid,
+        activeIp,
+        formData.storeName
+      );
 
       const nextConfig: StoreConfig = {
         ...formData,
-        wifiSsid: cleanSsid,
-        wifiBssid: cleanBssid,
+        wifiSsid: dualProfile.dualSsidLabel,
+        wifiBssid: dualProfile.dualBssid,
         allowedIps: [activeIp],
         requireWifi: true,
         bypassIpCheck: false,
@@ -149,8 +179,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setSaveSuccess(true);
       showToast({
         type: 'success',
-        title: 'Đã chọn & lưu WiFi + BSSID đang kết nối lên Firebase!',
-        description: `Đã khoá chấm công theo mạng "${cleanSsid}" (BSSID: ${cleanBssid}). Thiết bị khác mạng này sẽ bị chặn Check-in / Check-out.`,
+        title: 'Đã lưu WiFi Kép (2.4G & 5G) + BSSID lên Firebase!',
+        description: `Đã khoá chấm công theo mạng "${dualProfile.dualSsidLabel}". Nhân viên bắt sóng 2.4GHz (${dualProfile.ssid24G}) hay 5GHz (${dualProfile.ssid5G}) đều chấm công được.`,
       });
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
@@ -428,10 +458,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     type="button"
                     onClick={handleScanConnectedWifi}
                     disabled={isDetectingWifi}
-                    className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-200 flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-xs font-bold text-indigo-200 flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isDetectingWifi ? 'animate-spin' : ''}`} />
-                    <span>Quét lại mạng</span>
+                    <span>Quét & Lấy Tên WiFi (2.4G / 5G)</span>
                   </button>
                 </div>
 
@@ -457,9 +487,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800">
-                    <label className="text-[11px] text-zinc-400 block mb-1">
-                      Tên sóng WiFi (SSID):
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] text-zinc-400">
+                        Tên sóng WiFi (SSID):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            wifiSsid: liveDualBandProfile.dualSsidLabel,
+                          })
+                        }
+                        className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                        title="Tự động gộp cả 2 băng tần 2.4GHz & 5GHz cho tên WiFi này"
+                      >
+                        Gộp 2.4G & 5G
+                      </button>
+                    </div>
                     <div className="relative">
                       <Wifi className="w-3.5 h-3.5 text-indigo-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
@@ -475,7 +520,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800">
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-[11px] text-zinc-400">
-                        Mã BSSID (MAC Modem):
+                        Mã BSSID Kép (2.4G / 5G):
                       </label>
                       <button
                         type="button"
@@ -486,7 +531,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           })
                         }
                         className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
-                        title="Tự động lấy mã định danh BSSID theo đường truyền đang kết nối"
+                        title="Tự động lấy mã định danh BSSID cả 2 băng tần 2.4G & 5G theo đường truyền đang kết nối"
                       >
                         Lấy tự động
                       </button>
@@ -499,9 +544,64 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         onChange={(e) =>
                           setFormData({ ...formData, wifiBssid: e.target.value.toUpperCase() })
                         }
-                        placeholder="VD: A4:2B:B0:C1:9E:58"
+                        placeholder="VD: A4:2B:0E:A1:2D:58 (2.4G) / 59 (5G)"
                         className="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs font-mono font-bold text-emerald-300 focus:outline-none focus:border-indigo-500 uppercase"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* DUAL-BAND 2.4GHz & 5GHz AUTOMATIC ACCEPTANCE BANNER */}
+                <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-emerald-500/30 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="text-xs font-bold text-emerald-300">
+                        Tự Động Chấp Nhận Cả 2 Sóng Băng Tần 2.4GHz & 5GHz Của Cùng Cục WiFi
+                      </span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Bắt sóng nào cũng chấm công được
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono font-bold text-[10px]">
+                            2.4GHz
+                          </span>
+                          <span className="font-mono font-bold text-zinc-100 truncate">
+                            {liveDualBandProfile.ssid24G}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-mono mt-0.5">
+                          BSSID 2.4G: {liveDualBandProfile.bssid24G}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-400 shrink-0">
+                        ✓ Hợp lệ
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[10px]">
+                            5GHz
+                          </span>
+                          <span className="font-mono font-bold text-zinc-100 truncate">
+                            {liveDualBandProfile.ssid5G}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-mono mt-0.5">
+                          BSSID 5G: {liveDualBandProfile.bssid5G}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-400 shrink-0">
+                        ✓ Hợp lệ
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -534,7 +634,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>
-                    Chọn Nhanh Mạng Đang Kết Nối ({formData.wifiSsid || 'WiFi Quán'} • BSSID: {formData.wifiBssid || deriveBssidFromNetworkIp(currentLiveIp)}) & Lưu Cấu Hình Chặn
+                    Chọn Nhanh & Lưu Cả 2 Sóng ({liveDualBandProfile.ssid24G} & {liveDualBandProfile.ssid5G}) Làm Chuẩn Chấm Công
                   </span>
                 </button>
               </div>

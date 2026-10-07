@@ -48,5 +48,6 @@
     "firestoreDatabaseId": "ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881",
     "storageBucket": "ai-studio-applet-webapp-b5a3d.firebasestorage.app",
     "messagingSenderId": "267480631516"
-  }
+  },
+  "wifiBssid": "A4:2B:D2:F5:34:46"
 }

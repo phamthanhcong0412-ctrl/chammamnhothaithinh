@@ -417,10 +417,11 @@ export const StaffAttendance: React.FC = () => {
             <Wifi className={`w-4 h-4 shrink-0 ${isWifiValid ? 'text-emerald-400' : 'text-rose-400'}`} />
             <div className="min-w-0">
               <span className="text-zinc-400 truncate block">
-                WiFi quán: <strong className="text-zinc-200">{storeConfig?.wifiSsid}</strong>
+                WiFi quán: <strong className="text-zinc-200">{storeConfig?.wifiSsid}</strong>{' '}
+                <span className="text-[10px] text-indigo-300 font-semibold">(Hỗ trợ cả 2 sóng 2.4G & 5G)</span>
               </span>
               <span className="text-[10px] text-zinc-500 font-mono block truncate">
-                BSSID: {storeConfig?.wifiBssid || 'A4:2B:B0:C1:9E:58'}
+                BSSID: {storeConfig?.wifiBssid || 'A4:2B:B0:C1:9E:58 (2.4G) / 59 (5G)'}
               </span>
             </div>
           </div>
@@ -428,7 +429,7 @@ export const StaffAttendance: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0">
             {isWifiValid ? (
               <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Hợp lệ
+                <CheckCircle2 className="w-3.5 h-3.5" /> Hợp lệ (2.4G/5G)
               </span>
             ) : (
               <span className="text-[11px] font-bold text-rose-400 flex items-center gap-1">
