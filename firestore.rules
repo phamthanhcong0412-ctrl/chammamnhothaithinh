@@ -156,6 +156,7 @@ service cloud.firestore {
         ]) &&
         data.keys().hasOnly([
           'id', 'ownerId', 'storeName', 'storeAddress', 'wifiSsid',
+          'allowedIpsJson', 'shiftsJson',
           'bypassIpCheck', 'requireWifi', 'requireQr', 'requireGps',
           'qrRefreshSeconds', 'autoEmailTime', 'managerEmail', 'updatedAt'
         ]) &&
@@ -164,6 +165,8 @@ service cloud.firestore {
         data.storeName is string && data.storeName.size() >= 1 && data.storeName.size() <= 150 &&
         data.storeAddress is string && data.storeAddress.size() >= 1 && data.storeAddress.size() <= 250 &&
         data.wifiSsid is string && data.wifiSsid.size() >= 1 && data.wifiSsid.size() <= 100 &&
+        (!('allowedIpsJson' in data) || (data.allowedIpsJson is string && data.allowedIpsJson.size() <= 2000)) &&
+        (!('shiftsJson' in data) || (data.shiftsJson is string && data.shiftsJson.size() <= 4000)) &&
         data.bypassIpCheck is bool &&
         data.requireWifi is bool &&
         data.requireQr is bool &&
@@ -260,8 +263,8 @@ service cloud.firestore {
 
     // 4. Store Configuration Collection
     match /store_config/{configId} {
-      allow get: if isSignedIn() && isValidId(configId) && (existing().ownerId == currentUid() || isAdmin());
-      allow list: if isSignedIn() && (existing().ownerId == currentUid() || isBootstrappedAdmin());
+      allow get: if isSignedIn() && isValidId(configId);
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && isValidId(configId) && isValidStoreConfigDoc(incoming()) &&
         incoming().id == configId &&
         incoming().ownerId == currentUid() &&
@@ -273,8 +276,8 @@ service cloud.firestore {
         incoming().updatedAt == request.time &&
         isAdmin() &&
         incoming().diff(existing()).affectedKeys().hasOnly([
-          'storeName', 'storeAddress', 'wifiSsid', 'bypassIpCheck',
-          'requireWifi', 'requireQr', 'requireGps', 'qrRefreshSeconds',
+          'storeName', 'storeAddress', 'wifiSsid', 'allowedIpsJson', 'shiftsJson',
+          'bypassIpCheck', 'requireWifi', 'requireQr', 'requireGps', 'qrRefreshSeconds',
           'autoEmailTime', 'managerEmail', 'updatedAt'
         ]);
       allow delete: if isSignedIn() && isValidId(configId) && isAdmin();

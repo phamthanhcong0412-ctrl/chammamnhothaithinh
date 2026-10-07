@@ -15,6 +15,7 @@ import {
   DollarSign,
   Sun,
   Sunset,
+  Wifi,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import type { AttendanceRecord } from '../types/index.ts';
@@ -22,11 +23,13 @@ import type { AttendanceRecord } from '../types/index.ts';
 interface AdminDashboardProps {
   onOpenManualModal: (record?: AttendanceRecord | null, preselectedUserId?: string) => void;
   onOpenEmailModal: () => void;
+  onOpenSettingsModal?: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenManualModal,
   onOpenEmailModal,
+  onOpenSettingsModal,
 }) => {
   const { users, attendance, deleteAttendance, checkOutUser, refreshData } = useApp();
   const [currentSeconds, setCurrentSeconds] = useState(Date.now());
@@ -219,6 +222,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>{isRefreshing ? 'Đang tải...' : 'Làm mới'}</span>
           </button>
+
+          {onOpenSettingsModal && (
+            <button
+              onClick={onOpenSettingsModal}
+              className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Wifi className="w-3.5 h-3.5 text-emerald-400" /> Thiết lập WiFi & Cửa hàng
+            </button>
+          )}
 
           <button
             onClick={() => onOpenManualModal(null)}

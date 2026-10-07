@@ -8,7 +8,7 @@
     "14.161.45.88",
     "118.69.182.20"
   ],
-  "bypassIpCheck": true,
+  "bypassIpCheck": false,
   "requireWifi": true,
   "requireQr": false,
   "requireGps": false,
@@ -44,12 +44,12 @@
   "lastReportSentDate": "2026-10-06",
   "firebaseConfig": {
     "adminEmail": "phamthanhcong0412@gmail.com",
-    "projectId": "gen-lang-client-0980052625",
+    "projectId": "ai-studio-applet-webapp-b5a3d",
+    "appId": "1:267480631516:web:feb2db4d4b39902e5b4c19",
+    "apiKey": "AIzaSyAJwKOF82z2hMxn8FT3VcTsCibjFriSgvU",
+    "authDomain": "ai-studio-applet-webapp-b5a3d.firebaseapp.com",
     "firestoreDatabaseId": "ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881",
-    "apiKey": "AIzaSyC5b9mOMKJ_XSbUp58Oy9d4l9LiKhgEXO4",
-    "authDomain": "gen-lang-client-0980052625.firebaseapp.com",
-    "storageBucket": "gen-lang-client-0980052625.firebasestorage.app",
-    "messagingSenderId": "107881027720",
-    "appId": "1:107881027720:web:3ea36799af656c1971e73d"
+    "storageBucket": "ai-studio-applet-webapp-b5a3d.firebasestorage.app",
+    "messagingSenderId": "267480631516"
   }
 }

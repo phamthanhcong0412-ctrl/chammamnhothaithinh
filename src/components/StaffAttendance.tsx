@@ -14,8 +14,10 @@ import {
   FileText,
   Sun,
   Sunset,
+  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
+import { isClientIpAllowedByConfig } from '../services/api.ts';
 
 function parseTimeMinutes(timeStr: string, fallbackMins: number): number {
   const parts = String(timeStr || '').split(':');
@@ -42,13 +44,14 @@ export const StaffAttendance: React.FC = () => {
     checkIn,
     checkOut,
     attendance,
+    refreshData,
   } = useApp();
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRecheckingNetwork, setIsRecheckingNetwork] = useState(false);
   const processingRef = useRef(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [wifiVerifiedManually, setWifiVerifiedManually] = useState<boolean>(false);
   const [shiftNote, setShiftNote] = useState('');
 
   // Clock ticker
@@ -57,13 +60,11 @@ export const StaffAttendance: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // WiFi Verification
+  // Strict WiFi Verification based on saved Firebase store_config
   const isWifiValid = useMemo(() => {
-    if (!storeConfig?.requireWifi) return true;
-    if (storeConfig.bypassIpCheck) return true;
-    if (wifiVerifiedManually) return true;
-    return networkInfo?.isAllowedIp ?? false;
-  }, [storeConfig, wifiVerifiedManually, networkInfo]);
+    if (!storeConfig) return true;
+    return isClientIpAllowedByConfig(networkInfo?.clientIp || '', storeConfig);
+  }, [storeConfig, networkInfo?.clientIp]);
 
   // Current Shift Window Calculation (from Check-in start to Check-out end)
   const shiftStatus = useMemo(() => {
@@ -121,6 +122,19 @@ export const StaffAttendance: React.FC = () => {
     };
   }, [currentTime, storeConfig]);
 
+  const isShiftTimeValid = shiftStatus.inShiftWindow;
+  const canCheckInOrOut = isWifiValid && isShiftTimeValid;
+
+  const handleRecheckWifiAndConfig = async () => {
+    setIsRecheckingNetwork(true);
+    setStatusMessage(null);
+    try {
+      await refreshData();
+    } finally {
+      setIsRecheckingNetwork(false);
+    }
+  };
+
   // Today's sessions for current staff
   const todayStr = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
   const myTodaySessions = attendance.filter(
@@ -153,7 +167,15 @@ export const StaffAttendance: React.FC = () => {
     if (!isWifiValid) {
       setStatusMessage({
         type: 'error',
-        text: `Chặn chấm công: Bạn chưa kết nối vào WiFi "${storeConfig?.wifiSsid}".`,
+        text: `Chặn chấm công: Thiết bị hiện tại (IP: ${networkInfo?.clientIp || '...'}) không kết nối đúng WiFi cửa hàng "${storeConfig?.wifiSsid}".`,
+      });
+      return;
+    }
+
+    if (!isShiftTimeValid) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã lưu trong cấu hình cửa hàng.',
       });
       return;
     }
@@ -203,7 +225,15 @@ export const StaffAttendance: React.FC = () => {
     if (!isWifiValid) {
       setStatusMessage({
         type: 'error',
-        text: `Chặn chấm công: Bạn chưa kết nối vào WiFi "${storeConfig?.wifiSsid}".`,
+        text: `Chặn chấm công: Thiết bị hiện tại (IP: ${networkInfo?.clientIp || '...'}) không kết nối đúng WiFi cửa hàng "${storeConfig?.wifiSsid}".`,
+      });
+      return;
+    }
+
+    if (!isShiftTimeValid) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã lưu trong cấu hình cửa hàng.',
       });
       return;
     }
@@ -273,7 +303,7 @@ export const StaffAttendance: React.FC = () => {
               className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                 shiftStatus.inShiftWindow
                   ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
-                  : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
               }`}
             >
               {shiftStatus.isAfternoon ? <Sunset className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
@@ -288,8 +318,8 @@ export const StaffAttendance: React.FC = () => {
                   <span className="text-indigo-400">{shiftStatus.checkOutRange}</span>
                 </div>
               ) : (
-                <div className="text-[11px] text-zinc-500 truncate">
-                  Ngoài khung giờ nhận chấm công của ca làm việc
+                <div className="text-[11px] text-rose-400 font-medium truncate">
+                  Ngoài giờ làm việc — Đã khóa Check-in / Check-out
                 </div>
               )}
             </div>
@@ -299,7 +329,7 @@ export const StaffAttendance: React.FC = () => {
             className={`text-[11px] font-bold px-2.5 py-1 rounded-xl shrink-0 ${
               shiftStatus.inShiftWindow
                 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
             }`}
           >
             {shiftStatus.badgeText}
@@ -310,23 +340,37 @@ export const StaffAttendance: React.FC = () => {
         <div className="pt-2.5 border-t border-zinc-800/80 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs min-w-0">
             <Wifi className={`w-4 h-4 shrink-0 ${isWifiValid ? 'text-emerald-400' : 'text-rose-400'}`} />
-            <span className="text-zinc-400 truncate">
-              WiFi quán: <strong className="text-zinc-200">{storeConfig?.wifiSsid}</strong>
-            </span>
+            <div className="min-w-0">
+              <span className="text-zinc-400 truncate block">
+                WiFi chuẩn: <strong className="text-zinc-200">{storeConfig?.wifiSsid}</strong>
+              </span>
+              <span className="text-[10px] text-zinc-500 font-mono block truncate">
+                IP máy hiện tại: {networkInfo?.clientIp || 'Đang kiểm tra...'}
+              </span>
+            </div>
           </div>
 
-          {isWifiValid ? (
-            <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1 shrink-0">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Đã kết nối
-            </span>
-          ) : (
+          <div className="flex items-center gap-2 shrink-0">
+            {isWifiValid ? (
+              <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Hợp lệ
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold text-rose-400 flex items-center gap-1">
+                <Lock className="w-3.5 h-3.5" /> Sai WiFi
+              </span>
+            )}
             <button
-              onClick={() => setWifiVerifiedManually(true)}
-              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] shrink-0 transition-colors cursor-pointer"
+              type="button"
+              onClick={handleRecheckWifiAndConfig}
+              disabled={isRecheckingNetwork}
+              className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+              title="Kiểm tra lại kết nối WiFi và đồng bộ cấu hình mới nhất"
             >
-              Xác nhận đã bật WiFi
+              <RefreshCw className={`w-3 h-3 text-indigo-400 ${isRecheckingNetwork ? 'animate-spin' : ''}`} />
+              <span>Kiểm tra lại</span>
             </button>
-          )}
+          </div>
         </div>
       </div>
 
@@ -430,9 +474,9 @@ export const StaffAttendance: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={handleCheckIn}
-                disabled={isProcessing || !!activeRecord || !isWifiValid}
+                disabled={isProcessing || !!activeRecord || !canCheckInOrOut}
                 className={`py-4 px-5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition-all transform active:scale-[0.98] shadow-lg ${
-                  !activeRecord && isWifiValid
+                  !activeRecord && canCheckInOrOut
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/25 cursor-pointer'
                     : 'bg-zinc-800/50 border border-zinc-800 text-zinc-500 cursor-not-allowed opacity-50'
                 }`}
@@ -443,9 +487,9 @@ export const StaffAttendance: React.FC = () => {
 
               <button
                 onClick={handleCheckOut}
-                disabled={isProcessing || !activeRecord || !isWifiValid}
+                disabled={isProcessing || !activeRecord || !canCheckInOrOut}
                 className={`py-4 px-5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition-all transform active:scale-[0.98] shadow-lg ${
-                  activeRecord && isWifiValid
+                  activeRecord && canCheckInOrOut
                     ? 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-600/25 cursor-pointer'
                     : 'bg-zinc-800/50 border border-zinc-800 text-zinc-500 cursor-not-allowed opacity-50'
                 }`}
@@ -456,9 +500,23 @@ export const StaffAttendance: React.FC = () => {
             </div>
 
             {!isWifiValid && (
-              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-center text-[11px] font-semibold flex items-center justify-center gap-1.5">
-                <Lock className="w-3.5 h-3.5" />
-                Vui lòng kết nối WiFi "{storeConfig?.wifiSsid}" hoặc bấm "Xác nhận đã bật WiFi" ở trên
+              <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-semibold flex items-start gap-2">
+                <Lock className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong>Đã chặn Check-in / Check-out:</strong> Thiết bị hiện tại (IP:{' '}
+                  <code className="font-mono text-rose-300">{networkInfo?.clientIp || '...'}</code>) không khớp với cấu hình WiFi{' '}
+                  <strong>"{storeConfig?.wifiSsid}"</strong> của cửa hàng. Vui lòng kết nối đúng WiFi quán và bấm{' '}
+                  <strong>"Kiểm tra lại"</strong>.
+                </div>
+              </div>
+            )}
+
+            {isWifiValid && !isShiftTimeValid && (
+              <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs font-semibold flex items-start gap-2">
+                <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong>Đã chặn Check-in / Check-out:</strong> Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình trong Thiết Lập Cửa Hàng.
+                </div>
               </div>
             )}
           </div>

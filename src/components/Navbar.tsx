@@ -150,10 +150,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isAdmin && (
               <button
                 onClick={onOpenSettingsModal}
-                title="Cấu hình hệ thống cửa hàng"
-                className="p-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors"
+                title="Thiết lập cửa hàng & cấu hình WiFi trên Firebase"
+                className="px-3 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-4 h-4 text-indigo-400" />
+                <span className="hidden sm:inline">Thiết lập cửa hàng</span>
               </button>
             )}
 

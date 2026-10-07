@@ -95,6 +95,7 @@ function AppContent() {
             <AdminDashboard
               onOpenManualModal={handleOpenManualModal}
               onOpenEmailModal={() => setIsEmailModalOpen(true)}
+              onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
             />
           ) : (
             <StaffAttendance />
@@ -105,6 +106,7 @@ function AppContent() {
             <AdminDashboard
               onOpenManualModal={handleOpenManualModal}
               onOpenEmailModal={() => setIsEmailModalOpen(true)}
+              onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
             />
           ) : (
             <StaffAttendance />

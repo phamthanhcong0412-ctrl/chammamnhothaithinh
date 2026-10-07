@@ -40,15 +40,15 @@
     "joinDate": "2026-10-07",
     "isActive": true,
     "note": "",
-    "totalMinutesWorked": 176,
-    "totalHoursWorked": 2.93,
+    "totalMinutesWorked": 270,
+    "totalHoursWorked": 4.5,
     "totalDaysWorked": 1,
-    "totalShifts": 1,
+    "totalShifts": 10,
     "lateCount": 0,
-    "estimatedSalary": 146667,
-    "currentStatus": "offline",
-    "lastCheckInTime": "2026-10-07T00:56:00.000Z",
-    "lastCheckOutTime": "2026-10-07T03:52:00.000Z",
-    "recentAttendanceSummary": "2026-10-07: 07:56-10:52 (2.93h / 176p)"
+    "estimatedSalary": 225000,
+    "currentStatus": "working",
+    "lastCheckInTime": "2026-10-07T03:21:29.014Z",
+    "lastCheckOutTime": "2026-10-07T01:52:42.078Z",
+    "recentAttendanceSummary": "2026-10-07: 03:21-Đang làm (0h / 0p) | 2026-10-07: 03:20-Đang làm (0h / 0p) | 2026-10-07: 03:19-Đang làm (0h / 0p) | 2026-10-07: 03:17-Đang làm (0h / 0p) | 2026-10-07: 01:52-01:52 (0.02h / 1p)"
   }
 ]

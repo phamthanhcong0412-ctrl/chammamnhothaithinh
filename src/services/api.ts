@@ -318,20 +318,128 @@ async function fetchJsonOrThrow(url: string, options?: RequestInit): Promise<{ o
   return { ok: res.ok, status: res.status, data };
 }
 
+let cachedPublicIp: { ip: string; fetchedAt: number } | null = null;
+
+async function detectClientPublicIp(forceRefresh = false): Promise<string> {
+  if (!forceRefresh && cachedPublicIp && Date.now() - cachedPublicIp.fetchedAt < 15000) {
+    return cachedPublicIp.ip;
+  }
+
+  // 1. Try fast public IP endpoints directly from browser so Vercel & AI Studio get the real WiFi router IP
+  const endpoints = [
+    'https://api.ipify.org?format=json',
+    'https://api64.ipify.org?format=json',
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.ip && typeof data.ip === 'string') {
+          const cleanIp = data.ip.trim();
+          cachedPublicIp = { ip: cleanIp, fetchedAt: Date.now() };
+          return cleanIp;
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Fallback to Cloudflare trace
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch('https://www.cloudflare.com/cdn-cgi/trace', {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const text = await res.text();
+      const match = text.match(/^ip=(.+)$/m);
+      if (match && match[1]) {
+        const cleanIp = match[1].trim();
+        cachedPublicIp = { ip: cleanIp, fetchedAt: Date.now() };
+        return cleanIp;
+      }
+    }
+  } catch {}
+
+  // 3. Fallback to backend /api/network-info
+  try {
+    const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/network-info`);
+    if (ok && data?.clientIp) {
+      cachedPublicIp = { ip: String(data.clientIp).trim(), fetchedAt: Date.now() };
+      return cachedPublicIp.ip;
+    }
+  } catch {}
+
+  return cachedPublicIp?.ip || '14.161.45.88';
+}
+
+export function isTimeInConfiguredShifts(nowDate: Date, cfg: StoreConfig): {
+  inShiftWindow: boolean;
+  allowedRangesText: string;
+} {
+  const nowMins = nowDate.getHours() * 60 + nowDate.getMinutes();
+  const shifts = Array.isArray(cfg.shifts) && cfg.shifts.length > 0 ? cfg.shifts : DEFAULT_CONFIG.shifts;
+
+  const ranges: string[] = [];
+  let matched = false;
+
+  for (const s of shifts) {
+    const startMins = parseHmToMins(s.startTime, 6 * 60);
+    const endMins = parseHmToMins(s.endTime, 12 * 60);
+    const before = Number(s.checkInBeforeMinutes ?? 30);
+    const after = Number(s.checkOutAfterMinutes ?? 90);
+    const winStart = startMins - before;
+    const winEnd = endMins + after;
+
+    const fmt = (m: number) => {
+      const norm = ((m % 1440) + 1440) % 1440;
+      return `${String(Math.floor(norm / 60)).padStart(2, '0')}:${String(norm % 60).padStart(2, '0')}`;
+    };
+    ranges.push(`${s.name.split('(')[0].trim()} (${fmt(winStart)} - ${fmt(winEnd)})`);
+
+    if (nowMins >= winStart && nowMins <= winEnd) {
+      matched = true;
+    }
+  }
+
+  return {
+    inShiftWindow: matched,
+    allowedRangesText: ranges.join(', '),
+  };
+}
+
+export function isClientIpAllowedByConfig(clientIp: string, cfg: StoreConfig): boolean {
+  if (!cfg.requireWifi) return true;
+  if (cfg.bypassIpCheck) return true;
+  const cleanClient = String(clientIp || '').trim();
+  if (!cleanClient) return false;
+  const allowedList = Array.isArray(cfg.allowedIps)
+    ? cfg.allowedIps.map((ip) => String(ip).trim()).filter(Boolean)
+    : [];
+  return allowedList.includes(cleanClient);
+}
+
 export const api = {
   // Network & IP
-  async getNetworkInfo(): Promise<NetworkInfo> {
-    try {
-      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/network-info`);
-      if (!ok) throw new Error('Không thể kiểm tra thông tin mạng');
-      return data;
-    } catch {
-      return {
-        clientIp: '14.161.45.88',
-        isAllowedIp: true,
-        timestamp: Date.now(),
-      };
-    }
+  async getNetworkInfo(forceRefresh = false): Promise<NetworkInfo> {
+    const [clientIp, cfg] = await Promise.all([
+      detectClientPublicIp(forceRefresh),
+      this.getConfig().catch(() => loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG)),
+    ]);
+
+    const isAllowedIp = isClientIpAllowedByConfig(clientIp, cfg);
+
+    return {
+      clientIp,
+      isAllowedIp,
+      timestamp: Date.now(),
+    };
   },
 
   // QR Token
@@ -354,23 +462,46 @@ export const api = {
     }
   },
 
-  // Store Config (PRIMARY SOURCE OF TRUTH: Live Firebase Firestore)
+  // Store Config (PRIMARY SOURCE OF TRUTH: Live Firebase Firestore `store_config/main_store`)
   async getConfig(): Promise<StoreConfig> {
     let baseConfig = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
-    const [apiRes, fbCfg] = await Promise.all([
-      fetchJsonOrThrow(`${API_BASE}/config`).catch(() => null),
-      fetchStoreConfigFromFirestore().catch(() => null),
-    ]);
-    if (apiRes?.ok && apiRes.data) {
-      baseConfig = { ...baseConfig, ...apiRes.data };
+    try {
+      const fbCfg = await fetchStoreConfigFromFirestore();
+      if (fbCfg) {
+        baseConfig = {
+          ...baseConfig,
+          ...fbCfg,
+          allowedIps:
+            Array.isArray(fbCfg.allowedIps) && fbCfg.allowedIps.length > 0
+              ? fbCfg.allowedIps
+              : baseConfig.allowedIps,
+          shifts:
+            Array.isArray(fbCfg.shifts) && fbCfg.shifts.length > 0
+              ? fbCfg.shifts
+              : baseConfig.shifts,
+          firebaseConfig: DEFAULT_CONFIG.firebaseConfig,
+        };
+        saveLocal(STORAGE_KEYS.CONFIG, baseConfig);
+        return baseConfig;
+      } else {
+        // Seed initial store_config document to Firebase Firestore if not yet created
+        saveStoreConfigToFirestore(baseConfig).catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Firestore getConfig warning:', e);
     }
-    if (fbCfg) {
-      baseConfig = {
-        ...baseConfig,
-        ...fbCfg,
-        firebaseConfig: DEFAULT_CONFIG.firebaseConfig,
-      };
-    }
+
+    try {
+      const apiRes = await fetchJsonOrThrow(`${API_BASE}/config`);
+      if (apiRes?.ok && apiRes.data) {
+        baseConfig = {
+          ...baseConfig,
+          ...apiRes.data,
+          firebaseConfig: DEFAULT_CONFIG.firebaseConfig,
+        };
+      }
+    } catch {}
+
     saveLocal(STORAGE_KEYS.CONFIG, baseConfig);
     return baseConfig;
   },
@@ -380,22 +511,23 @@ export const api = {
     const updated: StoreConfig = {
       ...current,
       ...config,
+      allowedIps: Array.isArray(config.allowedIps)
+        ? Array.from(new Set(config.allowedIps.map((ip) => String(ip).trim()).filter(Boolean)))
+        : current.allowedIps,
+      shifts: Array.isArray(config.shifts) ? config.shifts : current.shifts,
       firebaseConfig: DEFAULT_CONFIG.firebaseConfig,
     };
-    saveLocal(STORAGE_KEYS.CONFIG, updated);
-    await saveStoreConfigToFirestore(updated).catch(() => {});
 
-    try {
-      const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
-      });
-      if (ok && data?.config) {
-        saveLocal(STORAGE_KEYS.CONFIG, data.config);
-        return data;
-      }
-    } catch {}
+    // 1. Save directly to live Firebase Firestore table `store_config/main_store` FIRST
+    await saveStoreConfigToFirestore(updated);
+
+    // 2. Save to localStorage & backend API
+    saveLocal(STORAGE_KEYS.CONFIG, updated);
+    fetch(`${API_BASE}/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    }).catch(() => {});
 
     return { success: true, config: updated };
   },
@@ -711,8 +843,26 @@ export const api = {
       throw new Error('Bạn đang trong một lượt làm việc chưa Check-out.');
     }
 
-    const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
+    // Fetch latest store configuration & client network IP to strictly enforce rules
+    const [cfg, clientIp] = await Promise.all([
+      this.getConfig().catch(() => loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG)),
+      detectClientPublicIp(false),
+    ]);
+
+    if (!isClientIpAllowedByConfig(clientIp, cfg)) {
+      throw new Error(
+        `Chặn chấm công: Thiết bị hiện tại (IP: ${clientIp}) không kết nối đúng WiFi cửa hàng "${cfg.wifiSsid}" đã lưu trong cấu hình.`
+      );
+    }
+
     const now = new Date();
+    const shiftCheck = isTimeInConfiguredShifts(now, cfg);
+    if (!shiftCheck.inShiftWindow) {
+      throw new Error(
+        `Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình (${shiftCheck.allowedRangesText}).`
+      );
+    }
+
     const checkInTime = now.toISOString();
     const todayStr = getTodayString();
     const timing = evaluateShiftTiming(checkInTime, null, cfg);
@@ -730,7 +880,7 @@ export const api = {
         totalMinutes: 0,
         status: 'working',
         checkInMethod: 'direct_button',
-        checkInIp: '14.161.45.88',
+        checkInIp: clientIp,
         checkInWifiSsid: payload.wifiSsid || cfg.wifiSsid,
         checkInGps: payload.gps,
         shiftId: timing.shiftId,
@@ -767,6 +917,7 @@ export const api = {
     wifiSsid?: string;
     gps?: { lat: number; lng: number; distance?: number };
     note?: string;
+    managerOverride?: boolean;
   }): Promise<{ success: boolean; record: AttendanceRecord; removedId?: string }> {
     const users = loadLocal<User[]>(STORAGE_KEYS.USERS, DEFAULT_USERS);
     let attendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
@@ -785,6 +936,27 @@ export const api = {
     if (idx === -1) throw new Error('Không tìm thấy ca làm việc đang mở để check-out.');
     const record = attendance[idx];
     const now = new Date();
+
+    const [cfg, clientIp] = await Promise.all([
+      this.getConfig().catch(() => loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG)),
+      detectClientPublicIp(false),
+    ]);
+
+    if (!payload.managerOverride) {
+      if (!isClientIpAllowedByConfig(clientIp, cfg)) {
+        throw new Error(
+          `Chặn chấm công: Thiết bị hiện tại (IP: ${clientIp}) không kết nối đúng WiFi cửa hàng "${cfg.wifiSsid}" đã lưu trong cấu hình.`
+        );
+      }
+
+      const shiftCheck = isTimeInConfiguredShifts(now, cfg);
+      if (!shiftCheck.inShiftWindow) {
+        throw new Error(
+          `Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình (${shiftCheck.allowedRangesText}).`
+        );
+      }
+    }
+
     const checkOutTime = now.toISOString();
     const diffMinutes = Math.max(
       1,
@@ -806,8 +978,6 @@ export const api = {
     );
 
     const user = users.find((u) => u.id === payload.userId);
-
-    const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
     const outTiming = evaluateShiftTiming(record.checkInTime, checkOutTime, cfg);
 
     if (existingShiftIdx !== -1) {

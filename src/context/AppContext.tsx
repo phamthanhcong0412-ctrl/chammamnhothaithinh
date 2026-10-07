@@ -6,7 +6,7 @@ import type {
   NetworkInfo,
   EmailLog,
 } from '../types/index.ts';
-import { api, consolidateCompletedShifts } from '../services/api.ts';
+import { api, consolidateCompletedShifts, isClientIpAllowedByConfig } from '../services/api.ts';
 import {
   auth,
   googleProvider,
@@ -385,6 +385,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userId,
       wifiSsid: storeConfig?.wifiSsid,
       note: note || `Quản lý chốt ra ca`,
+      managerOverride: true,
     });
     const enrichedRec = enrichAttendanceRecord(res.record, users);
     const filteredAtt = res.removedId
@@ -438,7 +439,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateConfig = async (cfg: Partial<StoreConfig>) => {
     const res = await api.updateConfig(cfg);
     setStoreConfig(res.config);
-    saveStoreConfigToFirestore(res.config).catch((e) => console.warn('Firestore config sync:', e));
+    setNetworkInfo((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        isAllowedIp: isClientIpAllowedByConfig(prev.clientIp, res.config),
+      };
+    });
+    api
+      .getNetworkInfo(true)
+      .then((net) => setNetworkInfo(net))
+      .catch(() => {});
   };
 
   const addUser = async (userData: Partial<User>) => {

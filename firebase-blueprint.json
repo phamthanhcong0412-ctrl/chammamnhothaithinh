@@ -389,6 +389,16 @@
           "minLength": 1,
           "maxLength": 100
         },
+        "allowedIpsJson": {
+          "type": "string",
+          "description": "JSON serialized list of allowed public WiFi IP addresses.",
+          "maxLength": 2000
+        },
+        "shiftsJson": {
+          "type": "string",
+          "description": "JSON serialized list of store work shifts.",
+          "maxLength": 4000
+        },
         "bypassIpCheck": {
           "type": "boolean",
           "description": "Whether IP check is bypassed."

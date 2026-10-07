@@ -680,10 +680,31 @@ export async function fetchStoreConfigFromFirestore(): Promise<Partial<StoreConf
   const docId = 'main_store';
   const path = `store_config/${docId}`;
   try {
-    const snap = await getDocFromServer(doc(db, 'store_config', docId));
+    const snap = await getDoc(doc(db, 'store_config', docId));
     if (!snap.exists()) return null;
     const data = snap.data();
-    return {
+
+    let allowedIps: string[] | undefined = undefined;
+    if (typeof data.allowedIpsJson === 'string' && data.allowedIpsJson.trim()) {
+      try {
+        const parsed = JSON.parse(data.allowedIpsJson);
+        if (Array.isArray(parsed)) {
+          allowedIps = parsed.map((ip) => String(ip).trim()).filter(Boolean);
+        }
+      } catch {}
+    }
+
+    let shifts: StoreConfig['shifts'] | undefined = undefined;
+    if (typeof data.shiftsJson === 'string' && data.shiftsJson.trim()) {
+      try {
+        const parsed = JSON.parse(data.shiftsJson);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          shifts = parsed;
+        }
+      } catch {}
+    }
+
+    const result: Partial<StoreConfig> = {
       storeName: data.storeName,
       storeAddress: data.storeAddress,
       wifiSsid: data.wifiSsid,
@@ -695,6 +716,11 @@ export async function fetchStoreConfigFromFirestore(): Promise<Partial<StoreConf
       autoEmailTime: data.autoEmailTime || '21:00',
       managerEmail: data.managerEmail || 'phamthanhcong0412@gmail.com',
     };
+
+    if (allowedIps) result.allowedIps = allowedIps;
+    if (shifts) result.shifts = shifts;
+
+    return result;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
   }
@@ -706,10 +732,16 @@ export async function saveStoreConfigToFirestore(cfg: StoreConfig): Promise<void
   const docRef = doc(db, 'store_config', docId);
   const ownerId = getOwnerUid();
 
+  const cleanAllowedIps = Array.isArray(cfg.allowedIps)
+    ? Array.from(new Set(cfg.allowedIps.map((ip) => String(ip).trim()).filter(Boolean)))
+    : [];
+
   const payload = {
     storeName: String(cfg.storeName || 'Cháo Mầm Nhỏ Thái Thịnh').slice(0, 150),
     storeAddress: String(cfg.storeAddress || 'Thái Thịnh, Đống Đa, Hà Nội').slice(0, 250),
     wifiSsid: String(cfg.wifiSsid || 'ChaoMamNho_ThaiThinh_5G').slice(0, 100),
+    allowedIpsJson: JSON.stringify(cleanAllowedIps).slice(0, 2000),
+    shiftsJson: JSON.stringify(cfg.shifts || []).slice(0, 4000),
     bypassIpCheck: Boolean(cfg.bypassIpCheck),
     requireWifi: Boolean(cfg.requireWifi),
     requireQr: Boolean(cfg.requireQr),
@@ -723,7 +755,15 @@ export async function saveStoreConfigToFirestore(cfg: StoreConfig): Promise<void
   try {
     const isExisting = (await getDoc(docRef)).exists();
     if (isExisting) {
-      await updateDoc(docRef, payload);
+      try {
+        await updateDoc(docRef, payload);
+      } catch {
+        await setDoc(docRef, {
+          id: docId,
+          ownerId,
+          ...payload,
+        });
+      }
     } else {
       await setDoc(docRef, {
         id: docId,
