@@ -24,5 +24,31 @@
     "lastCheckInTime": null,
     "lastCheckOutTime": null,
     "recentAttendanceSummary": "Chưa có lịch sử chấm công"
+  },
+  {
+    "id": "user_1791334376189",
+    "username": "ttlhong",
+    "password": "12345678@Abc",
+    "email": "ttlhong@chaomamnho.vn",
+    "name": "Trâng Thị Lâm Hồng",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ttlhong",
+    "role": "staff",
+    "employeeCode": "QL-002",
+    "position": "Quản Lý Cửa Hàng",
+    "hourlyRate": 50000,
+    "phone": "",
+    "joinDate": "2026-10-07",
+    "isActive": true,
+    "note": "",
+    "totalMinutesWorked": 0,
+    "totalHoursWorked": 0,
+    "totalDaysWorked": 0,
+    "totalShifts": 0,
+    "lateCount": 0,
+    "estimatedSalary": 0,
+    "currentStatus": "offline",
+    "lastCheckInTime": null,
+    "lastCheckOutTime": null,
+    "recentAttendanceSummary": "Chưa có lịch sử chấm công"
   }
 ]
