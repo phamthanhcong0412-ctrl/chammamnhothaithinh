@@ -134,18 +134,126 @@ function saveLocal<T>(key: string, data: T): void {
   }
 }
 
+function parseHmToMins(timeStr: string, fallback: number): number {
+  const parts = String(timeStr || '').split(':');
+  if (parts.length !== 2) return fallback;
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return fallback;
+  return h * 60 + m;
+}
+
+export function evaluateShiftTiming(
+  checkInIso: string,
+  checkOutIso?: string | null,
+  cfg?: StoreConfig | null
+) {
+  const activeCfg = cfg || loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
+  const inDate = new Date(checkInIso);
+  const inMins = inDate.getHours() * 60 + inDate.getMinutes();
+  const isAfternoon = inMins >= 14 * 60;
+  const shift =
+    activeCfg.shifts?.find((s) => s.id === (isAfternoon ? 'shift_afternoon' : 'shift_morning')) ||
+    activeCfg.shifts?.[0];
+
+  const shiftId = shift?.id || (isAfternoon ? 'shift_afternoon' : 'shift_morning');
+  const shiftName = shift?.name || (isAfternoon ? 'Ca Chiều (15:30 - 20:00)' : 'Ca Sáng (06:00 - 12:00)');
+  const shiftStartMins = parseHmToMins(
+    shift?.startTime || (isAfternoon ? '15:30' : '06:00'),
+    isAfternoon ? 15 * 60 + 30 : 6 * 60
+  );
+  const shiftEndMins = parseHmToMins(
+    shift?.endTime || (isAfternoon ? '20:00' : '12:00'),
+    isAfternoon ? 20 * 60 : 12 * 60
+  );
+  const graceMins = shift?.lateGraceMinutes ?? 15;
+  const checkOutAfterMinutes = shift?.checkOutAfterMinutes ?? 90;
+
+  // Only mark late if checking in within the shift window after start + grace
+  const isLate = inMins > shiftStartMins + graceMins && inMins <= shiftEndMins;
+  const lateMinutes = isLate ? inMins - shiftStartMins : 0;
+
+  let isEarlyLeave = false;
+  let earlyLeaveMinutes = 0;
+  if (checkOutIso) {
+    const outDate = new Date(checkOutIso);
+    const outMins = outDate.getHours() * 60 + outDate.getMinutes();
+    if (outMins < shiftEndMins - 10 && outMins >= shiftStartMins) {
+      isEarlyLeave = true;
+      earlyLeaveMinutes = shiftEndMins - outMins;
+    }
+  }
+
+  return {
+    shiftId,
+    shiftName,
+    isLate,
+    lateMinutes,
+    isEarlyLeave,
+    earlyLeaveMinutes,
+    shiftStartMins,
+    shiftEndMins,
+    checkOutAfterMinutes,
+  };
+}
+
 export function consolidateCompletedShifts(
   records: AttendanceRecord[],
   users: User[]
 ): { consolidated: AttendanceRecord[]; removedIds: string[]; updatedRecords: AttendanceRecord[] } {
+  const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
+  const todayStr = getTodayString();
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
   const working: AttendanceRecord[] = [];
   const completedByShift = new Map<string, AttendanceRecord[]>();
+  const updatedRecords: AttendanceRecord[] = [];
 
-  for (const r of records) {
+  for (const rawRec of records) {
+    let r = rawRec;
     if (r.status === 'working') {
-      working.push(enrichAttendanceRecord(r, users));
-      continue;
+      const timing = evaluateShiftTiming(r.checkInTime, null, cfg);
+      const inDate = new Date(r.checkInTime);
+      const inMins = inDate.getHours() * 60 + inDate.getMinutes();
+      const isPastDay = r.date < todayStr;
+      const isOverdueToday =
+        r.date === todayStr &&
+        inMins <= timing.shiftEndMins &&
+        nowMins > timing.shiftEndMins + timing.checkOutAfterMinutes;
+
+      if (isPastDay || isOverdueToday) {
+        // Auto-close forgotten shift at official shift end time
+        const autoOutDate = new Date(inDate);
+        autoOutDate.setHours(Math.floor(timing.shiftEndMins / 60), timing.shiftEndMins % 60, 0, 0);
+        const finalOutMs =
+          autoOutDate.getTime() > inDate.getTime()
+            ? autoOutDate.getTime()
+            : inDate.getTime() + 60 * 1000;
+        const autoOutIso = new Date(finalOutMs).toISOString();
+        const autoMins = Math.max(1, Math.round((finalOutMs - inDate.getTime()) / 60000));
+        r = enrichAttendanceRecord(
+          {
+            ...r,
+            checkOutTime: autoOutIso,
+            totalMinutes: autoMins,
+            status: 'completed',
+            shiftId: timing.shiftId,
+            shiftName: timing.shiftName,
+            isLate: timing.isLate,
+            isEarlyLeave: false,
+            note: r.note ? `${r.note} • Tự chốt cuối ca` : 'Tự chốt cuối ca (Quên check-out)',
+            updatedAt: new Date().toISOString(),
+          },
+          users
+        );
+        updatedRecords.push(r);
+      } else {
+        working.push(enrichAttendanceRecord(r, users));
+        continue;
+      }
     }
+
     const shiftId =
       r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
     const key = `${r.userId}_${r.date}_${shiftId}`;
@@ -156,7 +264,6 @@ export function consolidateCompletedShifts(
 
   const consolidatedCompleted: AttendanceRecord[] = [];
   const removedIds: string[] = [];
-  const updatedRecords: AttendanceRecord[] = [];
 
   for (const [, group] of completedByShift.entries()) {
     if (group.length === 1) {
@@ -182,14 +289,18 @@ export function consolidateCompletedShifts(
       }
     }
 
+    const timing = evaluateShiftTiming(base.checkInTime, latestCheckOut, cfg);
+
     const merged = enrichAttendanceRecord(
       {
         ...base,
         checkInTime: base.checkInTime,
         checkOutTime: latestCheckOut,
         totalMinutes,
-        isLate: Boolean(base.isLate),
-        isEarlyLeave: Boolean(last.isEarlyLeave),
+        shiftId: timing.shiftId,
+        shiftName: timing.shiftName,
+        isLate: Boolean(base.isLate || timing.isLate),
+        isEarlyLeave: Boolean(last.isEarlyLeave && timing.isEarlyLeave),
         updatedAt: new Date().toISOString(),
       },
       users
@@ -614,13 +725,28 @@ export const api = {
 
     const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
     const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    const isAfternoon = nowMins >= 14 * 60;
-    const matchedShift =
-      cfg.shifts.find((s) => s.id === (isAfternoon ? 'shift_afternoon' : 'shift_morning')) ||
-      cfg.shifts[0];
-
     const checkInTime = now.toISOString();
+    const todayStr = getTodayString();
+    const timing = evaluateShiftTiming(checkInTime, null, cfg);
+
+    // If employee already has a completed record in this shift today, don't mark 2nd turn as late
+    const hasCompletedTurnInShift = attendance.some(
+      (r) =>
+        r.userId === user!.id &&
+        r.date === todayStr &&
+        r.status !== 'working' &&
+        (r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')) ===
+          timing.shiftId
+    );
+
+    const isLate = hasCompletedTurnInShift ? false : timing.isLate;
+    const autoNote =
+      !hasCompletedTurnInShift && timing.isLate
+        ? payload.note
+          ? `${payload.note} (Trễ ${timing.lateMinutes}p)`
+          : `Đi muộn ${timing.lateMinutes} phút`
+        : payload.note || '';
+
     const newRecord: AttendanceRecord = enrichAttendanceRecord(
       {
         id: 'att_' + Date.now(),
@@ -628,7 +754,7 @@ export const api = {
         userName: user.name,
         userEmail: user.email,
         employeeCode: user.employeeCode,
-        date: getTodayString(),
+        date: todayStr,
         checkInTime,
         checkOutTime: null,
         totalMinutes: 0,
@@ -637,11 +763,11 @@ export const api = {
         checkInIp: '14.161.45.88',
         checkInWifiSsid: payload.wifiSsid || cfg.wifiSsid,
         checkInGps: payload.gps,
-        shiftId: matchedShift?.id || 'shift_morning',
-        shiftName: matchedShift?.name || 'Ca làm việc',
-        isLate: false,
+        shiftId: timing.shiftId,
+        shiftName: timing.shiftName,
+        isLate,
         isEarlyLeave: false,
-        note: payload.note || '',
+        note: autoNote,
         createdAt: checkInTime,
         updatedAt: checkInTime,
       },
@@ -711,6 +837,9 @@ export const api = {
 
     const user = users.find((u) => u.id === payload.userId);
 
+    const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
+    const outTiming = evaluateShiftTiming(record.checkInTime, checkOutTime, cfg);
+
     if (existingShiftIdx !== -1) {
       // Accumulate this turn's minutes into the existing shift record so 1 shift = 1 record
       const existing = attendance[existingShiftIdx];
@@ -719,6 +848,7 @@ export const api = {
           ? existing.checkInTime
           : record.checkInTime;
       const accumulatedMinutes = (Number(existing.totalMinutes) || 0) + diffMinutes;
+      const mergedTiming = evaluateShiftTiming(earliestCheckIn, checkOutTime, cfg);
 
       const mergedRecord: AttendanceRecord = enrichAttendanceRecord(
         {
@@ -727,6 +857,10 @@ export const api = {
           checkOutTime,
           totalMinutes: accumulatedMinutes,
           status: 'completed',
+          shiftId: mergedTiming.shiftId,
+          shiftName: mergedTiming.shiftName,
+          isLate: Boolean(existing.isLate),
+          isEarlyLeave: mergedTiming.isEarlyLeave,
           checkOutIp: '14.161.45.88',
           checkOutGps: payload.gps,
           updatedAt: checkOutTime,
@@ -758,6 +892,10 @@ export const api = {
         checkOutTime,
         totalMinutes: diffMinutes,
         status: 'completed',
+        shiftId: outTiming.shiftId,
+        shiftName: outTiming.shiftName,
+        isLate: Boolean(record.isLate ?? outTiming.isLate),
+        isEarlyLeave: outTiming.isEarlyLeave,
         checkOutIp: '14.161.45.88',
         checkOutGps: payload.gps,
         note: payload.note
@@ -811,10 +949,12 @@ export const api = {
 
     const user = users.find((u) => u.id === payload.userId);
     if (!user) throw new Error('Không tìm thấy thông tin nhân viên trên Firebase');
+    const cfg = loadLocal<StoreConfig>(STORAGE_KEYS.CONFIG, DEFAULT_CONFIG);
     const startMs = new Date(payload.checkInTime).getTime();
     const endMs = payload.checkOutTime ? new Date(payload.checkOutTime).getTime() : null;
     const totalMinutes = endMs && endMs > startMs ? Math.round((endMs - startMs) / 60000) : 0;
     const status = payload.checkOutTime ? 'completed' : 'working';
+    const timing = evaluateShiftTiming(payload.checkInTime, payload.checkOutTime, cfg);
 
     let targetRecord: AttendanceRecord;
     if (payload.id) {
@@ -828,6 +968,10 @@ export const api = {
           checkOutTime: payload.checkOutTime || null,
           totalMinutes,
           status,
+          shiftId: timing.shiftId,
+          shiftName: timing.shiftName,
+          isLate: timing.isLate,
+          isEarlyLeave: timing.isEarlyLeave,
           note: payload.note,
           adjustedBy: payload.adjustedBy || 'Admin',
           adjustedReason: payload.adjustedReason || 'Quản lý chỉnh sửa công',
@@ -849,10 +993,12 @@ export const api = {
           checkOutTime: payload.checkOutTime || null,
           totalMinutes,
           status,
+          shiftId: timing.shiftId,
+          shiftName: timing.shiftName,
           checkInMethod: 'manual_admin',
           checkInIp: 'Manual Entry (Admin)',
-          isLate: false,
-          isEarlyLeave: false,
+          isLate: timing.isLate,
+          isEarlyLeave: timing.isEarlyLeave,
           note: payload.note || '',
           adjustedBy: payload.adjustedBy || 'Admin',
           adjustedReason: payload.adjustedReason || 'Chấm công hộ bởi Quản lý',

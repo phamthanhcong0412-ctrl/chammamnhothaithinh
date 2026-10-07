@@ -26,6 +26,7 @@ function AppContent() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [manualRecord, setManualRecord] = useState<AttendanceRecord | null>(null);
+  const [manualPreselectedUserId, setManualPreselectedUserId] = useState<string | undefined>(undefined);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   // Sync tab on login / role change: Admin goes straight to Dashboard, Staff goes to attendance
@@ -39,8 +40,9 @@ function AppContent() {
     }
   }, [currentUser?.id, currentUser?.role]);
 
-  const handleOpenManualModal = (record?: AttendanceRecord | null) => {
+  const handleOpenManualModal = (record?: AttendanceRecord | null, preselectedUserId?: string) => {
     setManualRecord(record || null);
+    setManualPreselectedUserId(preselectedUserId);
     setIsManualModalOpen(true);
   };
 
@@ -129,6 +131,7 @@ function AppContent() {
         isOpen={isManualModalOpen}
         onClose={() => setIsManualModalOpen(false)}
         recordToEdit={manualRecord}
+        preselectedUserId={manualPreselectedUserId}
       />
 
     </div>

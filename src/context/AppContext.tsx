@@ -59,6 +59,7 @@ interface AppContextType {
     gps?: { lat: number; lng: number; distance?: number };
     note?: string;
   }) => Promise<AttendanceRecord>;
+  checkOutUser: (userId: string, note?: string) => Promise<AttendanceRecord>;
   manualAttendance: (payload: {
     id?: string;
     userId: string;
@@ -379,6 +380,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return enrichedRec;
   };
 
+  const checkOutUser = async (userId: string, note?: string): Promise<AttendanceRecord> => {
+    const res = await api.checkOut({
+      userId,
+      wifiSsid: storeConfig?.wifiSsid,
+      note: note || `Quản lý chốt ra ca`,
+    });
+    const enrichedRec = enrichAttendanceRecord(res.record, users);
+    const filteredAtt = res.removedId
+      ? attendance.filter((r) => r.id !== res.removedId)
+      : attendance;
+    const nextAtt = filteredAtt.map((r) => (r.id === enrichedRec.id ? enrichedRec : r));
+    syncUserAndAttendanceState(nextAtt, userId);
+    return enrichedRec;
+  };
+
   const manualAttendance = async (payload: {
     id?: string;
     userId: string;
@@ -394,9 +410,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       adjustedBy: currentUser?.name || 'Quản lý',
     });
     const enrichedRec = enrichAttendanceRecord(res.record, users);
-    const nextAtt = payload.id
+    const rawNextAtt = payload.id
       ? attendance.map((r) => (r.id === enrichedRec.id ? enrichedRec : r))
       : [enrichedRec, ...attendance];
+    const { consolidated: nextAtt } = consolidateCompletedShifts(rawNextAtt, users);
     syncUserAndAttendanceState(nextAtt, payload.userId);
     saveAttendanceToFirestore(enrichedRec, users).catch((e) =>
       console.warn('Firestore manual attendance sync:', e)
@@ -409,6 +426,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await api.deleteAttendance(id);
     const nextAtt = attendance.filter((r) => r.id !== id);
     syncUserAndAttendanceState(nextAtt, targetRec?.userId);
+    const targetUser = users.find((u) => u.id === targetRec?.userId);
+    if (targetUser) {
+      saveUserToFirestore(targetUser, undefined, nextAtt, 'update').catch(() => {});
+    }
     deleteAttendanceFromFirestore(id).catch((e) =>
       console.warn('Firestore deleteAttendance sync:', e)
     );
@@ -490,6 +511,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         checkIn,
         checkOut,
+        checkOutUser,
         manualAttendance,
         deleteAttendance,
         refreshData,

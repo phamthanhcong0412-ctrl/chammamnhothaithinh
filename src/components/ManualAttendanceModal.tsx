@@ -1,20 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { X, Clock, Calendar, AlertCircle, CheckCircle, Trash2, Edit3, UserCheck } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  X,
+  Clock,
+  Calendar,
+  AlertCircle,
+  CheckCircle,
+  Trash2,
+  Edit3,
+  UserCheck,
+  Sun,
+  Sunset,
+  Zap,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
+import { evaluateShiftTiming } from '../services/api.ts';
 import type { AttendanceRecord } from '../types/index.ts';
 
 interface ManualAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
   recordToEdit?: AttendanceRecord | null;
+  preselectedUserId?: string;
 }
 
 export const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
   isOpen,
   onClose,
   recordToEdit,
+  preselectedUserId,
 }) => {
-  const { users, currentUser, manualAttendance, deleteAttendance } = useApp();
+  const { users, currentUser, storeConfig, manualAttendance, deleteAttendance } = useApp();
 
   const [selectedUserId, setSelectedUserId] = useState('');
   const [date, setDate] = useState('');
@@ -23,15 +38,17 @@ export const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
   const [note, setNote] = useState('');
   const [reason, setReason] = useState('Nhân viên gặp sự cố thiết bị / mạng tại quán');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
+    setConfirmDelete(false);
+    setErrorMessage(null);
 
     if (recordToEdit) {
       setSelectedUserId(recordToEdit.userId);
       setDate(recordToEdit.date);
-      // Format ISO to local datetime-local string
       const inDate = new Date(recordToEdit.checkInTime);
       setCheckInTime(formatToInputDateTime(inDate));
       if (recordToEdit.checkOutTime) {
@@ -50,22 +67,83 @@ export const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
       const todayStr = `${y}-${m}-${d}`;
       setDate(todayStr);
 
-      const morning = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0);
-      const evening = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 16, 30, 0);
-      setCheckInTime(formatToInputDateTime(morning));
-      setCheckOutTime(formatToInputDateTime(evening));
+      const isAfternoon = now.getHours() >= 14;
+      const mShift = storeConfig?.shifts?.find((s) => s.id === 'shift_morning');
+      const aShift = storeConfig?.shifts?.find((s) => s.id === 'shift_afternoon');
 
-      const firstStaff = users.find((u) => u.role === 'staff') || users[0];
-      setSelectedUserId(firstStaff?.id || '');
-      setNote('Chấm công bổ sung');
+      const startStr = isAfternoon ? aShift?.startTime || '15:30' : mShift?.startTime || '06:00';
+      const endStr = isAfternoon ? aShift?.endTime || '20:00' : mShift?.endTime || '12:00';
+
+      setCheckInTime(`${todayStr}T${startStr}`);
+      setCheckOutTime(`${todayStr}T${endStr}`);
+
+      const defaultUser =
+        (preselectedUserId ? users.find((u) => u.id === preselectedUserId) : null) ||
+        users.find((u) => u.role === 'staff') ||
+        users[0];
+      setSelectedUserId(defaultUser?.id || '');
+      setNote('');
       setReason('Nhân viên gặp sự cố thiết bị / mạng tại quán');
     }
-  }, [isOpen, recordToEdit, users]);
+  }, [isOpen, recordToEdit, preselectedUserId, users, storeConfig]);
 
   function formatToInputDateTime(d: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
+
+  const applyShiftPreset = (preset: 'morning_full' | 'afternoon_full' | 'morning_working' | 'afternoon_working') => {
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+    const mShift = storeConfig?.shifts?.find((s) => s.id === 'shift_morning');
+    const aShift = storeConfig?.shifts?.find((s) => s.id === 'shift_afternoon');
+    const mStart = mShift?.startTime || '06:00';
+    const mEnd = mShift?.endTime || '12:00';
+    const aStart = aShift?.startTime || '15:30';
+    const aEnd = aShift?.endTime || '20:00';
+
+    if (preset === 'morning_full') {
+      setCheckInTime(`${targetDate}T${mStart}`);
+      setCheckOutTime(`${targetDate}T${mEnd}`);
+    } else if (preset === 'afternoon_full') {
+      setCheckInTime(`${targetDate}T${aStart}`);
+      setCheckOutTime(`${targetDate}T${aEnd}`);
+    } else if (preset === 'morning_working') {
+      setCheckInTime(`${targetDate}T${mStart}`);
+      setCheckOutTime('');
+    } else if (preset === 'afternoon_working') {
+      setCheckInTime(`${targetDate}T${aStart}`);
+      setCheckOutTime('');
+    }
+  };
+
+  // Live preview of calculated shift stats
+  const shiftPreview = useMemo(() => {
+    if (!checkInTime) return null;
+    const inMs = new Date(checkInTime).getTime();
+    const outMs = checkOutTime ? new Date(checkOutTime).getTime() : null;
+    if (Number.isNaN(inMs)) return null;
+
+    const inIso = new Date(checkInTime).toISOString();
+    const outIso = outMs && !Number.isNaN(outMs) ? new Date(checkOutTime).toISOString() : null;
+    const timing = evaluateShiftTiming(inIso, outIso, storeConfig);
+    const totalMinutes = outMs && outMs > inMs ? Math.round((outMs - inMs) / 60000) : 0;
+    const totalHours = (totalMinutes / 60).toFixed(2);
+    const targetUser = users.find((u) => u.id === selectedUserId);
+    const hourlyRate = Number(targetUser?.hourlyRate) || 28000;
+    const estimatedPay = Math.round((totalMinutes / 60) * hourlyRate);
+
+    return {
+      shiftName: timing.shiftName,
+      isLate: timing.isLate,
+      lateMinutes: timing.lateMinutes,
+      isEarlyLeave: timing.isEarlyLeave,
+      earlyLeaveMinutes: timing.earlyLeaveMinutes,
+      totalMinutes,
+      totalHours,
+      estimatedPay,
+      isWorking: !outIso,
+    };
+  }, [checkInTime, checkOutTime, selectedUserId, users, storeConfig]);
 
   if (!isOpen) return null;
 
@@ -112,89 +190,138 @@ export const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
 
   const handleDelete = async () => {
     if (!recordToEdit?.id) return;
-    if (confirm('Bạn có chắc chắn muốn xoá bản ghi chấm công này không?')) {
-      try {
-        await deleteAttendance(recordToEdit.id);
-        onClose();
-      } catch (err: any) {
-        alert(err.message || 'Lỗi khi xoá');
-      }
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    try {
+      await deleteAttendance(recordToEdit.id);
+      onClose();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Lỗi khi xoá');
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-zinc-100">
-        
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/90">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/60">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
               {recordToEdit ? <Edit3 className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
             </div>
             <div>
               <h3 className="text-sm font-bold text-zinc-100">
-                {recordToEdit ? 'Chỉnh Sửa Ca Chấm Công' : 'Chấm Công Hộ / Bổ Sung Ca Làm'}
+                {recordToEdit ? 'Chỉnh Sửa Ca Chấm Công' : 'Chấm Công Hộ / Bổ Sung Ca'}
               </h3>
-              <p className="text-xs text-zinc-400">Quyền Quản Lý (Admin Action)</p>
+              <p className="text-[11px] text-zinc-400">Tự động tính giờ công, đi muộn/về sớm & lương ca</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
           {errorMessage && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          {/* Employee select */}
-          <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-              Nhân viên được chấm công
-            </label>
-            <select
-              value={selectedUserId}
-              disabled={!!recordToEdit}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-60"
-            >
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.employeeCode} - {u.position})
-                </option>
-              ))}
-            </select>
+          {/* Employee & Date row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                Nhân viên
+              </label>
+              <select
+                value={selectedUserId}
+                disabled={!!recordToEdit}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-60"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.employeeCode})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                Ngày làm việc
+              </label>
+              <div className="relative">
+                <Calendar className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => {
+                    const nextDate = e.target.value;
+                    setDate(nextDate);
+                    if (checkInTime.includes('T')) {
+                      setCheckInTime(`${nextDate}T${checkInTime.split('T')[1]}`);
+                    }
+                    if (checkOutTime && checkOutTime.includes('T')) {
+                      setCheckOutTime(`${nextDate}T${checkOutTime.split('T')[1]}`);
+                    }
+                  }}
+                  className="w-full pl-8 pr-2.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Date picker */}
+          {/* Quick 1-Click Shift Presets */}
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-              Ngày làm việc
-            </label>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="date"
-                required
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
-              />
+            <span className="block text-[11px] font-semibold text-zinc-400 mb-1.5 flex items-center gap-1">
+              <Zap className="w-3 h-3 text-amber-400" /> Chọn nhanh theo khung giờ ca chuẩn:
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              <button
+                type="button"
+                onClick={() => applyShiftPreset('morning_full')}
+                className="px-2.5 py-2 rounded-xl bg-zinc-950 hover:bg-indigo-500/15 border border-zinc-800 hover:border-indigo-500/40 text-[11px] font-semibold text-zinc-200 hover:text-indigo-300 flex items-center justify-center gap-1 transition-all cursor-pointer"
+              >
+                <Sun className="w-3 h-3 text-amber-400 shrink-0" />
+                <span>Đủ Ca Sáng</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyShiftPreset('afternoon_full')}
+                className="px-2.5 py-2 rounded-xl bg-zinc-950 hover:bg-indigo-500/15 border border-zinc-800 hover:border-indigo-500/40 text-[11px] font-semibold text-zinc-200 hover:text-indigo-300 flex items-center justify-center gap-1 transition-all cursor-pointer"
+              >
+                <Sunset className="w-3 h-3 text-orange-400 shrink-0" />
+                <span>Đủ Ca Chiều</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyShiftPreset('morning_working')}
+                className="px-2.5 py-2 rounded-xl bg-zinc-950 hover:bg-emerald-500/15 border border-zinc-800 hover:border-emerald-500/40 text-[11px] font-semibold text-zinc-200 hover:text-emerald-300 flex items-center justify-center gap-1 transition-all cursor-pointer"
+              >
+                <span>Vào Ca Sáng</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyShiftPreset('afternoon_working')}
+                className="px-2.5 py-2 rounded-xl bg-zinc-950 hover:bg-emerald-500/15 border border-zinc-800 hover:border-emerald-500/40 text-[11px] font-semibold text-zinc-200 hover:text-emerald-300 flex items-center justify-center gap-1 transition-all cursor-pointer"
+              >
+                <span>Vào Ca Chiều</span>
+              </button>
             </div>
           </div>
 
           {/* Times */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-emerald-400" /> Giờ Check-in
@@ -204,57 +331,110 @@ export const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
                 required
                 value={checkInTime}
                 onChange={(e) => setCheckInTime(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-indigo-400" /> Giờ Check-out (Tùy chọn)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-indigo-400" /> Giờ Check-out
+                </label>
+                {checkOutTime && (
+                  <button
+                    type="button"
+                    onClick={() => setCheckOutTime('')}
+                    className="text-[10px] text-amber-400 hover:underline cursor-pointer"
+                  >
+                    Đặt đang làm
+                  </button>
+                )}
+              </div>
               <input
                 type="datetime-local"
                 value={checkOutTime}
                 onChange={(e) => setCheckOutTime(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
               />
-              <span className="text-[10px] text-zinc-500 mt-1 block">Để trống nếu nhân viên đang làm dở ca</span>
             </div>
           </div>
 
-          {/* Reason for adjustment */}
-          <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-              Lý do chấm công hộ / điều chỉnh (Audit log)
-            </label>
-            <select
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors mb-2"
-            >
-              <option value="Nhân viên gặp sự cố thiết bị / mạng tại quán">
-                Nhân viên gặp sự cố thiết bị / mạng tại quán
-              </option>
-              <option value="Nhân viên quên mang điện thoại đến cửa hàng">
-                Nhân viên quên mang điện thoại đến cửa hàng
-              </option>
-              <option value="Quên quét mã khi vào/ra ca làm việc">
-                Quên quét mã khi vào/ra ca làm việc
-              </option>
-              <option value="Tăng ca đột xuất theo yêu cầu của Quản lý">
-                Tăng ca đột xuất theo yêu cầu của Quản lý
-              </option>
-              <option value="Điều chỉnh sai sót kỹ thuật hệ thống">
-                Điều chỉnh sai sót kỹ thuật hệ thống
-              </option>
-            </select>
-            <input
-              type="text"
-              placeholder="Ghi chú thêm chi tiết (nếu có)..."
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
-            />
+          {/* Live Shift Calculation Preview */}
+          {shiftPreview && (
+            <div className="p-3.5 rounded-2xl bg-zinc-950/90 border border-zinc-800/90 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="space-y-0.5">
+                <div className="font-bold text-zinc-200">{shiftPreview.shiftName}</div>
+                <div className="text-[11px] flex items-center gap-2">
+                  {shiftPreview.isLate ? (
+                    <span className="text-amber-400 font-semibold">
+                      Đi muộn {shiftPreview.lateMinutes} phút
+                    </span>
+                  ) : (
+                    <span className="text-emerald-400 font-medium">Vào ca đúng giờ</span>
+                  )}
+                  {shiftPreview.isEarlyLeave && (
+                    <span className="text-rose-400 font-semibold">
+                      · Về sớm {shiftPreview.earlyLeaveMinutes} phút
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="text-right font-mono tabular-nums">
+                {shiftPreview.isWorking ? (
+                  <span className="text-emerald-400 font-bold">Đang trong ca làm</span>
+                ) : (
+                  <>
+                    <div className="font-bold text-indigo-400">
+                      {shiftPreview.totalHours}h ({shiftPreview.totalMinutes}p)
+                    </div>
+                    <div className="text-[11px] text-emerald-400 font-semibold">
+                      +{shiftPreview.estimatedPay.toLocaleString('vi-VN')}đ
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Reason & Note */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                Lý do điều chỉnh
+              </label>
+              <select
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
+              >
+                <option value="Nhân viên gặp sự cố thiết bị / mạng tại quán">
+                  Sự cố thiết bị / mạng tại quán
+                </option>
+                <option value="Nhân viên quên bấm Check-in / Check-out">
+                  Quên bấm Check-in / Check-out
+                </option>
+                <option value="Tăng ca / đổi ca theo phân công Quản lý">
+                  Tăng ca / đổi ca theo phân công
+                </option>
+                <option value="Điều chỉnh lại giờ công thực tế">
+                  Điều chỉnh lại giờ công thực tế
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                Ghi chú thêm
+              </label>
+              <input
+                type="text"
+                placeholder="Ghi chú (tùy chọn)..."
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
           </div>
 
           {/* Action buttons */}
@@ -263,36 +443,38 @@ export const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
               <button
                 type="button"
                 onClick={handleDelete}
-                className="px-4 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                className={`px-3.5 py-2.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                  confirmDelete
+                    ? 'bg-rose-600 text-white border-rose-500'
+                    : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/30'
+                }`}
               >
-                <Trash2 className="w-3.5 h-3.5" /> Xoá bản ghi này
+                <Trash2 className="w-3.5 h-3.5" />
+                {confirmDelete ? 'Bấm lần nữa để xoá' : 'Xoá ca này'}
               </button>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-300 transition-colors"
+                className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-300 transition-colors cursor-pointer"
               >
-                Huỷ bỏ
+                Huỷ
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-xs font-bold text-white shadow-lg shadow-emerald-600/20 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/20 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
               >
                 <CheckCircle className="w-4 h-4" />
-                {isSubmitting ? 'Đang lưu...' : recordToEdit ? 'Lưu Thay Đổi' : 'Xác Nhận Chấm Công'}
+                {isSubmitting ? 'Đang lưu...' : recordToEdit ? 'Lưu Thay Đổi' : 'Xác Nhận'}
               </button>
             </div>
           </div>
-
         </form>
-
-        <div className="px-6 py-2.5 bg-zinc-950/80 border-t border-zinc-800/80 text-[11px] text-zinc-500">
-          Mọi thay đổi sẽ được lưu vào lịch sử kiểm toán với người điều chỉnh: <span className="text-zinc-300 font-medium">{currentUser?.name}</span>.
-        </div>
       </div>
     </div>
   );
