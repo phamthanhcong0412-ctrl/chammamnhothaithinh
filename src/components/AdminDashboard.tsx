@@ -92,6 +92,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       totalMinutes: number;
       estimatedPay: number;
       turnsCount: number;
+      turns: { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }[];
       isLate: boolean;
       isEarlyLeave: boolean;
     }
@@ -103,6 +104,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const inferredShiftId =
         r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
       const key = `${r.userId}_${inferredShiftId}`;
+      const recordTurns =
+        Array.isArray(r.turns) && r.turns.length > 0
+          ? r.turns
+          : [
+              {
+                checkInTime: r.checkInTime,
+                checkOutTime: r.checkOutTime || null,
+                minutes: Number(r.totalMinutes) || 0,
+                note: r.note || '',
+              },
+            ];
+
       const existing = completedShiftsMap.get(key);
       if (!existing) {
         completedShiftsMap.set(key, {
@@ -117,7 +130,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           lastCheckOutTime: r.checkOutTime || null,
           totalMinutes: Number(r.totalMinutes) || 0,
           estimatedPay: Number(r.estimatedShiftPay) || 0,
-          turnsCount: 1,
+          turnsCount: recordTurns.length,
+          turns: [...recordTurns].sort(
+            (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
+          ),
           isLate: Boolean(r.isLate),
           isEarlyLeave: Boolean(r.isEarlyLeave),
         });
@@ -132,9 +148,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         ) {
           existing.lastCheckOutTime = r.checkOutTime;
         }
-        existing.totalMinutes += Number(r.totalMinutes) || 0;
-        existing.estimatedPay += Number(r.estimatedShiftPay) || 0;
-        existing.turnsCount += 1;
+        const turnMap = new Map<string, { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }>();
+        [...existing.turns, ...recordTurns].forEach((t) => {
+          const tKey = `${t.checkInTime}_${t.checkOutTime || ''}`;
+          if (!turnMap.has(tKey)) {
+            turnMap.set(tKey, t);
+          }
+        });
+        existing.turns = Array.from(turnMap.values()).sort(
+          (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
+        );
+        existing.totalMinutes = existing.turns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
+        const userRate = users.find((u) => u.id === r.userId)?.hourlyRate || r.hourlyRate || 28000;
+        existing.estimatedPay = Math.round((existing.totalMinutes / 60) * userRate);
+        existing.turnsCount = existing.turns.length;
         existing.isLate = existing.isLate || Boolean(r.isLate);
         existing.isEarlyLeave = existing.isEarlyLeave || Boolean(r.isEarlyLeave);
       }
@@ -324,48 +351,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             ) : (
               workingRecords.map((r) => {
                 const user = users.find((u) => u.id === r.userId);
-                const isAfternoon =
-                  r.shiftId === 'shift_afternoon' || new Date(r.checkInTime).getHours() >= 14;
+                const rShiftId =
+                  r.shiftId || (new Date(r.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning');
+                const isAfternoon = rShiftId === 'shift_afternoon';
+                const prevSameShiftRecord = todayRecords.find(
+                  (prev) =>
+                    prev.id !== r.id &&
+                    prev.userId === r.userId &&
+                    prev.status === 'completed' &&
+                    (prev.shiftId ||
+                      (new Date(prev.checkInTime).getHours() >= 14 ? 'shift_afternoon' : 'shift_morning')) ===
+                      rShiftId
+                );
+                const prevTurns = prevSameShiftRecord
+                  ? Array.isArray(prevSameShiftRecord.turns) && prevSameShiftRecord.turns.length > 0
+                    ? prevSameShiftRecord.turns
+                    : [
+                        {
+                          checkInTime: prevSameShiftRecord.checkInTime,
+                          checkOutTime: prevSameShiftRecord.checkOutTime || null,
+                          minutes: Number(prevSameShiftRecord.totalMinutes) || 0,
+                        },
+                      ]
+                  : [];
+
                 return (
                   <div
                     key={r.id}
-                    className="p-3 rounded-xl bg-zinc-950/90 border border-emerald-500/25 flex items-center justify-between gap-2"
+                    className="p-3 rounded-xl bg-zinc-950/90 border border-emerald-500/25 space-y-2"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <img
-                        src={
-                          user?.avatar ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(r.userName)}`
-                        }
-                        alt={r.userName}
-                        className="w-8 h-8 rounded-xl object-cover bg-zinc-800 border border-zinc-700 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold text-zinc-100 truncate">{r.userName}</div>
-                        <div className="text-[11px] text-zinc-400 font-mono flex items-center gap-1.5">
-                          <span>{isAfternoon ? 'Ca Chiều' : 'Ca Sáng'}</span>
-                          <span>·</span>
-                          <span>Vào {formatTime(r.checkInTime)}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={
+                            user?.avatar ||
+                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(r.userName)}`
+                          }
+                          alt={r.userName}
+                          className="w-8 h-8 rounded-xl object-cover bg-zinc-800 border border-zinc-700 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-zinc-100 truncate">{r.userName}</span>
+                            {prevTurns.length > 0 && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[10px] font-mono">
+                                Lần {prevTurns.length + 1} trong ca
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-zinc-400 font-mono flex items-center gap-1.5">
+                            <span>{isAfternoon ? 'Ca Chiều' : 'Ca Sáng'}</span>
+                            <span>·</span>
+                            <span>Vào {formatTime(r.checkInTime)}</span>
+                          </div>
                         </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right">
+                          <div className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
+                            {formatDuration(r.checkInTime)}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleQuickCheckOut(r.userId)}
+                          disabled={checkingOutUserId === r.userId}
+                          className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                          title="Chốt ra ca hộ nhân viên này"
+                        >
+                          <LogOut className="w-3 h-3" />
+                          <span>{checkingOutUserId === r.userId ? '...' : 'Chốt ca'}</span>
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <div className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
-                          {formatDuration(r.checkInTime)}
-                        </div>
+                    {prevTurns.length > 0 && (
+                      <div className="pt-1.5 border-t border-zinc-900 space-y-1">
+                        {prevTurns.map((pt, idx) => (
+                          <div
+                            key={`${pt.checkInTime}_${idx}`}
+                            className="flex items-center justify-between text-[10px] font-mono text-zinc-400 bg-zinc-900/60 px-2 py-1 rounded"
+                          >
+                            <span>
+                              <strong className="text-zinc-300">Lần {idx + 1} (Đã chốt):</strong>{' '}
+                              {formatTime(pt.checkInTime)} → {pt.checkOutTime ? formatTime(pt.checkOutTime) : '--'}
+                            </span>
+                            <span className="text-indigo-300 font-semibold">{pt.minutes} phút</span>
+                          </div>
+                        ))}
                       </div>
-                      <button
-                        onClick={() => handleQuickCheckOut(r.userId)}
-                        disabled={checkingOutUserId === r.userId}
-                        className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                        title="Chốt ra ca hộ nhân viên này"
-                      >
-                        <LogOut className="w-3 h-3" />
-                        <span>{checkingOutUserId === r.userId ? '...' : 'Chốt ca'}</span>
-                      </button>
-                    </div>
+                    )}
                   </div>
                 );
               })
@@ -396,39 +471,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 return (
                   <div
                     key={group.key}
-                    className="p-3 rounded-xl bg-zinc-950/90 border border-zinc-800/80 flex items-center justify-between gap-2"
+                    className="p-3 rounded-xl bg-zinc-950/90 border border-zinc-800/80 space-y-2"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <img
-                        src={
-                          user?.avatar ||
-                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(group.userName)}`
-                        }
-                        alt={group.userName}
-                        className="w-8 h-8 rounded-xl object-cover bg-zinc-800 border border-zinc-700 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-zinc-100 truncate">{group.userName}</span>
-                          <span className="text-[10px] text-indigo-400 font-medium shrink-0">
-                            · {group.shiftName}
-                          </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={
+                            user?.avatar ||
+                            `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(group.userName)}`
+                          }
+                          alt={group.userName}
+                          className="w-8 h-8 rounded-xl object-cover bg-zinc-800 border border-zinc-700 shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-zinc-100 truncate">{group.userName}</span>
+                            <span className="text-[10px] text-indigo-400 font-medium shrink-0">
+                              · {group.shiftName}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 text-[10px] font-mono">
+                              {group.turns.length} lần chấm
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-zinc-400 font-mono">
+                            {formatTime(group.firstCheckInTime)} →{' '}
+                            {group.lastCheckOutTime ? formatTime(group.lastCheckOutTime) : '--'}
+                          </div>
                         </div>
-                        <div className="text-[11px] text-zinc-400 font-mono">
-                          {formatTime(group.firstCheckInTime)} →{' '}
-                          {group.lastCheckOutTime ? formatTime(group.lastCheckOutTime) : '--'}
+                      </div>
+
+                      <div className="text-right shrink-0 font-mono tabular-nums">
+                        <div className="text-xs font-bold text-indigo-400">
+                          {(group.totalMinutes / 60).toFixed(1)}h{' '}
+                          <span className="text-[10px] font-normal text-zinc-500">({group.totalMinutes}p)</span>
+                        </div>
+                        <div className="text-[10px] text-emerald-400 font-semibold">
+                          +{group.estimatedPay.toLocaleString('vi-VN')}đ
                         </div>
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0 font-mono tabular-nums">
-                      <div className="text-xs font-bold text-indigo-400">
-                        {(group.totalMinutes / 60).toFixed(1)}h{' '}
-                        <span className="text-[10px] font-normal text-zinc-500">({group.totalMinutes}p)</span>
-                      </div>
-                      <div className="text-[10px] text-emerald-400 font-semibold">
-                        +{group.estimatedPay.toLocaleString('vi-VN')}đ
-                      </div>
+                    {/* Per-turn breakdown inside completed shift card */}
+                    <div className="pt-1.5 border-t border-zinc-900 space-y-1">
+                      {group.turns.map((t, idx) => (
+                        <div
+                          key={`${t.checkInTime}_${idx}`}
+                          className="flex items-center justify-between text-[10px] font-mono text-zinc-400 bg-zinc-900/60 px-2 py-1 rounded"
+                        >
+                          <span>
+                            <strong className="text-zinc-300">Lần {idx + 1}:</strong>{' '}
+                            {formatTime(t.checkInTime)} → {t.checkOutTime ? formatTime(t.checkOutTime) : '--'}
+                          </span>
+                          <span className="text-indigo-300 font-semibold">{t.minutes} phút</span>
+                        </div>
+                      ))}
+                      {group.turns.length > 1 && (
+                        <div className="flex items-center justify-between text-[10px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded">
+                          <span>Tổng thực làm cộng dồn:</span>
+                          <strong>
+                            {group.turns.map((t) => `${t.minutes}p`).join(' + ')} = {group.totalMinutes} phút
+                          </strong>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -604,11 +708,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </td>
 
                       <td className="py-3 px-3 font-mono tabular-nums text-zinc-200">
-                        {formatTime(record.checkInTime)} →{' '}
-                        {record.checkOutTime ? (
-                          formatTime(record.checkOutTime)
-                        ) : (
-                          <span className="text-emerald-400 font-sans font-semibold">Đang làm</span>
+                        <div>
+                          {formatTime(record.checkInTime)} →{' '}
+                          {record.checkOutTime ? (
+                            formatTime(record.checkOutTime)
+                          ) : (
+                            <span className="text-emerald-400 font-sans font-semibold">Đang làm</span>
+                          )}
+                        </div>
+                        {Array.isArray(record.turns) && record.turns.length > 0 && record.status !== 'working' && (
+                          <div className="mt-1 space-y-0.5">
+                            {record.turns.map((t, i) => (
+                              <div key={`${t.checkInTime}_${i}`} className="text-[10px] text-zinc-400">
+                                <span className="text-indigo-400 font-semibold">Lần {i + 1}:</span>{' '}
+                                {formatTime(t.checkInTime)}→{t.checkOutTime ? formatTime(t.checkOutTime) : '--'}{' '}
+                                <span className="text-zinc-300">({t.minutes}p)</span>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </td>
 
@@ -618,12 +735,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {formatDuration(record.checkInTime)}
                           </span>
                         ) : (
-                          <span className="font-bold text-indigo-400">
-                            {(record.totalMinutes / 60).toFixed(1)}h{' '}
-                            <span className="text-[11px] font-normal text-zinc-500">
-                              ({record.totalMinutes}p)
+                          <div>
+                            <span className="font-bold text-indigo-400">
+                              {(record.totalMinutes / 60).toFixed(1)}h{' '}
+                              <span className="text-[11px] font-normal text-zinc-500">
+                                ({record.totalMinutes}p)
+                              </span>
                             </span>
-                          </span>
+                            {Array.isArray(record.turns) && record.turns.length > 1 && (
+                              <div className="text-[10px] text-emerald-400/90 mt-0.5">
+                                {record.turns.map((t) => `${t.minutes}p`).join(' + ')} = {record.totalMinutes}p
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
 

@@ -109,7 +109,7 @@ service cloud.firestore {
         data.keys().hasOnly([
           'id', 'ownerId', 'userId', 'userName', 'userEmail', 'employeeCode',
           'date', 'checkInTime', 'checkOutTime', 'totalMinutes', 'totalHours',
-          'hourlyRate', 'estimatedShiftPay', 'status',
+          'hourlyRate', 'estimatedShiftPay', 'turnsJson', 'status',
           'checkInMethod', 'checkInIp', 'checkInWifiSsid', 'shiftId', 'shiftName',
           'isLate', 'isEarlyLeave', 'note', 'adjustedBy', 'adjustedReason',
           'createdAt', 'updatedAt'
@@ -127,6 +127,7 @@ service cloud.firestore {
         (!('totalHours' in data) || (data.totalHours is number && data.totalHours >= 0 && data.totalHours <= 24)) &&
         (!('hourlyRate' in data) || (data.hourlyRate is number && data.hourlyRate >= 0 && data.hourlyRate <= 10000000)) &&
         (!('estimatedShiftPay' in data) || (data.estimatedShiftPay is number && data.estimatedShiftPay >= 0 && data.estimatedShiftPay <= 240000000)) &&
+        (!('turnsJson' in data) || (data.turnsJson is string && data.turnsJson.size() <= 4000)) &&
         data.status is string && (data.status == 'working' || data.status == 'completed' || data.status == 'adjusted') &&
         data.checkInMethod is string && (
           data.checkInMethod == 'qr_wifi' ||
@@ -247,20 +248,19 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time && (
           (existing().ownerId == currentUid() &&
-            existing().status == 'working' &&
             incoming().status == 'completed' &&
             incoming().diff(existing()).affectedKeys().hasOnly([
-              'checkOutTime', 'totalMinutes', 'totalHours', 'hourlyRate',
-              'estimatedShiftPay', 'status', 'note', 'updatedAt'
+              'checkInTime', 'checkOutTime', 'totalMinutes', 'totalHours', 'hourlyRate',
+              'estimatedShiftPay', 'turnsJson', 'status', 'note', 'updatedAt'
             ])) ||
           (isAdmin() &&
             incoming().diff(existing()).affectedKeys().hasOnly([
               'date', 'checkInTime', 'checkOutTime', 'totalMinutes',
-              'totalHours', 'hourlyRate', 'estimatedShiftPay', 'status',
+              'totalHours', 'hourlyRate', 'estimatedShiftPay', 'turnsJson', 'status',
               'isLate', 'isEarlyLeave', 'note', 'adjustedBy', 'adjustedReason', 'updatedAt'
             ]))
         );
-      allow delete: if isSignedIn() && isValidId(recordId) && isAdmin();
+      allow delete: if isSignedIn() && isValidId(recordId) && (existing().ownerId == currentUid() || isAdmin());
     }
 
     // 4. Store Configuration Collection

@@ -26,6 +26,13 @@ export interface User {
   recentAttendanceSummary?: string;
 }
 
+export interface ShiftTurn {
+  checkInTime: string; // ISO
+  checkOutTime: string | null; // ISO
+  minutes: number;
+  note?: string;
+}
+
 export interface AttendanceRecord {
   id: string;
   userId: string;
@@ -39,6 +46,7 @@ export interface AttendanceRecord {
   totalHours?: number;
   hourlyRate?: number;
   estimatedShiftPay?: number;
+  turns?: ShiftTurn[];
   status: 'working' | 'completed' | 'adjusted';
   checkInMethod: 'qr_wifi' | 'manual_admin' | 'qr_gps' | 'qr_wifi_gps' | 'direct_button';
   checkInIp: string;

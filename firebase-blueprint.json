@@ -268,6 +268,11 @@
           "type": "number",
           "description": "Calculated wage in VND for this shift."
         },
+        "turnsJson": {
+          "type": "string",
+          "description": "JSON serialized list of individual check-in/check-out turns within the shift.",
+          "maxLength": 4000
+        },
         "status": {
           "type": "string",
           "description": "Current shift status.",

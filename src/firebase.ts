@@ -128,7 +128,46 @@ export function enrichAttendanceRecord(
 ): AttendanceRecord {
   const matchedUser = usersList.find((u) => u.id === record.userId);
   const hourlyRate = Number(record.hourlyRate || matchedUser?.hourlyRate || 28000);
-  const totalMinutes = Math.max(0, Number(record.totalMinutes) || 0);
+
+  let normalizedTurns = Array.isArray(record.turns) && record.turns.length > 0
+    ? record.turns.map((t) => {
+        const computedMins =
+          t.checkOutTime && (!t.minutes || t.minutes <= 0)
+            ? Math.max(
+                1,
+                Math.round(
+                  (new Date(t.checkOutTime).getTime() - new Date(t.checkInTime).getTime()) / 60000
+                )
+              )
+            : Math.max(0, Number(t.minutes) || 0);
+        return {
+          checkInTime: t.checkInTime,
+          checkOutTime: t.checkOutTime || null,
+          minutes: computedMins,
+          note: t.note || '',
+        };
+      })
+    : undefined;
+
+  let totalMinutes = Math.max(0, Number(record.totalMinutes) || 0);
+  if (normalizedTurns && normalizedTurns.length > 0 && record.status !== 'working') {
+    const sumTurns = normalizedTurns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
+    if (sumTurns > 0) {
+      totalMinutes = sumTurns;
+    }
+  }
+
+  if (!normalizedTurns || normalizedTurns.length === 0) {
+    normalizedTurns = [
+      {
+        checkInTime: record.checkInTime,
+        checkOutTime: record.checkOutTime || null,
+        minutes: totalMinutes,
+        note: record.note || '',
+      },
+    ];
+  }
+
   const totalHours = Number((totalMinutes / 60).toFixed(2));
   const estimatedShiftPay = Math.round((totalMinutes / 60) * hourlyRate);
 
@@ -138,6 +177,7 @@ export function enrichAttendanceRecord(
     totalHours,
     hourlyRate,
     estimatedShiftPay,
+    turns: normalizedTurns,
   };
 }
 
@@ -534,6 +574,7 @@ export async function saveAttendanceToFirestore(
     totalHours: Math.max(0, Math.min(24, Number(enriched.totalHours) || 0)),
     hourlyRate: Math.max(0, Math.min(10000000, Number(enriched.hourlyRate) || 28000)),
     estimatedShiftPay: Math.max(0, Math.min(240000000, Number(enriched.estimatedShiftPay) || 0)),
+    turnsJson: JSON.stringify(enriched.turns || []).slice(0, 4000),
   };
 
   const coreUpdatePayload = {
@@ -555,6 +596,7 @@ export async function saveAttendanceToFirestore(
     totalHours: Math.max(0, Math.min(24, Number(enriched.totalHours) || 0)),
     hourlyRate: Math.max(0, Math.min(10000000, Number(enriched.hourlyRate) || 28000)),
     estimatedShiftPay: Math.max(0, Math.min(240000000, Number(enriched.estimatedShiftPay) || 0)),
+    turnsJson: JSON.stringify(enriched.turns || []).slice(0, 4000),
   };
 
   try {
@@ -620,7 +662,16 @@ export async function fetchAttendanceFromFirestore(): Promise<AttendanceRecord[]
         const data = d.data();
         const totalMinutes = Number(data.totalMinutes) || 0;
         const hourlyRate = Number(data.hourlyRate) || 28000;
-        return {
+        let parsedTurns: AttendanceRecord['turns'] = undefined;
+        if (typeof data.turnsJson === 'string' && data.turnsJson.trim()) {
+          try {
+            const parsed = JSON.parse(data.turnsJson);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              parsedTurns = parsed;
+            }
+          } catch {}
+        }
+        return enrichAttendanceRecord({
           id: data.id || d.id,
           userId: data.userId || '',
           userName: data.userName || 'Nhân Viên',
@@ -639,6 +690,7 @@ export async function fetchAttendanceFromFirestore(): Promise<AttendanceRecord[]
             data.estimatedShiftPay !== undefined
               ? Number(data.estimatedShiftPay)
               : Math.round((totalMinutes / 60) * hourlyRate),
+          turns: parsedTurns,
           status:
             data.status === 'working' || data.status === 'adjusted' ? data.status : 'completed',
           checkInMethod: data.checkInMethod || 'direct_button',
@@ -655,7 +707,7 @@ export async function fetchAttendanceFromFirestore(): Promise<AttendanceRecord[]
             typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
           updatedAt:
             typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
-        } satisfies AttendanceRecord;
+        });
       })
       .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
 

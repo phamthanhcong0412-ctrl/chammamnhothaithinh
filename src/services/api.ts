@@ -266,15 +266,55 @@ export function consolidateCompletedShifts(
       (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
     );
     const base = sorted[0];
-    const totalMinutes = sorted.reduce((sum, item) => sum + (Number(item.totalMinutes) || 0), 0);
+
+    // Collect and deduplicate all individual turns across records in this shift
+    const turnMap = new Map<string, { checkInTime: string; checkOutTime: string | null; minutes: number; note?: string }>();
+    for (const item of sorted) {
+      const itemTurns =
+        Array.isArray(item.turns) && item.turns.length > 0
+          ? item.turns
+          : [
+              {
+                checkInTime: item.checkInTime,
+                checkOutTime: item.checkOutTime,
+                minutes: Number(item.totalMinutes) || 0,
+                note: item.note || '',
+              },
+            ];
+      for (const t of itemTurns) {
+        const key = `${t.checkInTime}_${t.checkOutTime || ''}`;
+        if (!turnMap.has(key)) {
+          const calcMins =
+            t.checkOutTime && (!t.minutes || t.minutes <= 0)
+              ? Math.max(
+                  1,
+                  Math.round(
+                    (new Date(t.checkOutTime).getTime() - new Date(t.checkInTime).getTime()) / 60000
+                  )
+                )
+              : Math.max(0, Number(t.minutes) || 0);
+          turnMap.set(key, {
+            checkInTime: t.checkInTime,
+            checkOutTime: t.checkOutTime || null,
+            minutes: calcMins,
+            note: t.note || '',
+          });
+        }
+      }
+    }
+
+    const mergedTurns = Array.from(turnMap.values()).sort(
+      (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
+    );
+    const totalMinutes = mergedTurns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
 
     let latestCheckOut = base.checkOutTime || null;
-    for (const item of sorted) {
+    for (const t of mergedTurns) {
       if (
-        item.checkOutTime &&
-        (!latestCheckOut || new Date(item.checkOutTime).getTime() > new Date(latestCheckOut).getTime())
+        t.checkOutTime &&
+        (!latestCheckOut || new Date(t.checkOutTime).getTime() > new Date(latestCheckOut).getTime())
       ) {
-        latestCheckOut = item.checkOutTime;
+        latestCheckOut = t.checkOutTime;
       }
     }
 
@@ -283,9 +323,10 @@ export function consolidateCompletedShifts(
     const merged = enrichAttendanceRecord(
       {
         ...base,
-        checkInTime: base.checkInTime,
+        checkInTime: mergedTurns[0]?.checkInTime || base.checkInTime,
         checkOutTime: latestCheckOut,
         totalMinutes,
+        turns: mergedTurns,
         shiftId: timing.shiftId,
         shiftName: timing.shiftName,
         isLate: false,
@@ -1052,14 +1093,38 @@ export const api = {
     const outTiming = evaluateShiftTiming(record.checkInTime, checkOutTime, cfg);
 
     if (existingShiftIdx !== -1) {
-      // Accumulate this turn's minutes into the existing shift record so 1 shift = 1 record
+      // Accumulate this turn's minutes & turn details into the existing shift record so 1 shift = 1 record
       const existing = attendance[existingShiftIdx];
-      const earliestCheckIn =
-        new Date(existing.checkInTime).getTime() <= new Date(record.checkInTime).getTime()
-          ? existing.checkInTime
-          : record.checkInTime;
-      const accumulatedMinutes = (Number(existing.totalMinutes) || 0) + diffMinutes;
+      const existingTurns =
+        Array.isArray(existing.turns) && existing.turns.length > 0
+          ? existing.turns
+          : [
+              {
+                checkInTime: existing.checkInTime,
+                checkOutTime: existing.checkOutTime,
+                minutes: Number(existing.totalMinutes) || 0,
+                note: existing.note || '',
+              },
+            ];
+
+      const newTurn = {
+        checkInTime: record.checkInTime,
+        checkOutTime,
+        minutes: diffMinutes,
+        note: payload.note || record.note || '',
+      };
+
+      const mergedTurns = [...existingTurns, newTurn].sort(
+        (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
+      );
+      const earliestCheckIn = mergedTurns[0].checkInTime;
+      const accumulatedMinutes = mergedTurns.reduce((sum, t) => sum + (Number(t.minutes) || 0), 0);
       const mergedTiming = evaluateShiftTiming(earliestCheckIn, checkOutTime, cfg);
+
+      const mergedNote = [existing.note, payload.note || record.note]
+        .map((s) => (s || '').trim())
+        .filter(Boolean)
+        .join(' | ');
 
       const mergedRecord: AttendanceRecord = enrichAttendanceRecord(
         {
@@ -1067,13 +1132,15 @@ export const api = {
           checkInTime: earliestCheckIn,
           checkOutTime,
           totalMinutes: accumulatedMinutes,
+          turns: mergedTurns,
           status: 'completed',
           shiftId: mergedTiming.shiftId,
           shiftName: mergedTiming.shiftName,
-          isLate: Boolean(existing.isLate),
-          isEarlyLeave: mergedTiming.isEarlyLeave,
-          checkOutIp: '14.161.45.88',
+          isLate: false,
+          isEarlyLeave: false,
+          checkOutIp: clientIp,
           checkOutGps: payload.gps,
+          note: mergedNote || existing.note || '',
           updatedAt: checkOutTime,
         },
         users
@@ -1097,23 +1164,33 @@ export const api = {
       return { success: true, record: mergedRecord, removedId: record.id };
     }
 
+    const singleTurnNote = payload.note
+      ? record.note
+        ? `${record.note} | ${payload.note}`
+        : payload.note
+      : record.note;
+
     const updatedRecord: AttendanceRecord = enrichAttendanceRecord(
       {
         ...record,
         checkOutTime,
         totalMinutes: diffMinutes,
+        turns: [
+          {
+            checkInTime: record.checkInTime,
+            checkOutTime,
+            minutes: diffMinutes,
+            note: singleTurnNote || '',
+          },
+        ],
         status: 'completed',
         shiftId: outTiming.shiftId,
         shiftName: outTiming.shiftName,
-        isLate: Boolean(record.isLate ?? outTiming.isLate),
-        isEarlyLeave: outTiming.isEarlyLeave,
-        checkOutIp: '14.161.45.88',
+        isLate: false,
+        isEarlyLeave: false,
+        checkOutIp: clientIp,
         checkOutGps: payload.gps,
-        note: payload.note
-          ? record.note
-            ? `${record.note} | ${payload.note}`
-            : payload.note
-          : record.note,
+        note: singleTurnNote,
         updatedAt: checkOutTime,
       },
       users
@@ -1178,11 +1255,19 @@ export const api = {
           checkInTime: payload.checkInTime,
           checkOutTime: payload.checkOutTime || null,
           totalMinutes,
+          turns: [
+            {
+              checkInTime: payload.checkInTime,
+              checkOutTime: payload.checkOutTime || null,
+              minutes: totalMinutes,
+              note: payload.note || '',
+            },
+          ],
           status,
           shiftId: timing.shiftId,
           shiftName: timing.shiftName,
-          isLate: timing.isLate,
-          isEarlyLeave: timing.isEarlyLeave,
+          isLate: false,
+          isEarlyLeave: false,
           note: payload.note,
           adjustedBy: payload.adjustedBy || 'Admin',
           adjustedReason: payload.adjustedReason || 'Quản lý chỉnh sửa công',
@@ -1203,13 +1288,21 @@ export const api = {
           checkInTime: payload.checkInTime,
           checkOutTime: payload.checkOutTime || null,
           totalMinutes,
+          turns: [
+            {
+              checkInTime: payload.checkInTime,
+              checkOutTime: payload.checkOutTime || null,
+              minutes: totalMinutes,
+              note: payload.note || '',
+            },
+          ],
           status,
           shiftId: timing.shiftId,
           shiftName: timing.shiftName,
           checkInMethod: 'manual_admin',
           checkInIp: 'Manual Entry (Admin)',
-          isLate: timing.isLate,
-          isEarlyLeave: timing.isEarlyLeave,
+          isLate: false,
+          isEarlyLeave: false,
           note: payload.note || '',
           adjustedBy: payload.adjustedBy || 'Admin',
           adjustedReason: payload.adjustedReason || 'Chấm công hộ bởi Quản lý',

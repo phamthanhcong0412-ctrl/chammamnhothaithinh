@@ -330,21 +330,51 @@ export const MonthlyReport: React.FC = () => {
                                             {isAfternoon ? 'Ca Chiều' : 'Ca Sáng'}
                                           </td>
                                           <td className="py-2 px-2 font-mono tabular-nums text-zinc-200">
-                                            {new Date(r.checkInTime).toLocaleTimeString('vi-VN', {
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                            })}
-                                            {' → '}
-                                            {r.checkOutTime
-                                              ? new Date(r.checkOutTime).toLocaleTimeString('vi-VN', {
-                                                  hour: '2-digit',
-                                                  minute: '2-digit',
-                                                })
-                                              : 'Đang làm'}
+                                            <div>
+                                              {new Date(r.checkInTime).toLocaleTimeString('vi-VN', {
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                              })}
+                                              {' → '}
+                                              {r.checkOutTime
+                                                ? new Date(r.checkOutTime).toLocaleTimeString('vi-VN', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                  })
+                                                : 'Đang làm'}
+                                            </div>
+                                            {Array.isArray(r.turns) && r.turns.length > 0 && r.status !== 'working' && (
+                                              <div className="mt-1 space-y-0.5">
+                                                {r.turns.map((t, idx) => (
+                                                  <div key={`${t.checkInTime}_${idx}`} className="text-[10px] text-zinc-400">
+                                                    <span className="text-indigo-400 font-semibold">Lần {idx + 1}:</span>{' '}
+                                                    {new Date(t.checkInTime).toLocaleTimeString('vi-VN', {
+                                                      hour: '2-digit',
+                                                      minute: '2-digit',
+                                                    })}
+                                                    {' → '}
+                                                    {t.checkOutTime
+                                                      ? new Date(t.checkOutTime).toLocaleTimeString('vi-VN', {
+                                                          hour: '2-digit',
+                                                          minute: '2-digit',
+                                                        })
+                                                      : '--'}{' '}
+                                                    <span className="text-zinc-300">({t.minutes}p)</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
                                           </td>
                                           <td className="py-2 px-2 font-mono tabular-nums font-semibold text-indigo-300">
-                                            {(r.totalMinutes / 60).toFixed(1)}h{' '}
-                                            <span className="text-zinc-500 font-normal">({r.totalMinutes}p)</span>
+                                            <div>
+                                              {(r.totalMinutes / 60).toFixed(1)}h{' '}
+                                              <span className="text-zinc-500 font-normal">({r.totalMinutes}p)</span>
+                                            </div>
+                                            {Array.isArray(r.turns) && r.turns.length > 1 && (
+                                              <div className="text-[10px] text-emerald-400 font-normal mt-0.5">
+                                                {r.turns.map((t) => `${t.minutes}p`).join(' + ')} = {r.totalMinutes}p
+                                              </div>
+                                            )}
                                           </td>
                                           <td className="py-2 px-2 font-mono tabular-nums text-emerald-400 font-semibold">
                                             {r.estimatedShiftPay
