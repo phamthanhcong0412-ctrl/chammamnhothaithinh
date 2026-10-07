@@ -167,8 +167,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUsers(enrichedUsers);
       setAttendance(enrichedAtt);
       try {
-        localStorage.setItem('chammam_users_v1', JSON.stringify(enrichedUsers));
-        localStorage.setItem('chammam_attendance_v1', JSON.stringify(enrichedAtt));
+        localStorage.removeItem('chammam_users_v1');
+        localStorage.removeItem('chammam_attendance_v1');
+        localStorage.setItem('chammam_users_v2', JSON.stringify(enrichedUsers));
+        localStorage.setItem('chammam_attendance_v2', JSON.stringify(enrichedAtt));
       } catch {}
       if (netInfo) setNetworkInfo(netInfo);
 

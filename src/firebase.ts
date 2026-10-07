@@ -414,7 +414,7 @@ export async function fetchUsersFromFirestore(): Promise<User[]> {
 
     if (list.length > 0) {
       try {
-        localStorage.setItem('chammam_users_v1', JSON.stringify(list));
+        localStorage.setItem('chammam_users_v2', JSON.stringify(list));
         fetch('/api/firebase/sync-users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -639,7 +639,7 @@ export async function fetchAttendanceFromFirestore(): Promise<AttendanceRecord[]
 
     if (list.length > 0) {
       try {
-        localStorage.setItem('chammam_attendance_v1', JSON.stringify(list));
+        localStorage.setItem('chammam_attendance_v2', JSON.stringify(list));
         fetch('/api/firebase/sync-attendance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

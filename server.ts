@@ -91,66 +91,6 @@ const DEFAULT_USERS: User[] = [
     joinDate: '2025-01-01',
     isActive: true,
   },
-  {
-    id: 'user_staff_1',
-    username: 'nv_mai',
-    password: '123456',
-    email: 'nhanvien.mai@gmail.com',
-    name: 'Nguyễn Thị Mai',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nv_mai',
-    role: 'staff',
-    employeeCode: 'NV-001',
-    position: 'Thu Ngân & Barista',
-    hourlyRate: 28000,
-    phone: '0912 345 678',
-    joinDate: '2025-02-15',
-    isActive: true,
-  },
-  {
-    id: 'user_staff_2',
-    username: 'nv_hung',
-    password: '123456',
-    email: 'nhanvien.hung@gmail.com',
-    name: 'Trần Văn Hưng',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nv_hung',
-    role: 'staff',
-    employeeCode: 'NV-002',
-    position: 'Pha Chế Chính',
-    hourlyRate: 32000,
-    phone: '0987 654 321',
-    joinDate: '2025-02-20',
-    isActive: true,
-  },
-  {
-    id: 'user_staff_3',
-    username: 'nv_nam',
-    password: '123456',
-    email: 'nhanvien.nam@gmail.com',
-    name: 'Lê Bảo Nam',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nv_nam',
-    role: 'staff',
-    employeeCode: 'NV-003',
-    position: 'Nhân Viên Phục Vụ',
-    hourlyRate: 25000,
-    phone: '0933 112 233',
-    joinDate: '2025-03-01',
-    isActive: true,
-  },
-  {
-    id: 'user_staff_4',
-    username: 'nv_anh',
-    password: '123456',
-    email: 'nhanvien.anh@gmail.com',
-    name: 'Phạm Quỳnh Anh',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nv_anh',
-    role: 'staff',
-    employeeCode: 'NV-004',
-    position: 'Thu Ngân & Chăm Sóc Khách',
-    hourlyRate: 28000,
-    phone: '0944 556 677',
-    joinDate: '2025-03-10',
-    isActive: true,
-  }
 ];
 
 function getTodayString(): string {
@@ -250,58 +190,8 @@ function saveData<T>(filePath: string, data: T): void {
   }
 }
 
-// Generate some sample attendance for realism if empty
 function generateInitialAttendance(): AttendanceRecord[] {
-  const today = getTodayString();
-  const now = new Date();
-  const morningCheckIn = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 7, 35, 0).toISOString();
-  const morningCheckOut = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 15, 30, 0).toISOString();
-
-  const secondCheckIn = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 5, 0).toISOString();
-
-  return [
-    {
-      id: 'att_sample_1',
-      userId: 'user_staff_1',
-      userName: 'Nguyễn Thị Mai',
-      userEmail: 'nhanvien.mai@gmail.com',
-      employeeCode: 'NV-001',
-      date: today,
-      checkInTime: morningCheckIn,
-      checkOutTime: morningCheckOut,
-      totalMinutes: 475,
-      status: 'completed',
-      checkInMethod: 'qr_wifi_gps',
-      checkInIp: '14.161.45.88',
-      checkInWifiSsid: 'Artisans_Coffee_Staff_5G',
-      checkOutIp: '14.161.45.88',
-      isLate: false,
-      isEarlyLeave: false,
-      note: 'Ca sáng hoàn thành tốt',
-      createdAt: morningCheckIn,
-      updatedAt: morningCheckOut,
-    },
-    {
-      id: 'att_sample_2',
-      userId: 'user_staff_2',
-      userName: 'Trần Văn Hưng',
-      userEmail: 'nhanvien.hung@gmail.com',
-      employeeCode: 'NV-002',
-      date: today,
-      checkInTime: secondCheckIn,
-      checkOutTime: null,
-      totalMinutes: 0,
-      status: 'working',
-      checkInMethod: 'qr_wifi_gps',
-      checkInIp: '14.161.45.88',
-      checkInWifiSsid: 'Artisans_Coffee_Staff_5G',
-      isLate: true,
-      isEarlyLeave: false,
-      note: 'Đang làm việc tại quán',
-      createdAt: secondCheckIn,
-      updatedAt: secondCheckIn,
-    }
-  ];
+  return [];
 }
 
 // In-memory / persistent references

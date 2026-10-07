@@ -24,11 +24,19 @@ import firebaseAppletConfig from '../../firebase-applet-config.json';
 const API_BASE = '/api';
 
 const STORAGE_KEYS = {
-  CONFIG: 'chammam_store_config_v1',
-  USERS: 'chammam_users_v1',
-  ATTENDANCE: 'chammam_attendance_v1',
-  EMAIL_LOGS: 'chammam_email_logs_v1',
+  CONFIG: 'chammam_store_config_v2',
+  USERS: 'chammam_users_v2',
+  ATTENDANCE: 'chammam_attendance_v2',
+  EMAIL_LOGS: 'chammam_email_logs_v2',
 };
+
+// Clean up legacy v1 local cache so removed local sample accounts never reappear
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem('chammam_users_v1');
+    window.localStorage.removeItem('chammam_attendance_v1');
+  }
+} catch {}
 
 const DEFAULT_CONFIG: StoreConfig = {
   storeName: 'Cháo Mầm Nhỏ Thái Thịnh',
@@ -95,66 +103,6 @@ const DEFAULT_USERS: User[] = [
     hourlyRate: 50000,
     phone: '0901 234 567',
     joinDate: '2025-01-01',
-    isActive: true,
-  },
-  {
-    id: 'user_staff_1',
-    username: 'nv_mai',
-    password: '123456',
-    email: 'nhanvien.mai@gmail.com',
-    name: 'Nguyễn Thị Mai',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nv_mai',
-    role: 'staff',
-    employeeCode: 'NV-001',
-    position: 'Thu Ngân & Barista',
-    hourlyRate: 28000,
-    phone: '0912 345 678',
-    joinDate: '2025-02-15',
-    isActive: true,
-  },
-  {
-    id: 'user_staff_2',
-    username: 'nv_hung',
-    password: '123456',
-    email: 'boyeucongaibo.b7@gmail.com',
-    name: 'Trần Văn Hưng',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nv_hung',
-    role: 'staff',
-    employeeCode: 'NV-002',
-    position: 'Pha Chế Chính',
-    hourlyRate: 32000,
-    phone: '0987 654 321',
-    joinDate: '2025-02-20',
-    isActive: true,
-  },
-  {
-    id: 'user_staff_3',
-    username: 'nv_nam',
-    password: '123456',
-    email: 'nhanvien.nam@gmail.com',
-    name: 'Lê Bảo Nam',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nv_nam',
-    role: 'staff',
-    employeeCode: 'NV-003',
-    position: 'Nhân Viên Phục Vụ',
-    hourlyRate: 25000,
-    phone: '0933 112 233',
-    joinDate: '2025-03-01',
-    isActive: true,
-  },
-  {
-    id: 'user_staff_4',
-    username: 'nv_anh',
-    password: '123456',
-    email: 'nhanvien.anh@gmail.com',
-    name: 'Phạm Quỳnh Anh',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=nv_anh',
-    role: 'staff',
-    employeeCode: 'NV-004',
-    position: 'Thu Ngân & Chăm Sóc Khách',
-    hourlyRate: 28000,
-    phone: '0944 556 677',
-    joinDate: '2025-03-10',
     isActive: true,
   },
 ];
