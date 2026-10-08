@@ -13,7 +13,7 @@ export interface User {
   joinDate: string;
   isActive: boolean;
   note?: string;
-  // Enriched Firebase management fields (hours, minutes, attendance stats)
+  // Enriched attendance stats and management fields (hours, minutes, attendance stats)
   totalMinutesWorked?: number;
   totalHoursWorked?: number;
   totalDaysWorked?: number;
@@ -107,15 +107,9 @@ export interface StoreConfig {
   autoEmailTime: string; // default "21:00"
   managerEmail: string;
   lastReportSentDate: string | null;
-  firebaseConfig?: {
-    adminEmail?: string;
-    apiKey?: string;
-    authDomain?: string;
-    projectId?: string;
-    firestoreDatabaseId?: string;
-    storageBucket?: string;
-    messagingSenderId?: string;
-    appId?: string;
+  supabaseConfig?: {
+    url?: string;
+    anonKey?: string;
   };
 }
 
@@ -124,6 +118,8 @@ export interface NetworkInfo {
   isAllowedIp: boolean;
   timestamp: number;
   detectedSsid?: string;
+  rawSsid?: string;
+  detectedBssid?: string;
   bssid24G?: string;
   bssid5G?: string;
   headers?: Record<string, string>;
