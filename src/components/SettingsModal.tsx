@@ -235,15 +235,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setSaveSuccess(true);
       showToast({
         type: 'success',
-        title: 'Đã lưu lên bảng Supabase (store_config)!',
-        description: 'Mọi thiết lập WiFi, BSSID, Khóa kép GPS và Ca làm việc đã được đồng bộ ngay lập tức.',
+        title: 'Đã lưu cài đặt thành công!',
+        description: 'Thông tin cửa hàng, WiFi, GPS và ca làm việc đã được cập nhật.',
       });
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
       showToast({
         type: 'error',
         title: 'Lỗi khi lưu cấu hình',
-        description: err.message || 'Không thể lưu cấu hình cửa hàng lên Supabase',
+        description: err.message || 'Không thể lưu cài đặt cửa hàng.',
       });
     } finally {
       setIsSaving(false);
@@ -342,13 +342,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base font-bold text-zinc-100">Thiết Lập Cửa Hàng & Chặn Chấm Công</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono">
-                  Supabase: store_config
+                <h3 className="text-base font-bold text-zinc-100">Cài Đặt Cửa Hàng</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  Đã kết nối
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Mọi cấu hình được lưu trực tiếp lên bảng <code className="text-indigo-300">store_config (id: config_default)</code> trên Supabase
+                Cấu hình WiFi quán, định vị GPS, ca làm việc và thông tin hiển thị
               </p>
             </div>
           </div>
@@ -370,7 +370,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Wifi className="w-3.5 h-3.5" /> Thiết Lập WiFi & Chặn Chấm Công
+            <Wifi className="w-3.5 h-3.5" /> WiFi & Định Vị
           </button>
           <button
             onClick={() => setActiveTab('shifts')}
@@ -380,7 +380,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Clock className="w-3.5 h-3.5" /> Khung Giờ Ca Làm Việc
+            <Clock className="w-3.5 h-3.5" /> Ca Làm Việc
           </button>
           <button
             onClick={() => setActiveTab('general')}
@@ -390,7 +390,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Settings className="w-3.5 h-3.5" /> Thông Tin Cửa Hàng
+            <Settings className="w-3.5 h-3.5" /> Thông Tin Quán
           </button>
           <button
             onClick={() => setActiveTab('supabase')}
@@ -400,7 +400,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Database className="w-3.5 h-3.5 text-emerald-400" /> Bảng Cấu Hình Supabase
+            <Database className="w-3.5 h-3.5 text-emerald-400" /> Dữ Liệu & Sao Lưu
           </button>
         </div>
 
@@ -456,7 +456,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <div>
             {saveSuccess && (
               <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4" /> Đã lưu lên bảng Supabase (store_config) thành công!
+                <CheckCircle2 className="w-4 h-4" /> Đã lưu cài đặt thành công!
               </span>
             )}
           </div>
@@ -475,7 +475,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              {isSaving ? 'Đang lưu Supabase...' : 'Lưu Cấu Hình Lên Supabase'}
+              {isSaving ? 'Đang lưu...' : 'Lưu Cài Đặt'}
             </button>
           </div>
         </div>

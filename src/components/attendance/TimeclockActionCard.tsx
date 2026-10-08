@@ -56,9 +56,9 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
           <ShieldCheck className="w-6 h-6" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-base font-bold text-amber-100">Tài Khoản Quản Lý Cửa Hàng</h3>
+          <h3 className="text-base font-bold text-amber-100">Tài khoản Quản lý</h3>
           <p className="text-xs text-amber-200/80 max-w-md mx-auto leading-relaxed">
-            Quản lý không cần chấm công cá nhân. Vui lòng chuyển sang mục <strong>Theo Dõi Trực Tiếp</strong> để điều hành ca làm việc và chấm công hộ nhân viên.
+            Quản lý không cần chấm công cá nhân. Chuyển sang mục <strong>Theo Dõi Trực Tiếp</strong> để xem ca làm việc và chấm công hộ nhân viên.
           </p>
         </div>
       </div>
@@ -73,7 +73,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
           <div className="space-y-2.5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              ĐANG TRONG CA LÀM VIỆC
+              ĐANG TRONG CA
             </div>
 
             <div className="text-4xl sm:text-5xl font-mono font-black text-emerald-400 tracking-tight tabular-nums">
@@ -82,7 +82,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
 
             <div className="flex items-center justify-center gap-3 text-xs text-zinc-400">
               <span>
-                Vào lúc:{' '}
+                Vào ca:{' '}
                 <strong className="text-zinc-200 font-mono">
                   {new Date(activeRecord.checkInTime).toLocaleTimeString('vi-VN', {
                     hour: '2-digit',
@@ -93,7 +93,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
               <span>·</span>
               <span className="text-emerald-400 font-mono font-semibold flex items-center gap-0.5">
                 <DollarSign className="w-3.5 h-3.5" />
-                Tạm tính hôm nay: {liveEstimatedPayToday.toLocaleString('vi-VN')}đ
+                Lương tạm tính: {liveEstimatedPayToday.toLocaleString('vi-VN')}đ
               </span>
             </div>
           </div>
@@ -101,13 +101,13 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
           <div className="space-y-1.5 py-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-800/90 border border-zinc-700/80 text-zinc-300 text-xs font-semibold">
               <Clock className="w-3.5 h-3.5 text-indigo-400" />
-              Sẵn sàng chấm công
+              Sẵn sàng vào ca
             </div>
             <h3 className="text-base font-bold text-zinc-100">
-              Bấm Check-in Khi Bắt Đầu Ca Làm Việc
+              Bấm Check-in Khi Bắt Đầu Làm Việc
             </h3>
             <p className="text-xs text-zinc-400">
-              Nếu ra ngoài giữa ca có thể Check-out và Check-in lại, hệ thống tự gộp vào cùng 1 ca.
+              Hệ thống tự động lưu giờ làm và tính lương theo ca.
             </p>
           </div>
         )}
@@ -122,8 +122,8 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
           onChange={(e) => onShiftNoteChange(e.target.value)}
           placeholder={
             activeRecord
-              ? 'Ghi chú khi ra ca (VD: Tăng ca dọn quán, xin về sớm...)'
-              : 'Ghi chú khi vào ca nếu có (VD: Làm thay ca, tăng ca...)'
+              ? 'Ghi chú ra ca (nếu có)...'
+              : 'Ghi chú vào ca (nếu có)...'
           }
           className="w-full pl-10 pr-3.5 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
         />
@@ -162,10 +162,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
         <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-semibold flex items-start gap-2">
           <Lock className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <strong>Đã chặn Check-in / Check-out:</strong> Thiết bị của bạn không kết nối đúng mạng WiFi{' '}
-            <strong>"{storeConfig?.wifiSsid}"</strong> (BSSID:{' '}
-            <code className="font-mono text-rose-300">{storeConfig?.wifiBssid || 'A4:2B:B0:C1:9E:58'}</code>) tại cửa hàng. Vui lòng kết nối đúng WiFi quán và bấm{' '}
-            <strong>"Kiểm tra lại"</strong>.
+            Chưa kết nối đúng WiFi <strong>"{storeConfig?.wifiSsid}"</strong>. Vui lòng kết nối WiFi của quán và bấm <strong>"Kiểm tra lại"</strong>.
           </div>
         </div>
       )}
@@ -174,9 +171,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
         <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-semibold flex items-start gap-2">
           <Lock className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <strong>Đã chặn Check-in / Check-out (Khóa Kép Vị Trí):</strong>{' '}
-            {gpsError ||
-              `Bạn đang cách quán ${userGps?.distance ?? '...'}m (vượt quá bán kính cho phép ${storeConfig?.storeGps?.radiusMeters || 80}m).`}
+            {gpsError || `Vị trí của bạn đang cách quán ${userGps?.distance ?? '...'}m (tối đa cho phép ${storeConfig?.storeGps?.radiusMeters || 80}m).`}
           </div>
         </div>
       )}
@@ -185,7 +180,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
         <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs font-semibold flex items-start gap-2">
           <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <strong>Đã chặn Check-in / Check-out:</strong> Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình trong Thiết Lập Cửa Hàng.
+            Hiện tại đang ngoài khung giờ ca làm việc.
           </div>
         </div>
       )}

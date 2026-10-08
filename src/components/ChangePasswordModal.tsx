@@ -50,7 +50,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
     setIsSubmitting(true);
     try {
       await changePassword(currentPassword.trim(), newPassword.trim());
-      setSuccessMsg('Đổi mật khẩu thành công! Đã lưu lên hệ thống cơ sở dữ liệu.');
+      setSuccessMsg('Đổi mật khẩu thành công!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -169,7 +169,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
 
           <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800/80 text-[11px] text-zinc-400 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Mật khẩu mới được đồng bộ Realtime tức thì lên cơ sở dữ liệu.</span>
+            <span>Mật khẩu mới sẽ có hiệu lực ngay cho lần đăng nhập kế tiếp.</span>
           </div>
 
           <div className="pt-2 flex items-center justify-end gap-2">
@@ -185,7 +185,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
               disabled={isSubmitting}
               className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 disabled:opacity-50 cursor-pointer"
             >
-              {isSubmitting ? 'Đang cập nhật...' : 'Lưu Mật Khẩu Mới'}
+              {isSubmitting ? 'Đang cập nhật...' : 'Lưu Mật Khẩu'}
             </button>
           </div>
         </form>

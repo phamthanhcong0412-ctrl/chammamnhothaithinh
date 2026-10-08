@@ -80,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       : 'text-zinc-400 hover:text-zinc-100'
                   }`}
                 >
-                  <LayoutDashboard className="w-3.5 h-3.5" /> Theo Dõi Trực Tiếp
+                  <LayoutDashboard className="w-3.5 h-3.5" /> Ca Trực Tiếp
                 </button>
 
                 <button
@@ -91,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       : 'text-zinc-400 hover:text-zinc-100'
                   }`}
                 >
-                  <CalendarDays className="w-3.5 h-3.5" /> Bảng Công & Lương
+                  <CalendarDays className="w-3.5 h-3.5" /> Bảng Lương
                 </button>
 
                 <button
@@ -126,7 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       : 'text-zinc-400 hover:text-zinc-100'
                   }`}
                 >
-                  <CalendarDays className="w-3.5 h-3.5" /> Bảng Công Của Tôi
+                  <CalendarDays className="w-3.5 h-3.5" /> Bảng Lương Của Tôi
                 </button>
               </>
             )}
@@ -139,7 +139,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isAdmin && (
               <button
                 onClick={onOpenEmailModal}
-                title="Báo cáo email tự động 21h"
+                title="Gửi báo cáo email"
                 className="p-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-indigo-300 transition-colors"
               >
                 <Mail className="w-4 h-4" />
@@ -150,11 +150,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isAdmin && (
               <button
                 onClick={onOpenSettingsModal}
-                title="Thiết lập cửa hàng & cấu hình WiFi trên Supabase"
+                title="Cài đặt cửa hàng"
                 className="px-3 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Settings className="w-4 h-4 text-indigo-400" />
-                <span className="hidden sm:inline">Thiết lập cửa hàng</span>
+                <span className="hidden sm:inline">Cài đặt quán</span>
               </button>
             )}
 
@@ -216,7 +216,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-indigo-300 hover:bg-indigo-500/15 flex items-center gap-2 transition-colors cursor-pointer"
                       >
                         <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
-                        Đổi mật khẩu cá nhân
+                        Đổi mật khẩu
                       </button>
 
                       <button
@@ -227,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 transition-colors cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5" />
-                        Đăng xuất khỏi tài khoản
+                        Đăng xuất
                       </button>
                     </div>
                   </div>
@@ -256,7 +256,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <LayoutDashboard className="w-5 h-5" />
-              <span className="text-[10px] mt-0.5">Dashboard</span>
+              <span className="text-[10px] mt-0.5">Trực Tiếp</span>
             </button>
 
             <button
@@ -266,7 +266,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <CalendarDays className="w-5 h-5" />
-              <span className="text-[10px] mt-0.5">Bảng Công & Lương</span>
+              <span className="text-[10px] mt-0.5">Bảng Lương</span>
             </button>
 
             <button
@@ -298,7 +298,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <CalendarDays className="w-5 h-5" />
-              <span className="text-[10px] mt-0.5">Bảng Công Của Tôi</span>
+              <span className="text-[10px] mt-0.5">Bảng Lương</span>
             </button>
           </>
         )}

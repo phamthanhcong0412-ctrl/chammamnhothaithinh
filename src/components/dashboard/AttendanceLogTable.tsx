@@ -120,7 +120,7 @@ export const AttendanceLogTable: React.FC<AttendanceLogTableProps> = ({
             {filteredLogRecords.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-8 text-center text-zinc-500">
-                  Không có bản ghi chấm công nào khớp bộ lọc.
+                  Chưa có lượt chấm công nào.
                 </td>
               </tr>
             ) : (
@@ -219,7 +219,7 @@ export const AttendanceLogTable: React.FC<AttendanceLogTableProps> = ({
                         <button
                           onClick={() => onEditRecord(record)}
                           className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
-                          title="Chỉnh sửa ca"
+                          title="Sửa ca"
                         >
                           <Edit className="w-3.5 h-3.5" />
                         </button>
@@ -241,10 +241,10 @@ export const AttendanceLogTable: React.FC<AttendanceLogTableProps> = ({
                               ? 'bg-rose-600 text-white'
                               : 'hover:bg-rose-500/10 text-zinc-500 hover:text-rose-400'
                           }`}
-                          title="Xoá bản ghi này"
+                          title="Xóa"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          {isConfirming && <span>Xoá?</span>}
+                          {isConfirming && <span>Xóa?</span>}
                         </button>
                       </div>
                     </td>

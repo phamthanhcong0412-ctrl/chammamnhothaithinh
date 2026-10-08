@@ -24,7 +24,7 @@ export const KpiMetricsGrid: React.FC<KpiMetricsGridProps> = ({
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
       <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
         <div>
-          <span className="text-xs text-zinc-400 font-medium">Nhân sự trong ca</span>
+          <span className="text-xs text-zinc-400 font-medium">Đang làm việc</span>
           <div className="text-2xl font-black text-emerald-400 font-mono tabular-nums mt-1">
             {workingCount} <span className="text-xs font-normal text-zinc-500">/ {totalStaffCount} NV</span>
           </div>
@@ -36,7 +36,7 @@ export const KpiMetricsGrid: React.FC<KpiMetricsGridProps> = ({
 
       <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
         <div>
-          <span className="text-xs text-zinc-400 font-medium">Tổng giờ hôm nay</span>
+          <span className="text-xs text-zinc-400 font-medium">Tổng giờ làm</span>
           <div className="text-2xl font-black text-indigo-400 font-mono tabular-nums mt-1">
             {totalHoursToday}h <span className="text-xs font-normal text-zinc-500">({totalUniqueShiftsToday} ca)</span>
           </div>
@@ -48,11 +48,11 @@ export const KpiMetricsGrid: React.FC<KpiMetricsGridProps> = ({
 
       <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
         <div>
-          <span className="text-xs text-zinc-400 font-medium">Đã xong ca hôm nay</span>
+          <span className="text-xs text-zinc-400 font-medium">Đã xong ca</span>
           <div className="text-2xl font-black text-teal-400 font-mono tabular-nums mt-1">
             {completedShiftsCount} ca{' '}
             <span className="text-xs font-sans font-normal text-zinc-500">
-              (Chưa vào: {absentCount} NV)
+              (Chưa vào: {absentCount})
             </span>
           </div>
         </div>
@@ -63,7 +63,7 @@ export const KpiMetricsGrid: React.FC<KpiMetricsGridProps> = ({
 
       <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
         <div>
-          <span className="text-xs text-zinc-400 font-medium">Quỹ lương hôm nay</span>
+          <span className="text-xs text-zinc-400 font-medium">Tiền lương hôm nay</span>
           <div className="text-2xl font-black text-amber-400 font-mono tabular-nums mt-1">
             {todayEstimatedPay.toLocaleString('vi-VN')}đ
           </div>

@@ -26,7 +26,7 @@ export const ActionHudLoading: React.FC<ActionHudLoadingProps> = ({ message }) =
           </div>
           <div className="text-[11px] text-zinc-400 flex items-center justify-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Đã khoá thao tác chống bấm trùng lặp</span>
+            <span>Hệ thống đang xử lý, vui lòng chờ...</span>
           </div>
         </div>
       </div>

@@ -117,7 +117,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   usersRef.current = users;
 
   const runWithHudLoading = useCallback(async <T,>(message: string, fn: () => Promise<T>): Promise<T> => {
-    if (isActionLockedRef.current) throw new Error('Hệ thống đang xử lý thao tác trước đó, vui lòng đợi...');
+    if (isActionLockedRef.current) throw new Error('Hệ thống đang xử lý, vui lòng chờ...');
     isActionLockedRef.current = true;
     setActionLoadingMessage(message);
     const start = Date.now();
@@ -248,7 +248,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loginWithCredentials = async (username: string, password: string): Promise<User> => {
-    return runWithHudLoading('Đang xác thực tài khoản đăng nhập...', async () => {
+    return runWithHudLoading('Đang đăng nhập...', async () => {
       const res = await api.login(username.trim(), password);
       localStorage.setItem('chammam_auth_username', res.user.username);
       const immediateUser = enrichUserWithAttendanceStats(res.user, attendance);
@@ -267,13 +267,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loginWithGoogle = async (): Promise<User | void> => {
-    return runWithHudLoading('Đang kết nối Google qua Supabase...', async () => {
+    return runWithHudLoading('Đang kết nối Google...', async () => {
       await loginWithGoogleOAuth();
     });
   };
 
   const syncUsersToSupabase = async (): Promise<SupabaseSyncResult> => {
-    return runWithHudLoading('Đang đồng bộ dữ liệu thời gian thực với Supabase...', async () => {
+    return runWithHudLoading('Đang đồng bộ dữ liệu...', async () => {
       const { consolidated, removedIds } = consolidateCompletedShifts(attendance, users);
       const enrichedAtt = consolidated.map((r) => enrichAttendanceRecord(r, users));
       const enrichedUsers = users.map((u) => enrichUserWithAttendanceStats(u, enrichedAtt));
@@ -307,7 +307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     note?: string;
   }): Promise<AttendanceRecord> => {
     if (!currentUser) throw new Error('Vui lòng đăng nhập trước khi chấm công');
-    return runWithHudLoading('Đang xử lý Check-in vào ca...', async () => {
+    return runWithHudLoading('Đang check-in...', async () => {
       const res = await api.checkIn({
         userId: currentUser.id,
         qrToken: payload?.qrToken,
@@ -329,7 +329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     note?: string;
   }): Promise<AttendanceRecord> => {
     if (!currentUser) throw new Error('Vui lòng đăng nhập');
-    return runWithHudLoading('Đang xử lý Check-out ra ca...', async () => {
+    return runWithHudLoading('Đang check-out...', async () => {
       const res = await api.checkOut({
         userId: currentUser.id,
         qrToken: payload?.qrToken,
@@ -350,7 +350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const checkOutUser = async (userId: string, note?: string): Promise<AttendanceRecord> => {
     const targetName = users.find((u) => u.id === userId)?.name || 'nhân viên';
-    return runWithHudLoading(`Đang chốt ra ca cho ${targetName}...`, async () => {
+    return runWithHudLoading(`Đang chốt ca cho ${targetName}...`, async () => {
       const res = await api.checkOut({
         userId,
         wifiSsid: storeConfig?.wifiSsid,
@@ -378,7 +378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     adjustedBy?: string;
     adjustedReason?: string;
   }): Promise<AttendanceRecord> => {
-    return runWithHudLoading('Đang lưu dữ liệu chấm công...', async () => {
+    return runWithHudLoading('Đang lưu chấm công...', async () => {
       const res = await api.manualAttendance({ ...payload, adjustedBy: currentUser?.name || 'Quản lý' });
       const enrichedRec = enrichAttendanceRecord(res.record, users);
       const rawNextAtt = payload.id
@@ -392,7 +392,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteAttendance = async (id: string) => {
-    return runWithHudLoading('Đang xoá bản ghi chấm công...', async () => {
+    return runWithHudLoading('Đang xóa chấm công...', async () => {
       const targetRec = attendance.find((r) => r.id === id);
       await api.deleteAttendance(id);
       const nextAtt = attendance.filter((r) => r.id !== id);
@@ -411,7 +411,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateConfig = async (cfg: Partial<StoreConfig>) => {
-    return runWithHudLoading('Đang lưu thiết lập cửa hàng lên Supabase...', async () => {
+    return runWithHudLoading('Đang lưu cài đặt...', async () => {
       const res = await api.updateConfig(cfg);
       setStoreConfig(res.config);
       await saveStoreConfigToSupabase(res.config).catch(() => {});
@@ -421,7 +421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addUser = async (userData: Partial<User>) => {
-    return runWithHudLoading('Đang tạo hồ sơ nhân sự mới...', async () => {
+    return runWithHudLoading('Đang thêm nhân viên...', async () => {
       const res = await api.createUser(userData);
       const enrichedUser = enrichUserWithAttendanceStats(res.user, attendance);
       setUsers((prev) => [...prev.filter((u) => u.id !== enrichedUser.id), enrichedUser]);
@@ -431,7 +431,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateUser = async (id: string, userData: Partial<User>) => {
-    return runWithHudLoading('Đang cập nhật thông tin nhân sự...', async () => {
+    return runWithHudLoading('Đang cập nhật nhân viên...', async () => {
       const res = await api.updateUser(id, userData);
       const enrichedUser = enrichUserWithAttendanceStats(res.user, attendance);
       setUsers((prev) => prev.map((u) => (u.id === id ? enrichedUser : u)));
@@ -442,7 +442,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteUser = async (id: string) => {
-    return runWithHudLoading('Đang xoá tài khoản nhân sự...', async () => {
+    return runWithHudLoading('Đang xóa nhân viên...', async () => {
       await api.deleteUser(id);
       setUsers((prev) => prev.filter((u) => u.id !== id));
       await deleteUserFromSupabase(id).catch((e) => console.warn('Supabase deleteUser sync:', e));
@@ -451,7 +451,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const changePassword = async (currentPassword: string, newPassword: string): Promise<User> => {
     if (!currentUser) throw new Error('Vui lòng đăng nhập để đổi mật khẩu.');
-    return runWithHudLoading('Đang cập nhật mật khẩu bảo mật...', async () => {
+    return runWithHudLoading('Đang đổi mật khẩu...', async () => {
       const res = await api.changePassword(currentUser.id, currentPassword, newPassword);
       setCurrentUser(res.user);
       setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? res.user : u)));
@@ -461,7 +461,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const sendEmailReport = async (recipient?: string): Promise<EmailLog> => {
-    return runWithHudLoading('Đang gửi báo cáo chấm công qua Email...', async () => {
+    return runWithHudLoading('Đang gửi báo cáo...', async () => {
       const res = await api.sendEmailReport({ recipient: recipient || storeConfig?.managerEmail, trigger: 'manual' });
       return res.log;
     });

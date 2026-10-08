@@ -59,10 +59,10 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/90">
           <div>
             <h3 className="text-sm font-bold text-zinc-100">
-              {editingUser ? 'Chỉnh Sửa Hồ Sơ Nhân Sự & Tài Khoản (Supabase)' : 'Cấp Phát Tài Khoản Nhân Sự Mới (Supabase)'}
+              {editingUser ? 'Chỉnh Sửa Nhân Viên' : 'Thêm Nhân Viên Mới'}
             </h3>
             <p className="text-[11px] text-zinc-400 mt-0.5">
-              Mọi thông tin cá nhân, lương giờ và lịch sử công được lưu trữ đồng bộ trên Supabase
+              Thông tin nhân sự và mức lương giờ làm việc
             </p>
           </div>
           <button
@@ -81,10 +81,10 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
             </div>
           )}
 
-          {/* Role Selection: Nhân viên or Quản lý */}
+          {/* Role Selection */}
           <div>
             <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-              Phân Quyền Loại Tài Khoản
+              Loại tài khoản
             </label>
             <div className="grid grid-cols-2 gap-2.5">
               <button
@@ -104,7 +104,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 <div>
                   <div className="text-xs font-bold">Nhân Viên</div>
                   <div className="text-[10px] text-zinc-400 mt-0.5">
-                    Đăng nhập chấm công & xem lương cá nhân
+                    Chấm công và xem bảng lương cá nhân
                   </div>
                 </div>
               </button>
@@ -124,20 +124,20 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                   }`}
                 />
                 <div>
-                  <div className="text-xs font-bold">Quản Lý (Admin)</div>
+                  <div className="text-xs font-bold">Quản Lý</div>
                   <div className="text-[10px] text-zinc-400 mt-0.5">
-                    Quản lý quán, duyệt công & cấp tài khoản
+                    Theo dõi ca làm, duyệt công và quản lý nhân sự
                   </div>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Issued Login Credentials Section */}
+          {/* Login Credentials Section */}
           <div className="p-4 rounded-2xl bg-zinc-950 border border-indigo-500/30 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5" /> Thông Tin Tài Khoản Cấp Phát (Dùng Để Đăng Nhập)
+                <KeyRound className="w-3.5 h-3.5" /> Tài Khoản Đăng Nhập
               </span>
             </div>
 
@@ -165,7 +165,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-zinc-300 mb-1">
-                  Mật khẩu cấp phát <span className="text-rose-400">*</span>
+                  Mật khẩu <span className="text-rose-400">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -207,7 +207,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">Mã Nhân Sự</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Mã Nhân Viên</label>
               <input
                 type="text"
                 required
@@ -227,7 +227,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 maxLength={100}
                 value={formData.position}
                 onChange={(e) => onFormDataChange({ ...formData, position: e.target.value.slice(0, 100) })}
-                placeholder="Thu ngân, Pha chế, Quản lý cửa hàng..."
+                placeholder="Thu ngân, Pha chế, Phục vụ..."
                 className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -249,7 +249,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">Lương Mỗi Giờ (VND)</label>
+              <label className="block text-xs font-medium text-zinc-300 mb-1">Lương Giờ (VND)</label>
               <input
                 type="number"
                 min={0}
@@ -286,14 +286,14 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
 
           <div>
             <label className="block text-xs font-medium text-zinc-300 mb-1">
-              Ghi Chú Quản Lý Nhân Sự (Lưu trên Supabase)
+              Ghi Chú Nội Bộ
             </label>
             <input
               type="text"
               maxLength={500}
               value={formData.note}
               onChange={(e) => onFormDataChange({ ...formData, note: e.target.value.slice(0, 500) })}
-              placeholder="VD: Ca sáng cố định, làm việc chăm chỉ, thưởng chuyên cần..."
+              placeholder="VD: Ca sáng cố định, có thể đổi ca..."
               className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
             />
           </div>
@@ -310,11 +310,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
               type="submit"
               className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 cursor-pointer"
             >
-              {editingUser
-                ? 'Lưu Thay Đổi Lên Supabase'
-                : formData.role === 'admin'
-                ? 'Cấp Tài Khoản Quản Lý'
-                : 'Cấp Tài Khoản Nhân Viên'}
+              {editingUser ? 'Lưu Thay Đổi' : 'Tạo Tài Khoản'}
             </button>
           </div>
         </form>

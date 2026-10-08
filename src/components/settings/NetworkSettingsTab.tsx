@@ -76,20 +76,20 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-zinc-100">
-                  Chọn Nhanh WiFi Đang Kết Nối Trên Thiết Bị Này
+                  Lấy Nhanh WiFi Đang Kết Nối
                 </h4>
                 {isCurrentIpInAllowedList && !formData.bypassIpCheck ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    Đang dùng làm WiFi chuẩn
+                    Đã cho phép
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                    Chưa khoá theo IP này
+                    Chưa thêm IP này
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-zinc-400 mt-0.5">
-                Chỉ cần bấm nút quét bên dưới, hệ thống sẽ tự nhận diện IP mạng và BSSID cả 2 băng tần 2.4G & 5G
+                Lấy nhanh địa chỉ IP và mã nhận diện mạng WiFi quán đang kết nối
               </p>
             </div>
           </div>
@@ -101,19 +101,19 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 text-xs font-semibold flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isDetectingWifi ? 'animate-spin' : ''}`} />
-            <span>{isDetectingWifi ? 'Đang quét WiFi...' : 'Quét WiFi Hiện Tại'}</span>
+            <span>{isDetectingWifi ? 'Đang quét WiFi...' : 'Quét Mạng Hiện Tại'}</span>
           </button>
         </div>
 
         {/* Live Detected Info */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-1">
-            <span className="text-[11px] text-zinc-400 block">Địa chỉ IP đường truyền WiFi quán đang nhận:</span>
+            <span className="text-[11px] text-zinc-400 block">Địa chỉ IP mạng hiện tại:</span>
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-emerald-400">{currentLiveIp}</span>
               {isCurrentIpInAllowedList ? (
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                  ✓ Có trong danh sách cho phép
+                  ✓ Đã cho phép
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
@@ -124,7 +124,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
           </div>
 
           <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-1">
-            <span className="text-[11px] text-zinc-400 block">Mã Modem BSSID (Cả 2 băng tần 2.4G / 5G):</span>
+            <span className="text-[11px] text-zinc-400 block">Mã Modem BSSID:</span>
             <div className="flex items-center gap-2">
               <Cpu className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
               <span className="font-mono text-xs font-bold text-indigo-300 truncate">
@@ -138,7 +138,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
           <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800">
             <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] text-zinc-400">Tên WiFi Cửa Hàng (SSID):</label>
+              <label className="text-[11px] text-zinc-400">Tên WiFi Quán (SSID):</label>
               <button
                 type="button"
                 onClick={() =>
@@ -210,11 +210,11 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-xs font-bold text-emerald-300">
-                Tự Động Chấp Nhận Cả 2 Sóng Băng Tần 2.4GHz & 5GHz Của Cùng Cục WiFi
+                Hỗ trợ cả 2 sóng 2.4GHz & 5GHz của cùng Modem
               </span>
             </div>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-              Bắt sóng nào cũng chấm công được
+              Sóng nào cũng hợp lệ
             </span>
           </div>
 
@@ -285,7 +285,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
         >
           <Sparkles className="w-4 h-4" />
           <span>
-            Chọn Nhanh & Lưu Cả 2 Sóng ({liveDualBandProfile.ssid24G} & {liveDualBandProfile.ssid5G}) Làm Chuẩn Chấm Công
+            Lưu WiFi Này Làm Chuẩn Chấm Công
           </span>
         </button>
       </div>
@@ -297,11 +297,11 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             <div className="flex items-center gap-2">
               <Lock className="w-4 h-4 text-rose-400" />
               <span className="text-xs font-bold text-zinc-100">
-                Chặn Cứng Check-in / Check-out Khi Sai Mạng WiFi (Kiểm Tra IP Quán)
+                Bắt Buộc Dùng WiFi Quán Khi Chấm Công
               </span>
             </div>
             <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-              Khi <strong>BẬT</strong>: Nhân viên bắt buộc phải kết nối đúng mạng WiFi của quán (khớp địa chỉ IP đã lưu bên dưới) và đúng khung giờ ca mới được phép bấm Check-in / Check-out. Nếu dùng 4G/5G hoặc ở nhà sẽ bị chặn hoàn toàn.
+              Khi <strong>BẬT</strong>: Nhân viên phải kết nối đúng WiFi quán (khớp địa chỉ IP cho phép) và đúng ca làm việc mới có thể vào/ra ca.
             </p>
           </div>
 
@@ -339,8 +339,8 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
         >
           <span className="font-semibold">
             {!formData.bypassIpCheck
-              ? 'Trạng thái: ĐANG BẬT CHẶN NGHIÊM NGẶT THEO CẤU HÌNH WIFI & CA LÀM VIỆC'
-              : 'Trạng thái: Đang tắt kiểm tra IP (Chế độ linh hoạt - chỉ chặn theo khung giờ ca)'}
+              ? 'Trạng thái: Đang bắt buộc kết nối WiFi quán'
+              : 'Trạng thái: Chế độ linh hoạt (Không bắt buộc WiFi)'}
           </span>
         </div>
       </div>
@@ -349,7 +349,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
       <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <label className="text-xs font-bold text-zinc-200">
-            Danh Sách Địa Chỉ IP WiFi Quán Hợp Lệ ({formData.allowedIps.length})
+            Danh Sách IP WiFi Cho Phép ({formData.allowedIps.length})
           </label>
           <div className="flex items-center gap-2">
             {!isCurrentIpInAllowedList && currentLiveIp && (
@@ -358,7 +358,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
                 onClick={handleAddConnectedIpToList}
                 className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 transition-colors cursor-pointer"
               >
-                <Plus className="w-3 h-3" /> Thêm IP Đang Dùng ({currentLiveIp})
+                <Plus className="w-3 h-3" /> Thêm IP Này ({currentLiveIp})
               </button>
             )}
           </div>
@@ -423,11 +423,11 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-emerald-400" />
               <span className="text-xs font-bold text-zinc-100">
-                Khóa Kép Vị Trí Địa Lý (GPS Geolocation Dual-Lock)
+                Xác Thực Vị Trí GPS
               </span>
             </div>
             <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-              Khi <strong>BẬT</strong>: Bên cạnh việc bắt đúng WiFi/IP quán, thiết bị của nhân viên còn bắt buộc phải nằm trong bán kính thực tế của cửa hàng.
+              Khi <strong>BẬT</strong>: Thiết bị của nhân viên bắt buộc phải nằm trong phạm vi bán kính của quán mới có thể chấm công.
             </p>
           </div>
 
@@ -536,7 +536,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
               <span>
                 {isDetectingGps
                   ? 'Đang lấy tọa độ GPS hiện tại...'
-                  : 'Lấy Tọa Độ GPS Hiện Tại Của Máy Này Làm Vị Trí Quán'}
+                  : 'Lấy Vị Trí Hiện Tại Làm Tọa Độ Quán'}
               </span>
             </button>
           </div>

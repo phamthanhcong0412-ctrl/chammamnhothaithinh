@@ -137,35 +137,35 @@ export class AttendanceService {
   }): Promise<{ success: boolean; record: AttendanceRecord }> {
     const lockKey = `check_${payload.userId}`;
     if (activeCheckActionLocks.has(lockKey)) {
-      throw new Error('Hệ thống đang xử lý thao tác chấm công của bạn, vui lòng không bấm lặp lại.');
+      throw new Error('Hệ thống đang xử lý, vui lòng chờ trong giây lát.');
     }
     activeCheckActionLocks.add(lockKey);
 
     try {
       const users = await userService.getUsers();
       const user = users.find((u) => u.id === payload.userId);
-      if (!user) throw new Error('Không tìm thấy thông tin nhân viên trên hệ thống.');
+      if (!user) throw new Error('Không tìm thấy thông tin nhân viên.');
 
       const cfg = await configService.getConfig().catch(() => DEFAULT_STORE_CONFIG);
       const rawAttendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
       const { consolidated: attendance } = consolidateCompletedShifts(rawAttendance, users, cfg);
 
       if (attendance.some((r) => r.userId === payload.userId && r.status === 'working')) {
-        throw new Error('Bạn đang trong một lượt làm việc chưa Check-out, không thể Check-in trùng lặp.');
+        throw new Error('Bạn đang trong ca làm việc, vui lòng check-out trước khi vào ca mới.');
       }
 
       const clientIp = await detectClientPublicIp(false);
 
       if (!isClientIpAllowedByConfig(clientIp, cfg)) {
         throw new Error(
-          `Chặn chấm công: Thiết bị hiện tại không kết nối đúng mạng WiFi "${cfg.wifiSsid}" (BSSID: ${cfg.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`
+          `Vui lòng kết nối đúng mạng WiFi "${cfg.wifiSsid}" của quán để chấm công.`
         );
       }
 
       if (cfg.requireGps && cfg.storeGps) {
         if (!payload.gps || typeof payload.gps.lat !== 'number' || typeof payload.gps.lng !== 'number') {
           throw new Error(
-            'Chặn chấm công (Khóa Kép Vị Trí): Vui lòng bật quyền Định vị (GPS) trên trình duyệt để xác nhận đang có mặt tại quán.'
+            'Vui lòng bật định vị GPS trên trình duyệt để xác nhận vị trí tại quán.'
           );
         }
         const dist = calculateGpsDistanceMeters(
@@ -177,7 +177,7 @@ export class AttendanceService {
         const maxRadius = cfg.storeGps.radiusMeters || 80;
         if (dist > maxRadius) {
           throw new Error(
-            `Chặn chấm công (Khóa Kép Vị Trí): Bạn đang cách cửa hàng ${dist}m (vượt quá bán kính cho phép ${maxRadius}m).`
+            `Bạn đang ở cách quán ${dist}m (vượt quá bán kính cho phép ${maxRadius}m).`
           );
         }
       }
@@ -186,7 +186,7 @@ export class AttendanceService {
       const shiftCheck = isTimeInConfiguredShifts(now, cfg);
       if (!shiftCheck.inShiftWindow) {
         throw new Error(
-          `Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình (${shiftCheck.allowedRangesText}).`
+          `Hiện tại chưa đến hoặc đã qua giờ vào ca (${shiftCheck.allowedRangesText}).`
         );
       }
 
@@ -199,7 +199,7 @@ export class AttendanceService {
         return inDiff < 15000 || outDiff < 5000;
       });
       if (hasDuplicateSameTimestamp) {
-        throw new Error('Bạn vừa thao tác chấm công cách đây vài giây, vui lòng không bấm liên tục.');
+        throw new Error('Thao tác quá nhanh, vui lòng chờ giây lát rồi thử lại.');
       }
 
       const checkInTime = now.toISOString();
@@ -262,7 +262,7 @@ export class AttendanceService {
   }): Promise<{ success: boolean; record: AttendanceRecord; removedId?: string; removedIds?: string[] }> {
     const lockKey = `check_${payload.userId}`;
     if (activeCheckActionLocks.has(lockKey)) {
-      throw new Error('Hệ thống đang xử lý thao tác chấm công của bạn, vui lòng không bấm lặp lại.');
+      throw new Error('Hệ thống đang xử lý, vui lòng chờ trong giây lát.');
     }
     activeCheckActionLocks.add(lockKey);
 
@@ -300,14 +300,14 @@ export class AttendanceService {
       if (!payload.managerOverride) {
         if (!isClientIpAllowedByConfig(clientIp, cfg)) {
           throw new Error(
-            `Chặn chấm công: Thiết bị hiện tại không kết nối đúng mạng WiFi "${cfg.wifiSsid}" (BSSID: ${cfg.wifiBssid || 'A4:2B:B0:C1:9E:58'}) tại cửa hàng.`
+            `Vui lòng kết nối đúng mạng WiFi "${cfg.wifiSsid}" của quán để hết ca.`
           );
         }
 
         if (cfg.requireGps && cfg.storeGps) {
           if (!payload.gps || typeof payload.gps.lat !== 'number' || typeof payload.gps.lng !== 'number') {
             throw new Error(
-              'Chặn chấm công (Khóa Kép Vị Trí): Vui lòng bật quyền Định vị (GPS) trên trình duyệt để xác nhận đang có mặt tại quán.'
+              'Vui lòng bật định vị GPS trên trình duyệt để xác nhận vị trí tại quán.'
             );
           }
           const dist = calculateGpsDistanceMeters(
@@ -319,7 +319,7 @@ export class AttendanceService {
           const maxRadius = cfg.storeGps.radiusMeters || 80;
           if (dist > maxRadius) {
             throw new Error(
-              `Chặn chấm công (Khóa Kép Vị Trí): Bạn đang cách cửa hàng ${dist}m (vượt quá bán kính cho phép ${maxRadius}m).`
+              `Bạn đang ở cách quán ${dist}m (vượt quá bán kính cho phép ${maxRadius}m).`
             );
           }
         }
@@ -327,7 +327,7 @@ export class AttendanceService {
         const shiftCheck = isTimeInConfiguredShifts(now, cfg);
         if (!shiftCheck.inShiftWindow) {
           throw new Error(
-            `Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã cấu hình (${shiftCheck.allowedRangesText}).`
+            `Hiện tại chưa đến hoặc đã qua giờ hết ca (${shiftCheck.allowedRangesText}).`
           );
         }
       }

@@ -91,7 +91,7 @@ export const StaffAttendance: React.FC = () => {
         setGpsError(null);
       },
       () => {
-        setGpsError('Chưa cấp quyền vị trí GPS trên trình duyệt');
+        setGpsError('Chưa cấp quyền vị trí GPS');
       },
       { enableHighAccuracy: true, timeout: 7000 }
     );
@@ -136,7 +136,7 @@ export const StaffAttendance: React.FC = () => {
         inShiftWindow: true,
         isAfternoon: false,
         activeShiftTitle: `Ca Sáng (${formatMinutesToTime(mStart)} - ${formatMinutesToTime(mEnd)})`,
-        badgeText: 'Đang trong Ca Sáng',
+        badgeText: 'Trong Ca Sáng',
         checkInRange: `${formatMinutesToTime(mCheckInStart)} - ${formatMinutesToTime(mEnd)}`,
         checkOutRange: `${formatMinutesToTime(mStart)} - ${formatMinutesToTime(mCheckOutEnd)}`,
         endTimeStr: formatMinutesToTime(mEnd),
@@ -148,9 +148,9 @@ export const StaffAttendance: React.FC = () => {
         inShiftWindow: true,
         isAfternoon: true,
         activeShiftTitle: `Ca Chiều (${formatMinutesToTime(aStart)} - ${formatMinutesToTime(aEnd)})`,
-        badgeText: 'Đang trong Ca Chiều',
+        badgeText: 'Trong Ca Chiều',
         checkInRange: `${formatMinutesToTime(aCheckInStart)} - ${formatMinutesToTime(aEnd)}`,
-        checkOutRange: `${formatMinutesToTime(aStart)} - ${formatMinutesToTime(aCheckOutEnd)}`,
+        checkOutRange: `${formatMinutesToTime(aStart)} - ${formatMinutesToTime(aEnd)}`,
         endTimeStr: formatMinutesToTime(aEnd),
       };
     }
@@ -159,7 +159,7 @@ export const StaffAttendance: React.FC = () => {
       inShiftWindow: false,
       isAfternoon: nowMins >= 14 * 60,
       activeShiftTitle: nowMins < mCheckInStart ? 'Chưa tới Ca Sáng' : 'Ngoài Giờ Làm Việc',
-      badgeText: 'Ngoài Khung Giờ Ca',
+      badgeText: 'Ngoài Giờ Ca',
       checkInRange: `${formatMinutesToTime(mCheckInStart)} - ${formatMinutesToTime(mEnd)} | ${formatMinutesToTime(aCheckInStart)} - ${formatMinutesToTime(aEnd)}`,
       checkOutRange: '--',
     };
@@ -201,7 +201,7 @@ export const StaffAttendance: React.FC = () => {
     setIsRecheckingNetwork(true);
     setStatusMessage(null);
     try {
-      await runWithHudLoading('Đang làm mới thông tin mạng & ca làm việc...', async () => {
+      await runWithHudLoading('Đang kiểm tra kết nối...', async () => {
         await refreshData();
       });
       if (storeConfig?.requireGps) {
@@ -209,12 +209,12 @@ export const StaffAttendance: React.FC = () => {
       }
       setStatusMessage({
         type: 'success',
-        text: 'Đã cập nhật trạng thái kết nối mới nhất.',
+        text: 'Đã làm mới trạng thái kết nối.',
       });
     } catch {
       setStatusMessage({
         type: 'error',
-        text: 'Không thể làm mới dữ liệu kết nối.',
+        text: 'Không thể kiểm tra kết nối lúc này.',
       });
     } finally {
       setIsRecheckingNetwork(false);
@@ -253,7 +253,7 @@ export const StaffAttendance: React.FC = () => {
     if (!isWifiValid) {
       setStatusMessage({
         type: 'error',
-        text: `Chặn chấm công: Bạn chưa kết nối đúng mạng WiFi "${storeConfig?.wifiSsid}".`,
+        text: `Chưa kết nối đúng WiFi "${storeConfig?.wifiSsid}". Vui lòng kết nối lại.`,
       });
       return;
     }
@@ -261,7 +261,7 @@ export const StaffAttendance: React.FC = () => {
     if (!isGpsValid) {
       setStatusMessage({
         type: 'error',
-        text: gpsError || `Chặn chấm công (Khóa Kép Vị Trí): Bạn không đứng trong bán kính ${storeConfig?.storeGps?.radiusMeters || 80}m tại cửa hàng.`,
+        text: gpsError || `Bạn đang ở ngoài bán kính cửa hàng (${storeConfig?.storeGps?.radiusMeters || 80}m).`,
       });
       return;
     }
@@ -269,7 +269,7 @@ export const StaffAttendance: React.FC = () => {
     if (!isShiftTimeValid) {
       setStatusMessage({
         type: 'error',
-        text: 'Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã lưu trong cấu hình cửa hàng.',
+        text: 'Hiện tại đang ngoài khung giờ ca làm việc.',
       });
       return;
     }
@@ -277,7 +277,7 @@ export const StaffAttendance: React.FC = () => {
     if (activeRecord) {
       setStatusMessage({
         type: 'error',
-        text: 'Bạn đang trong một lượt làm việc chưa Check-out, không thể Check-in trùng lặp.',
+        text: 'Bạn đang trong ca, vui lòng Check-out trước khi Check-in lại.',
       });
       return;
     }
@@ -301,12 +301,12 @@ export const StaffAttendance: React.FC = () => {
 
       setStatusMessage({
         type: 'success',
-        text: 'Check-in thành công! Chúc bạn một ca làm việc vui vẻ và năng suất.',
+        text: 'Check-in thành công! Chúc bạn làm việc tốt.',
       });
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Check-in thất bại. Vui lòng thử lại.',
+        text: err.message || 'Check-in không thành công. Vui lòng thử lại.',
       });
     } finally {
       processingRef.current = false;
@@ -321,7 +321,7 @@ export const StaffAttendance: React.FC = () => {
     if (!isWifiValid) {
       setStatusMessage({
         type: 'error',
-        text: `Chặn chấm công: Bạn chưa kết nối đúng mạng WiFi "${storeConfig?.wifiSsid}".`,
+        text: `Chưa kết nối đúng WiFi "${storeConfig?.wifiSsid}". Vui lòng kết nối lại.`,
       });
       return;
     }
@@ -329,7 +329,7 @@ export const StaffAttendance: React.FC = () => {
     if (!isGpsValid) {
       setStatusMessage({
         type: 'error',
-        text: gpsError || `Chặn chấm công (Khóa Kép Vị Trí): Bạn không đứng trong bán kính ${storeConfig?.storeGps?.radiusMeters || 80}m tại cửa hàng.`,
+        text: gpsError || `Bạn đang ở ngoài bán kính cửa hàng (${storeConfig?.storeGps?.radiusMeters || 80}m).`,
       });
       return;
     }
@@ -337,7 +337,7 @@ export const StaffAttendance: React.FC = () => {
     if (!isShiftTimeValid) {
       setStatusMessage({
         type: 'error',
-        text: 'Chặn chấm công: Hiện tại đang ngoài khung giờ ca làm việc đã lưu trong cấu hình cửa hàng.',
+        text: 'Hiện tại đang ngoài khung giờ ca làm việc.',
       });
       return;
     }
@@ -345,7 +345,7 @@ export const StaffAttendance: React.FC = () => {
     if (!activeRecord) {
       setStatusMessage({
         type: 'error',
-        text: 'Bạn chưa có lượt làm việc nào đang mở để Check-out.',
+        text: 'Bạn chưa vào ca để Check-out.',
       });
       return;
     }
@@ -369,7 +369,7 @@ export const StaffAttendance: React.FC = () => {
 
       setStatusMessage({
         type: 'success',
-        text: `Đã Check-out hoàn tất! Tổng thời gian ca: ${(record.totalMinutes / 60).toFixed(1)}h (${record.totalMinutes} phút).`,
+        text: `Check-out thành công! Tổng thời gian: ${(record.totalMinutes / 60).toFixed(1)}h.`,
       });
     } catch (err: any) {
       setStatusMessage({

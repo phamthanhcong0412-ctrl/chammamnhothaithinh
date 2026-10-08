@@ -161,10 +161,10 @@ export const EmployeeManagement: React.FC = () => {
       };
       if (editingUser) {
         await updateUser(editingUser.id, payload);
-        triggerToast(`Đã cập nhật hồ sơ "${payload.name}" lên Supabase!`);
+        triggerToast(`Đã cập nhật nhân viên "${payload.name}"!`);
       } else {
         await addUser(payload);
-        triggerToast(`Đã thêm nhân sự "${payload.name}" (${payload.username}) lên Supabase!`);
+        triggerToast(`Đã thêm nhân viên "${payload.name}"!`);
       }
       setIsModalOpen(false);
     } catch (err: any) {
@@ -178,7 +178,7 @@ export const EmployeeManagement: React.FC = () => {
       const deletedName = userToDelete.name;
       await deleteUser(userToDelete.id);
       setUserToDelete(null);
-      triggerToast(`Đã xoá tài khoản "${deletedName}" khỏi Supabase!`);
+      triggerToast(`Đã xoá nhân viên "${deletedName}"!`);
     } catch (err: any) {
       setFormError(err.message || 'Lỗi khi xoá tài khoản');
     }
@@ -188,9 +188,9 @@ export const EmployeeManagement: React.FC = () => {
     try {
       setIsSyncingSb(true);
       const res = await syncUsersToSupabase();
-      triggerToast(`Đã đồng bộ ${res.syncedCount} nhân sự lên Supabase!`);
+      triggerToast(`Đã đồng bộ ${res.syncedCount} nhân viên!`);
     } catch (err: any) {
-      triggerToast(err.message || 'Đã lưu dữ liệu hồ sơ nhân sự.');
+      triggerToast(err.message || 'Đã lưu danh sách nhân viên.');
     } finally {
       setIsSyncingSb(false);
     }
@@ -224,10 +224,10 @@ export const EmployeeManagement: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2">
         <div>
           <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
-            <Users className="w-5 h-5 text-indigo-400" /> Quản Lý Nhân Sự & Cấp Phát Tài Khoản
+            <Users className="w-5 h-5 text-indigo-400" /> Quản Lý Nhân Sự
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Quản lý danh sách nhân viên, quản lý, mức lương giờ và tài khoản đăng nhập hệ thống
+            Danh sách nhân viên, mức lương và tài khoản đăng nhập
           </p>
         </div>
 
@@ -236,10 +236,10 @@ export const EmployeeManagement: React.FC = () => {
             onClick={handleSyncAllToSupabase}
             disabled={isSyncingSb}
             className="px-3.5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-            title="Đồng bộ danh sách nhân sự lên Supabase"
+            title="Đồng bộ danh sách nhân viên"
           >
             <CloudUpload className="w-4 h-4 text-emerald-400" />
-            {isSyncingSb ? 'Đang đồng bộ Supabase...' : 'Đồng Bộ Lên Supabase'}
+            {isSyncingSb ? 'Đang đồng bộ...' : 'Đồng Bộ Dữ Liệu'}
           </button>
 
           <button

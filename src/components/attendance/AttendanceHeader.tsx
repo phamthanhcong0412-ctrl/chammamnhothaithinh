@@ -64,7 +64,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
         </p>
       </div>
 
-      {/* Unified Shift Window & Store WiFi/BSSID Status Card */}
+      {/* Shift Window & Store WiFi Status Card */}
       <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 space-y-3">
         {/* Active Shift Window Row */}
         <div className="flex items-center justify-between gap-2">
@@ -84,12 +84,12 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
               </div>
               {shiftStatus.inShiftWindow ? (
                 <div className="text-[11px] text-zinc-400 font-mono truncate">
-                  Nhận công: <span className="text-emerald-400">{shiftStatus.checkInRange}</span> · Chốt ca:{' '}
+                  Nhận ca: <span className="text-emerald-400">{shiftStatus.checkInRange}</span> · Hết ca:{' '}
                   <span className="text-indigo-400">{shiftStatus.checkOutRange}</span>
                 </div>
               ) : (
                 <div className="text-[11px] text-rose-400 font-medium truncate">
-                  Ngoài giờ làm việc — Đã khóa Check-in / Check-out
+                  Ngoài giờ ca làm việc
                 </div>
               )}
             </div>
@@ -106,17 +106,13 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
           </span>
         </div>
 
-        {/* Store WiFi & BSSID Verification Row */}
+        {/* Store WiFi Row */}
         <div className="pt-2.5 border-t border-zinc-800/80 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs min-w-0">
             <Wifi className={`w-4 h-4 shrink-0 ${isWifiValid ? 'text-emerald-400' : 'text-rose-400'}`} />
             <div className="min-w-0">
               <span className="text-zinc-400 truncate block">
-                WiFi quán: <strong className="text-zinc-200">{storeConfig?.wifiSsid}</strong>{' '}
-                <span className="text-[10px] text-indigo-300 font-semibold">(Hỗ trợ cả 2 sóng 2.4G & 5G)</span>
-              </span>
-              <span className="text-[10px] text-zinc-500 font-mono block truncate">
-                BSSID: {storeConfig?.wifiBssid || 'A4:2B:B0:C1:9E:58 (2.4G) / 59 (5G)'}
+                WiFi: <strong className="text-zinc-200">{storeConfig?.wifiSsid}</strong>
               </span>
             </div>
           </div>
@@ -124,11 +120,11 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             {isWifiValid ? (
               <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Hợp lệ (2.4G/5G)
+                <CheckCircle2 className="w-3.5 h-3.5" /> Đã kết nối
               </span>
             ) : (
               <span className="text-[11px] font-bold text-rose-400 flex items-center gap-1">
-                <Lock className="w-3.5 h-3.5" /> Sai WiFi
+                <Lock className="w-3.5 h-3.5" /> Chưa kết nối
               </span>
             )}
             <button
@@ -136,7 +132,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
               onClick={handleRecheckWifiAndConfig}
               disabled={isRecheckingNetwork}
               className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
-              title="Kiểm tra lại kết nối WiFi và đồng bộ cấu hình mới nhất"
+              title="Kiểm tra lại kết nối"
             >
               <RefreshCw className={`w-3 h-3 text-indigo-400 ${isRecheckingNetwork ? 'animate-spin' : ''}`} />
               <span>Kiểm tra lại</span>
@@ -144,19 +140,19 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
           </div>
         </div>
 
-        {/* Dual-Lock GPS Row if required */}
+        {/* GPS Row if required */}
         {storeConfig?.requireGps && (
           <div className="pt-2.5 border-t border-zinc-800/80 flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 min-w-0">
               <MapPin className={`w-4 h-4 shrink-0 ${isGpsValid ? 'text-emerald-400' : 'text-rose-400'}`} />
               <div className="min-w-0">
                 <span className="text-zinc-400 block truncate">
-                  Khóa Kép Vị Trí GPS: {userGps?.distance !== undefined ? (
+                  Vị trí GPS: {userGps?.distance !== undefined ? (
                     <strong className={isGpsValid ? 'text-emerald-300' : 'text-rose-300'}>
                       Cách quán {userGps.distance}m (Cho phép {storeConfig.storeGps?.radiusMeters || 80}m)
                     </strong>
                   ) : (
-                    <span className="text-zinc-500">Đang kiểm tra tọa độ...</span>
+                    <span className="text-zinc-500">Đang xác định vị trí...</span>
                   )}
                 </span>
                 {gpsError && <span className="text-[10px] text-rose-400 block">{gpsError}</span>}
@@ -168,7 +164,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
               onClick={checkEmployeeGps}
               className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold text-[11px] shrink-0 cursor-pointer"
             >
-              Lấy lại GPS
+              Định vị lại
             </button>
           </div>
         )}

@@ -113,11 +113,11 @@ export const MonthlyReport: React.FC = () => {
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-indigo-400 shrink-0" />
             <h2 className="text-xl font-bold text-zinc-100 tracking-tight">
-              {isAdmin ? 'Bảng Công & Quyết Toán Lương Tháng' : 'Bảng Công & Phiếu Lương Cá Nhân'}
+              {isAdmin ? 'Bảng Lương Tháng' : 'Bảng Lương Của Tôi'}
             </h2>
           </div>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Kỳ lương tháng {selectedMonth} · Tự động cộng dồn phút làm & đơn giá theo giờ
+            Tháng {selectedMonth} · Tính theo giờ làm thực tế
           </p>
         </div>
 
@@ -137,7 +137,7 @@ export const MonthlyReport: React.FC = () => {
             onClick={handleExportCSV}
             className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-400" /> Xuất Excel/CSV
+            <Download className="w-3.5 h-3.5 text-emerald-400" /> Xuất file Excel
           </button>
 
           <button
@@ -155,7 +155,7 @@ export const MonthlyReport: React.FC = () => {
         <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
           <div>
             <span className="text-xs text-zinc-400 font-medium">
-              {isAdmin ? 'Tổng giờ công toàn quán' : 'Tổng giờ làm trong tháng'}
+              {isAdmin ? 'Tổng giờ làm toàn quán' : 'Tổng giờ làm trong tháng'}
             </span>
             <div className="text-2xl font-black text-indigo-400 font-mono tabular-nums mt-1">
               {totalStoreHours.toFixed(1)}h{' '}
@@ -170,7 +170,7 @@ export const MonthlyReport: React.FC = () => {
         <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
           <div>
             <span className="text-xs text-zinc-400 font-medium">
-              {isAdmin ? 'Tổng số ca hoàn thành' : 'Số ca đã làm'}
+              {isAdmin ? 'Số ca đã hoàn thành' : 'Số ca đã làm'}
             </span>
             <div className="text-2xl font-black text-emerald-400 font-mono tabular-nums mt-1">
               {isAdmin ? totalRecords : summaries[0]?.recordsCount || 0} ca
@@ -184,7 +184,7 @@ export const MonthlyReport: React.FC = () => {
         <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
           <div>
             <span className="text-xs text-zinc-400 font-medium">
-              {isAdmin ? 'Tổng quỹ lương tháng' : 'Lương tạm tính'}
+              {isAdmin ? 'Tổng tiền lương' : 'Lương tạm tính'}
             </span>
             <div className="text-2xl font-black text-amber-400 font-mono tabular-nums mt-1">
               {totalStoreSalary.toLocaleString('vi-VN')}đ
@@ -221,8 +221,8 @@ export const MonthlyReport: React.FC = () => {
                 <th className="py-3 px-3 text-center font-semibold">Ngày công</th>
                 <th className="py-3 px-3 text-center font-semibold">Số ca</th>
                 <th className="py-3 px-3 text-center font-semibold">Tổng giờ (phút)</th>
-                <th className="py-3 px-3 text-right font-semibold">Thực lĩnh tạm tính</th>
-                <th className="py-3 px-4 text-right font-semibold">Chi tiết / Phiếu lương</th>
+                <th className="py-3 px-3 text-right font-semibold">Lương tạm tính</th>
+                <th className="py-3 px-4 text-right font-semibold">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60">
@@ -274,7 +274,7 @@ export const MonthlyReport: React.FC = () => {
                               title="Xem phiếu lương chi tiết"
                             >
                               <Receipt className="w-3.5 h-3.5" />
-                              <span>Phiếu lương</span>
+                              <span>Xem phiếu</span>
                             </button>
 
                             <button
@@ -414,7 +414,7 @@ export const MonthlyReport: React.FC = () => {
                   <Receipt className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-zinc-100">Phiếu Lương Nhân Viên</h3>
+                  <h3 className="text-sm font-bold text-zinc-100">Phiếu Lương Chi Tiết</h3>
                   <p className="text-[11px] text-zinc-400">
                     {storeConfig?.storeName || 'Cháo Mầm Nhỏ Thái Thịnh'} · Tháng {selectedMonth}
                   </p>
@@ -462,9 +462,9 @@ export const MonthlyReport: React.FC = () => {
 
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-semibold text-emerald-300">TỔNG LƯƠNG THỰC LĨNH</div>
+                  <div className="text-xs font-semibold text-emerald-300">TỔNG TIỀN LƯƠNG</div>
                   <div className="text-[11px] text-zinc-400 mt-0.5">
-                    Tính theo {payslipUser.totalMinutes} phút công thực tế
+                    Tổng cộng {payslipUser.totalMinutes} phút làm việc
                   </div>
                 </div>
                 <div className="text-xl font-black font-mono tabular-nums text-emerald-400">
@@ -477,7 +477,7 @@ export const MonthlyReport: React.FC = () => {
                   onClick={() => window.print()}
                   className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Printer className="w-3.5 h-3.5" /> In phiếu lương
+                  <Printer className="w-3.5 h-3.5" /> In phiếu
                 </button>
                 <button
                   onClick={() => setPayslipUser(null)}

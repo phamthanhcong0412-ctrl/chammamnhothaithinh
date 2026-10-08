@@ -92,13 +92,13 @@ export const EmployeeCardList: React.FC<EmployeeCardListProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold text-zinc-400 flex items-center gap-1.5">
                     <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
-                    Tài khoản cấp phát
+                    Tài khoản
                   </span>
                   <button
                     type="button"
                     onClick={() => onCopyCredentials(user)}
                     className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors cursor-pointer"
-                    title="Sao chép tài khoản & mật khẩu để gửi cho nhân sự"
+                    title="Sao chép tài khoản"
                   >
                     {isCopied ? (
                       <>
@@ -108,7 +108,7 @@ export const EmployeeCardList: React.FC<EmployeeCardListProps> = ({
                     ) : (
                       <>
                         <Copy className="w-3 h-3" />
-                        <span>Sao chép TK</span>
+                        <span>Sao chép</span>
                       </>
                     )}
                   </button>

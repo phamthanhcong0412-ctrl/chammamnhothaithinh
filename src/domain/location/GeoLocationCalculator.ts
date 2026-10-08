@@ -31,7 +31,7 @@ export function isGpsWithinStoreRadius(
       isAllowed: false,
       distanceMeters: 0,
       maxRadiusMeters,
-      error: 'Vui lòng bật quyền định vị (GPS) trên trình duyệt để xác nhận đang có mặt tại quán.',
+      error: 'Vui lòng bật quyền truy cập vị trí trên trình duyệt.',
     };
   }
 
@@ -50,6 +50,6 @@ export function isGpsWithinStoreRadius(
     maxRadiusMeters,
     error: isAllowed
       ? undefined
-      : `Chặn chấm công (Khóa Kép Vị Trí): Bạn đang cách cửa hàng ${distanceMeters}m (vượt quá bán kính cho phép ${maxRadiusMeters}m).`,
+      : `Bạn đang ở cách quán ${distanceMeters}m (vượt quá bán kính cho phép ${maxRadiusMeters}m).`,
   };
 }

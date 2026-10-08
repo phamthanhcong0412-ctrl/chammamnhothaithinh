@@ -17,9 +17,9 @@ export const DeleteEmployeeModal: React.FC<DeleteEmployeeModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4 text-zinc-100 shadow-2xl">
-        <h3 className="text-sm font-bold text-zinc-100">Xác nhận xoá tài khoản</h3>
+        <h3 className="text-sm font-bold text-zinc-100">Xóa tài khoản nhân viên</h3>
         <p className="text-xs text-zinc-400 leading-relaxed">
-          Bạn có chắc chắn muốn xoá tài khoản <strong className="text-zinc-200">{userToDelete.name}</strong> ({userToDelete.username}) khỏi hệ thống và Supabase không?
+          Bạn có chắc chắn muốn xóa nhân viên <strong className="text-zinc-200">{userToDelete.name}</strong> ({userToDelete.username}) khỏi hệ thống không?
         </p>
         <div className="flex items-center justify-end gap-2 pt-2">
           <button
@@ -34,7 +34,7 @@ export const DeleteEmployeeModal: React.FC<DeleteEmployeeModalProps> = ({
             onClick={onConfirmDelete}
             className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white cursor-pointer"
           >
-            Xoá Tài Khoản
+            Xóa Nhân Viên
           </button>
         </div>
       </div>

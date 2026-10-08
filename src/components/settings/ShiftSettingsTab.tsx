@@ -18,7 +18,7 @@ export const ShiftSettingsTab: React.FC<ShiftSettingsTabProps> = ({
   return (
     <div className="space-y-4">
       <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-xs text-indigo-200">
-        Nhân viên <strong>chỉ được phép Check-in và Check-out trong khung giờ của ca làm việc</strong> (tính từ giờ Mở Check-in trước ca đến giờ Đóng Check-out sau ca). Ngoài khoảng này hệ thống sẽ tự động chặn chấm công.
+        Nhân viên chỉ có thể <strong>vào ca và hết ca trong khung giờ quy định</strong> (tính từ thời gian cho phép vào sớm đến khi đóng ca). Ngoài thời gian này, hệ thống sẽ tạm khóa chấm công.
       </div>
 
       {formData.shifts.map((shift, idx) => (
@@ -72,7 +72,7 @@ export const ShiftSettingsTab: React.FC<ShiftSettingsTabProps> = ({
 
           <div className="grid grid-cols-2 gap-3 pt-1 border-t border-zinc-900">
             <div>
-              <label className="block text-[11px] text-zinc-400 mb-1">Cho phép Check-in sớm trước (phút)</label>
+              <label className="block text-[11px] text-zinc-400 mb-1">Cho phép vào sớm trước (phút)</label>
               <input
                 type="number"
                 min={0}
@@ -88,7 +88,7 @@ export const ShiftSettingsTab: React.FC<ShiftSettingsTabProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] text-zinc-400 mb-1">Cho phép Check-out muộn sau ca (phút)</label>
+              <label className="block text-[11px] text-zinc-400 mb-1">Cho phép ra muộn sau ca (phút)</label>
               <input
                 type="number"
                 min={0}

@@ -24,7 +24,7 @@ export function calculateDistanceInMeters(
 export function getCurrentPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('Trình duyệt không hỗ trợ Geolocation GPS.'));
+      reject(new Error('Trình duyệt không hỗ trợ định vị vị trí.'));
       return;
     }
 
@@ -33,11 +33,11 @@ export function getCurrentPosition(): Promise<GeolocationPosition> {
       (err) => {
         let message = 'Không thể xác định vị trí hiện tại.';
         if (err.code === err.PERMISSION_DENIED) {
-          message = 'Vui lòng cho phép quyền truy cập vị trí (GPS) trên thiết bị của bạn.';
+          message = 'Vui lòng bật quyền truy cập vị trí trên trình duyệt.';
         } else if (err.code === err.POSITION_UNAVAILABLE) {
-          message = 'Tín hiệu GPS không khả dụng hoặc bị chặn.';
+          message = 'Không tìm thấy tín hiệu định vị GPS.';
         } else if (err.code === err.TIMEOUT) {
-          message = 'Quá thời gian lấy vị trí GPS.';
+          message = 'Hết thời gian chờ lấy vị trí.';
         }
         reject(new Error(message));
       },

@@ -53,7 +53,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <h3 className="text-xs font-bold text-zinc-100">
-              Đang trong ca ({workingRecords.length})
+              Đang làm việc ({workingRecords.length})
             </h3>
           </div>
           <span className="text-[11px] text-emerald-400 font-medium">Trực tiếp</span>
@@ -62,7 +62,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
         <div className="mt-3 space-y-2 flex-1">
           {workingRecords.length === 0 ? (
             <div className="py-8 text-center text-xs text-zinc-500">
-              Hiện chưa có nhân viên nào đang trong ca
+              Chưa có nhân viên nào trong ca
             </div>
           ) : (
             workingRecords.map((r) => {
@@ -111,7 +111,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                           <span className="text-xs font-bold text-zinc-100 truncate">{r.userName}</span>
                           {prevTurns.length > 0 && (
                             <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[10px] font-mono">
-                              Lần {prevTurns.length + 1} trong ca
+                              Lần {prevTurns.length + 1}
                             </span>
                           )}
                         </div>
@@ -133,7 +133,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                         onClick={() => onQuickCheckOut(r.userId)}
                         disabled={checkingOutUserId === r.userId}
                         className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                        title="Chốt ra ca hộ nhân viên này"
+                        title="Chốt ca"
                       >
                         <LogOut className="w-3 h-3" />
                         <span>{checkingOutUserId === r.userId ? '...' : 'Chốt ca'}</span>
@@ -149,7 +149,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                           className="flex items-center justify-between text-[10px] font-mono text-zinc-400 bg-zinc-900/60 px-2 py-1 rounded"
                         >
                           <span>
-                            <strong className="text-zinc-300">Lần {idx + 1} (Đã chốt):</strong>{' '}
+                            <strong className="text-zinc-300">Lần {idx + 1}:</strong>{' '}
                             {formatTime(pt.checkInTime)} → {pt.checkOutTime ? formatTime(pt.checkOutTime) : '--'}
                           </span>
                           <span className="text-indigo-300 font-semibold">{pt.minutes} phút</span>
@@ -164,7 +164,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
         </div>
       </div>
 
-      {/* Column 2: ĐÃ XONG CA (Grouped by employee + shift) */}
+      {/* Column 2: ĐÃ XONG CA */}
       <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-4 flex flex-col">
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
           <div className="flex items-center gap-2">
@@ -173,13 +173,13 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
               Đã xong ca ({completedShiftGroups.length})
             </h3>
           </div>
-          <span className="text-[11px] text-zinc-500">Gộp theo ca</span>
+          <span className="text-[11px] text-zinc-500">Trong ngày</span>
         </div>
 
         <div className="mt-3 space-y-2 flex-1">
           {completedShiftGroups.length === 0 ? (
             <div className="py-8 text-center text-xs text-zinc-500">
-              Chưa có ca làm việc nào hoàn thành hôm nay
+              Chưa có ca hoàn thành hôm nay
             </div>
           ) : (
             completedShiftGroups.map((group) => {
@@ -227,7 +227,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                     </div>
                   </div>
 
-                  {/* Per-turn breakdown inside completed shift card */}
+                  {/* Per-turn breakdown */}
                   <div className="pt-1.5 border-t border-zinc-900 space-y-1">
                     {group.turns.map((t, idx) => (
                       <div
@@ -243,7 +243,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                     ))}
                     {group.turns.length > 1 && (
                       <div className="flex items-center justify-between text-[10px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded">
-                        <span>Tổng thực làm cộng dồn:</span>
+                        <span>Tổng cộng:</span>
                         <strong>
                           {group.turns.map((t) => `${t.minutes}p`).join(' + ')} = {group.totalMinutes} phút
                         </strong>
@@ -272,7 +272,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
         <div className="mt-3 space-y-2 flex-1">
           {absentUsers.length === 0 ? (
             <div className="py-8 text-center text-xs text-emerald-400 font-medium">
-              Tất cả nhân sự đã có mặt hôm nay
+              Tất cả nhân sự đã vào ca
             </div>
           ) : (
             absentUsers.map((u) => (

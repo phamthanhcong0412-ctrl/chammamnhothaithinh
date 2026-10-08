@@ -34,7 +34,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await runWithHudLoading('Đang làm mới dữ liệu chấm công trực tiếp...', async () => {
+      await runWithHudLoading('Đang làm mới dữ liệu...', async () => {
         await refreshData();
       });
     } finally {
@@ -45,7 +45,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleQuickCheckOut = async (userId: string) => {
     setCheckingOutUserId(userId);
     try {
-      await checkOutUser(userId, 'Quản lý chốt ra ca trực tiếp');
+      await checkOutUser(userId, 'Quản lý chốt ca');
     } catch (e) {
       console.error(e);
     } finally {
@@ -187,7 +187,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             <h2 className="text-xl font-bold text-zinc-100 tracking-tight">
-              Điều Hành Chấm Công Trực Tiếp
+              Theo Dõi Ca Làm Việc
             </h2>
           </div>
           <p className="text-xs text-zinc-400 mt-0.5 capitalize">
@@ -206,7 +206,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={handleManualRefresh}
             disabled={isRefreshing}
             className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
-            title="Đồng bộ dữ liệu mới nhất"
+            title="Làm mới dữ liệu"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>{isRefreshing ? 'Đang tải...' : 'Làm mới'}</span>
@@ -217,7 +217,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onClick={onOpenSettingsModal}
               className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
             >
-              <Wifi className="w-3.5 h-3.5 text-emerald-400" /> Thiết lập WiFi & Cửa hàng
+              <Wifi className="w-3.5 h-3.5 text-emerald-400" /> Cài đặt quán
             </button>
           )}
 
@@ -225,14 +225,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             onClick={() => onOpenManualModal(null)}
             className="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
           >
-            <UserCheck className="w-3.5 h-3.5 text-amber-400" /> Chấm công hộ
+            <UserCheck className="w-3.5 h-3.5 text-amber-400" /> Chấm hộ
           </button>
 
           <button
             onClick={onOpenEmailModal}
             className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
           >
-            <Mail className="w-3.5 h-3.5" /> Báo cáo Email
+            <Mail className="w-3.5 h-3.5" /> Gửi báo cáo
           </button>
         </div>
       </div>

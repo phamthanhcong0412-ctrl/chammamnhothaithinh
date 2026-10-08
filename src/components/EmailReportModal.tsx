@@ -64,8 +64,8 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({ isOpen, onCl
               <Mail className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-zinc-100">Tự Động Gửi Email Báo Cáo Chấm Công</h3>
-              <p className="text-xs text-zinc-400">Định kỳ sau 21:00 hằng ngày cho Quản lý</p>
+              <h3 className="text-sm font-bold text-zinc-100">Báo Cáo Chấm Công Qua Email</h3>
+              <p className="text-xs text-zinc-400">Tự động gửi báo cáo hằng ngày cho Quản lý</p>
             </div>
           </div>
           <button
@@ -86,7 +86,7 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({ isOpen, onCl
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Clock className="w-3.5 h-3.5" /> Lịch Gửi & Kích Hoạt
+            <Clock className="w-3.5 h-3.5" /> Gửi Báo Cáo
           </button>
           <button
             onClick={() => setActiveTab('preview')}
@@ -96,7 +96,7 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({ isOpen, onCl
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Eye className="w-3.5 h-3.5" /> Xem Mẫu Email Thực Tế
+            <Eye className="w-3.5 h-3.5" /> Xem Trước
           </button>
           <button
             onClick={() => setActiveTab('logs')}
@@ -106,7 +106,7 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({ isOpen, onCl
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            <Calendar className="w-3.5 h-3.5" /> Lịch Sử Đã Gửi ({logs.length})
+            <Calendar className="w-3.5 h-3.5" /> Lịch Sử Gửi ({logs.length})
           </button>
         </div>
 
@@ -122,24 +122,24 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({ isOpen, onCl
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
                     <div>
                       <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-                        Trạng thái Tự Động Hóa (CRON JOB)
+                        Lịch gửi tự động hằng ngày
                       </h4>
                       <p className="text-xs text-emerald-400 font-semibold mt-0.5">
-                        ĐANG HOẠT ĐỘNG • Kích hoạt lúc {storeConfig?.autoEmailTime || '21:00'} mỗi ngày
+                        Tự động gửi lúc {storeConfig?.autoEmailTime || '21:00'} hằng ngày
                       </p>
                     </div>
                   </div>
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                    Active
+                    Bật
                   </span>
                 </div>
 
                 <div className="text-xs text-zinc-400 leading-relaxed bg-zinc-900/80 p-3 rounded-xl border border-zinc-800">
                   <p className="mb-1">
-                    • <strong>Quy trình hoạt động:</strong> Cứ sau 21:00 hằng ngày, hệ thống backend tự động tổng hợp toàn bộ các ca làm việc trong ngày và lũy kế số giờ công của từng nhân viên trong tháng hiện tại.
+                    • <strong>Quy trình:</strong> Hệ thống tự động tổng hợp các ca làm việc trong ngày và số giờ tích lũy trong tháng của từng nhân viên.
                   </p>
                   <p>
-                    • <strong>Nội dung:</strong> Danh sách nhân viên, giờ vào/ra, tổng giờ hôm nay, tổng giờ tháng, trạng thái đi làm, và gửi trực tiếp về email của Quản lý.
+                    • <strong>Nội dung:</strong> Danh sách ca, giờ vào/ra, tổng giờ công và tiền lương tạm tính gửi thẳng về email Quản lý.
                   </p>
                 </div>
               </div>
@@ -168,11 +168,11 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({ isOpen, onCl
                   >
                     {isSending ? (
                       <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Đang tổng hợp...
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Đang gửi...
                       </>
                     ) : (
                       <>
-                        <Send className="w-3.5 h-3.5" /> Gửi Báo Cáo Ngay
+                        <Send className="w-3.5 h-3.5" /> Gửi Ngay
                       </>
                     )}
                   </button>
@@ -192,7 +192,7 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({ isOpen, onCl
                 <span className="font-medium text-zinc-400">
                   {storeConfig?.lastReportSentDate
                     ? `Ngày ${storeConfig.lastReportSentDate}`
-                    : 'Chưa gửi hôm nay (Chờ lúc 21:00 hoặc bấm Gửi ngay)'}
+                    : 'Chưa gửi hôm nay'}
                 </span>
               </div>
 
@@ -202,7 +202,7 @@ export const EmailReportModal: React.FC<EmailReportModalProps> = ({ isOpen, onCl
           {activeTab === 'preview' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-zinc-400">
-                <span>Xem mẫu giao diện Email người nhận sẽ xem được:</span>
+                <span>Xem trước email gửi đến quản lý:</span>
                 <button
                   onClick={handleSendNow}
                   className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"
