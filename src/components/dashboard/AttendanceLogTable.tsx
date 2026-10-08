@@ -44,7 +44,7 @@ export const AttendanceLogTable: React.FC<AttendanceLogTableProps> = ({
             <button
               onClick={() => onLogScopeChange('today')}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
-                logScope === 'today' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                logScope === 'today' ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               Hôm nay
@@ -52,7 +52,7 @@ export const AttendanceLogTable: React.FC<AttendanceLogTableProps> = ({
             <button
               onClick={() => onLogScopeChange('all')}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
-                logScope === 'all' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                logScope === 'all' ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               Tất cả ({totalAttendanceCount})
@@ -82,28 +82,122 @@ export const AttendanceLogTable: React.FC<AttendanceLogTableProps> = ({
             <button
               onClick={() => onShiftFilterChange('shift_afternoon')}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer ${
-                shiftFilter === 'shift_afternoon' ? 'bg-zinc-800 text-orange-300' : 'text-zinc-400 hover:text-zinc-200'
+                shiftFilter === 'shift_afternoon' ? 'bg-zinc-800 text-amber-400' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               <Sunset className="w-3 h-3" /> Ca Chiều
             </button>
           </div>
 
-          {/* Search input */}
-          <div className="relative">
+          {/* Search input (font 16px on mobile prevents auto-zoom) */}
+          <div className="relative flex-1 sm:flex-initial">
             <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchQueryChange(e.target.value)}
               placeholder="Tìm tên, mã NV..."
-              className="pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 w-44"
+              className="pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500 w-full sm:w-44"
             />
           </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* MOBILE-FIRST: Vertical Card-Based List on Mobile Screens (< 640px) */}
+      <div className="sm:hidden divide-y divide-zinc-800/60 p-3 space-y-3">
+        {filteredLogRecords.length === 0 ? (
+          <div className="py-8 text-center text-xs text-zinc-500">
+            Chưa có lượt chấm công nào.
+          </div>
+        ) : (
+          filteredLogRecords.map((record) => {
+            const isAfternoon =
+              record.shiftId === 'shift_afternoon' ||
+              new Date(record.checkInTime).getHours() >= 14;
+            const isConfirming = confirmDeleteId === record.id;
+
+            return (
+              <div key={`mobile_${record.id}`} className="pt-3 first:pt-0 space-y-2 text-xs">
+                {/* Row 1: Name + Shift Badge */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-bold text-zinc-100 text-sm truncate">{record.userName}</span>
+                    <span className="text-[11px] text-zinc-500 font-mono">({record.employeeCode})</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
+                    isAfternoon
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                  }`}>
+                    {isAfternoon ? 'Ca Chiều' : 'Ca Sáng'} · {record.date.slice(5)}
+                  </span>
+                </div>
+
+                {/* Row 2: Time In/Out & Pay */}
+                <div className="flex items-center justify-between gap-2 bg-zinc-950/70 p-2.5 rounded-xl border border-zinc-800/60">
+                  <div className="font-mono tabular-nums text-zinc-300">
+                    <span className="text-[11px] text-zinc-500 block">Thời gian:</span>
+                    <span>{formatTime(record.checkInTime)} → {record.checkOutTime ? formatTime(record.checkOutTime) : (
+                      <span className="text-emerald-400 font-sans font-semibold">Đang làm</span>
+                    )}</span>
+                  </div>
+
+                  <div className="text-right font-mono tabular-nums">
+                    <span className="text-[11px] text-zinc-500 block">Lương tạm tính:</span>
+                    <span className="text-emerald-400 font-bold">
+                      {record.estimatedShiftPay ? `${record.estimatedShiftPay.toLocaleString('vi-VN')}đ` : '--'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Row 3: Meta & Actions */}
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <div className="text-[11px] text-zinc-400 truncate">
+                    {record.checkInMethod === 'manual_admin' || record.adjustedBy ? (
+                      <span className="text-amber-300 font-medium mr-1.5">Chấm hộ</span>
+                    ) : (
+                      <span className="text-zinc-500 mr-1.5">WiFi quán</span>
+                    )}
+                    {record.note && <span className="text-zinc-500">· {record.note}</span>}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => onEditRecord(record)}
+                      className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Edit className="w-3.5 h-3.5 text-zinc-400" /> Sửa
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (isConfirming) {
+                          onDeleteRecord(record.id);
+                          setConfirmDeleteId(null);
+                        } else {
+                          setConfirmDeleteId(record.id);
+                          setTimeout(
+                            () => setConfirmDeleteId((prev) => (prev === record.id ? null : prev)),
+                            3000
+                          );
+                        }
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+                        isConfirming ? 'bg-rose-600 text-white' : 'bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400'
+                      }`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {isConfirming ? <span>Xác nhận xóa</span> : <span>Xóa</span>}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* DESKTOP / TABLET: Flat Clean Table on Screens >= 640px */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-zinc-800/80 text-zinc-400 text-[11px] bg-zinc-950/40 whitespace-nowrap">
@@ -161,7 +255,7 @@ export const AttendanceLogTable: React.FC<AttendanceLogTableProps> = ({
                         <div className="mt-1 space-y-0.5">
                           {record.turns.map((t, i) => (
                             <div key={`${t.checkInTime}_${i}`} className="text-[10px] text-zinc-400">
-                              <span className="text-indigo-400 font-semibold">Lần {i + 1}:</span>{' '}
+                              <span className="text-amber-400 font-semibold">Lần {i + 1}:</span>{' '}
                               {formatTime(t.checkInTime)}→{t.checkOutTime ? formatTime(t.checkOutTime) : '--'}{' '}
                               <span className="text-zinc-300">({t.minutes}p)</span>
                             </div>
@@ -177,7 +271,7 @@ export const AttendanceLogTable: React.FC<AttendanceLogTableProps> = ({
                         </span>
                       ) : (
                         <div>
-                          <span className="font-bold text-indigo-400">
+                          <span className="font-bold text-zinc-100">
                             {(record.totalMinutes / 60).toFixed(1)}h{' '}
                             <span className="text-[11px] font-normal text-zinc-500">
                               ({record.totalMinutes}p)

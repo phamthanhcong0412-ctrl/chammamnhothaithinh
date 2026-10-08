@@ -224,7 +224,7 @@ export const EmployeeManagement: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2">
         <div>
           <h2 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
-            <Users className="w-5 h-5 text-indigo-400" /> Quản Lý Nhân Sự
+            <Users className="w-5 h-5 text-emerald-400" /> Quản Lý Nhân Sự
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
             Danh sách nhân viên, mức lương và tài khoản đăng nhập
@@ -244,7 +244,7 @@ export const EmployeeManagement: React.FC = () => {
 
           <button
             onClick={() => handleOpenAdd('staff')}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 flex items-center gap-2 transition-all cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-md shadow-emerald-600/20 flex items-center gap-2 transition-all cursor-pointer"
           >
             <UserPlus className="w-4 h-4" /> Thêm Nhân Viên
           </button>
@@ -265,7 +265,7 @@ export const EmployeeManagement: React.FC = () => {
             onClick={() => setRoleFilter('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               roleFilter === 'all'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -300,7 +300,7 @@ export const EmployeeManagement: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Tìm theo tên, tên đăng nhập, mã NV, vị trí, SĐT..."
-            className="w-full pl-10 pr-4 py-2 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-base sm:text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500 transition-colors"
           />
         </div>
       </div>

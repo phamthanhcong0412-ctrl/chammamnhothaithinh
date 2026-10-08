@@ -102,11 +102,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       const activeIp = net.clientIp || currentLiveIp;
       setDetectedClientIp(activeIp);
 
+      // Tự động ưu tiên tên WiFi quét được từ card mạng thực tế
+      const scannedSsid = net.rawSsid || net.detectedSsid || formData.wifiSsid || 'ChaoMamNho_ThaiThinh';
       const dualProfile = getDualBandWifiProfile(
-        formData.wifiSsid || net.detectedSsid,
+        scannedSsid,
         activeIp,
         formData.storeName
       );
+      const finalBssid = net.detectedBssid || dualProfile.dualBssid;
 
       setFormData((prev) => {
         if (!prev) return prev;
@@ -115,15 +118,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         return {
           ...prev,
           wifiSsid: dualProfile.dualSsidLabel,
-          wifiBssid: dualProfile.dualBssid,
+          wifiBssid: finalBssid,
           allowedIps: nextList,
         };
       });
 
       showToast({
         type: 'success',
-        title: 'Đã nhận diện WiFi 2.4G / 5G & IP',
-        description: `IP: ${activeIp} | BSSID: ${dualProfile.dualBssid}`,
+        title: 'Đã tự động lấy Tên WiFi & IP',
+        description: `Tên WiFi: ${dualProfile.dualSsidLabel} | IP: ${activeIp}`,
       });
     } catch {
       showToast({
@@ -143,17 +146,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         return await api.getNetworkInfo(true);
       });
       const activeIp = net.clientIp || currentLiveIp;
+      const scannedSsid = net.rawSsid || net.detectedSsid || formData.wifiSsid || 'ChaoMamNho_ThaiThinh';
       const dualProfile = getDualBandWifiProfile(
-        formData.wifiSsid || net.detectedSsid,
+        scannedSsid,
         activeIp,
         formData.storeName
       );
+      const finalBssid = net.detectedBssid || dualProfile.dualBssid;
 
       const nextAllowedIps = Array.from(new Set([...formData.allowedIps, activeIp]));
       const nextConfig: StoreConfig = {
         ...formData,
         wifiSsid: dualProfile.dualSsidLabel,
-        wifiBssid: dualProfile.dualBssid,
+        wifiBssid: finalBssid,
         allowedIps: nextAllowedIps,
         requireWifi: true,
         bypassIpCheck: false,
@@ -164,8 +169,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setSaveSuccess(true);
       showToast({
         type: 'success',
-        title: 'Đã lưu cấu hình WiFi chuẩn thành công!',
-        description: `Tên: ${dualProfile.dualSsidLabel} | BSSID: ${dualProfile.dualBssid}`,
+        title: 'Đã nhận diện & lưu cấu hình WiFi thành công!',
+        description: `Tên: ${dualProfile.dualSsidLabel} | IP: ${activeIp}`,
       });
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
@@ -295,7 +300,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       {/* Floating Toast Notification */}
       {toast && (
         <div className="fixed top-5 right-5 z-[110] max-w-md w-full sm:w-96 animate-in fade-in slide-in-from-top-3 duration-200">
@@ -305,13 +310,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 ? 'bg-zinc-900/95 border-emerald-500/50 text-emerald-100 shadow-emerald-950/50'
                 : toast.type === 'error'
                 ? 'bg-zinc-900/95 border-rose-500/50 text-rose-100 shadow-rose-950/50'
-                : 'bg-zinc-900/95 border-indigo-500/50 text-indigo-100 shadow-indigo-950/50'
+                : 'bg-zinc-900/95 border-amber-500/50 text-amber-100 shadow-amber-950/50'
             }`}
           >
             <div className="shrink-0 mt-0.5">
               {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
               {toast.type === 'error' && <AlertTriangle className="w-5 h-5 text-rose-400" />}
-              {toast.type === 'loading' && <RefreshCw className="w-5 h-5 text-indigo-400 animate-spin" />}
+              {toast.type === 'loading' && <RefreshCw className="w-5 h-5 text-amber-400 animate-spin" />}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
@@ -333,11 +338,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
       )}
 
-      <div className="relative w-full max-w-3xl max-h-[92vh] bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col text-zinc-100">
+      <div className="relative w-full sm:max-w-3xl max-h-[92vh] bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col text-zinc-100 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:pb-0">
+        {/* Mobile drag handle */}
+        <div className="sm:hidden w-10 h-1 bg-zinc-700 rounded-full mx-auto my-2 shrink-0" />
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/70">
+        <div className="flex items-center justify-between px-6 py-3.5 sm:py-4 border-b border-zinc-800 bg-zinc-950/70">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
               <Settings className="w-4 h-4" />
             </div>
             <div>
@@ -366,7 +374,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             onClick={() => setActiveTab('network')}
             className={`py-3 px-3.5 text-xs font-bold border-b-2 whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'network'
-                ? 'border-indigo-500 text-indigo-400'
+                ? 'border-emerald-500 text-emerald-400'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -376,7 +384,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             onClick={() => setActiveTab('shifts')}
             className={`py-3 px-3.5 text-xs font-bold border-b-2 whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'shifts'
-                ? 'border-indigo-500 text-indigo-400'
+                ? 'border-emerald-500 text-emerald-400'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -386,7 +394,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             onClick={() => setActiveTab('general')}
             className={`py-3 px-3.5 text-xs font-bold border-b-2 whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'general'
-                ? 'border-indigo-500 text-indigo-400'
+                ? 'border-emerald-500 text-emerald-400'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -396,7 +404,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             onClick={() => setActiveTab('supabase')}
             className={`py-3 px-3.5 text-xs font-bold border-b-2 whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'supabase'
-                ? 'border-indigo-500 text-indigo-400'
+                ? 'border-emerald-500 text-emerald-400'
                 : 'border-transparent text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -472,7 +480,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
             >
               <Save className="w-4 h-4" />
               {isSaving ? 'Đang lưu...' : 'Lưu Cài Đặt'}

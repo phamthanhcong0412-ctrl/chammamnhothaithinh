@@ -118,6 +118,8 @@ export interface NetworkInfo {
   isAllowedIp: boolean;
   timestamp: number;
   detectedSsid?: string;
+  rawSsid?: string;
+  detectedBssid?: string;
   bssid24G?: string;
   bssid5G?: string;
   headers?: Record<string, string>;

@@ -100,11 +100,11 @@ export const ShiftTurnsTable: React.FC<ShiftTurnsTableProps> = ({
     <div className="p-5 rounded-3xl bg-zinc-900/60 border border-zinc-800 space-y-4">
       <div className="flex items-center justify-between gap-3 pb-3 border-b border-zinc-800/80 flex-wrap">
         <span className="text-xs font-bold text-zinc-200 flex items-center gap-2">
-          <Layers className="w-3.5 h-3.5 text-indigo-400" /> Ca Làm & Chi Tiết Từng Lần Chấm Hôm Nay
+          <Layers className="w-3.5 h-3.5 text-amber-400" /> Ca Làm & Chi Tiết Từng Lần Chấm Hôm Nay
         </span>
         <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
           <span className="text-zinc-400">
-            Tổng thực làm: <strong className="text-indigo-400">{(totalMinutesTodayLive / 60).toFixed(1)}h</strong> ({totalMinutesTodayLive}p)
+            Tổng thực làm: <strong className="text-zinc-100">{(totalMinutesTodayLive / 60).toFixed(1)}h</strong> ({totalMinutesTodayLive}p)
           </span>
           <span className="font-bold text-emerald-400">
             +{liveEstimatedPayToday.toLocaleString('vi-VN')}đ
@@ -134,7 +134,7 @@ export const ShiftTurnsTable: React.FC<ShiftTurnsTableProps> = ({
                 <div className="flex items-center justify-between gap-2 pb-2 border-b border-zinc-800/70">
                   <div className="flex items-center gap-2 min-w-0 flex-wrap">
                     <span className="font-bold text-zinc-100">{group.shiftLabel}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
                       {group.turns.length} lần chấm công
                     </span>
                     {firstIn && (
@@ -151,7 +151,7 @@ export const ShiftTurnsTable: React.FC<ShiftTurnsTableProps> = ({
                   </div>
 
                   <div className="font-mono tabular-nums text-right shrink-0 flex items-center gap-2">
-                    <span className="font-bold text-indigo-400">
+                    <span className="font-bold text-zinc-100">
                       {(shiftTotalMins / 60).toFixed(1)}h{' '}
                       <span className="text-[10px] font-normal text-zinc-400">
                         ({shiftTotalMins} phút)

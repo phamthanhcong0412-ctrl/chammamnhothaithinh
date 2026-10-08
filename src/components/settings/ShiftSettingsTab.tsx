@@ -17,7 +17,7 @@ export const ShiftSettingsTab: React.FC<ShiftSettingsTabProps> = ({
 }) => {
   return (
     <div className="space-y-4">
-      <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-xs text-indigo-200">
+      <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-200">
         Nhân viên chỉ có thể <strong>vào ca và hết ca trong khung giờ quy định</strong> (tính từ thời gian cho phép vào sớm đến khi đóng ca). Ngoài thời gian này, hệ thống sẽ tạm khóa chấm công.
       </div>
 
@@ -35,7 +35,7 @@ export const ShiftSettingsTab: React.FC<ShiftSettingsTabProps> = ({
                 updated[idx].name = e.target.value;
                 setFormData((prev) => (prev ? { ...prev, shifts: updated } : prev));
               }}
-              className="font-bold text-xs text-zinc-100 bg-transparent border-b border-zinc-700 pb-0.5 focus:outline-none focus:border-indigo-500"
+              className="font-bold text-xs text-zinc-100 bg-transparent border-b border-zinc-700 pb-0.5 focus:outline-none focus:border-emerald-500"
             />
             <span className="text-[10px] text-zinc-500 font-mono">{shift.id}</span>
           </div>

@@ -54,8 +54,11 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-zinc-100 max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full sm:max-w-lg bg-zinc-900 border border-zinc-800 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col text-zinc-100 max-h-[92vh] pb-safe">
+        {/* Mobile Drag Indicator */}
+        <div className="w-12 h-1.5 rounded-full bg-zinc-700/80 mx-auto mt-2.5 mb-1 sm:hidden" />
+
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/90">
           <div>
             <h3 className="text-sm font-bold text-zinc-100">
@@ -92,13 +95,13 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 onClick={() => onRoleChange('staff')}
                 className={`p-3 rounded-xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
                   formData.role === 'staff'
-                    ? 'bg-indigo-600/15 border-indigo-500 text-zinc-100 shadow-sm'
+                    ? 'bg-emerald-600/15 border-emerald-500 text-zinc-100 shadow-sm'
                     : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
                 }`}
               >
                 <UserCheck
                   className={`w-4 h-4 shrink-0 mt-0.5 ${
-                    formData.role === 'staff' ? 'text-indigo-400' : 'text-zinc-500'
+                    formData.role === 'staff' ? 'text-emerald-400' : 'text-zinc-500'
                   }`}
                 />
                 <div>
@@ -134,9 +137,9 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
           </div>
 
           {/* Login Credentials Section */}
-          <div className="p-4 rounded-2xl bg-zinc-950 border border-indigo-500/30 space-y-3">
+          <div className="p-4 rounded-2xl bg-zinc-950 border border-emerald-500/30 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
                 <KeyRound className="w-3.5 h-3.5" /> Tài Khoản Đăng Nhập
               </span>
             </div>
@@ -159,7 +162,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                     })
                   }
                   placeholder={formData.role === 'admin' ? 'VD: ql_thanhcong' : 'VD: nv_mai'}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
                 />
               </div>
 
@@ -175,7 +178,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                     value={formData.password}
                     onChange={(e) => onFormDataChange({ ...formData, password: e.target.value.slice(0, 128) })}
                     placeholder="Nhập mật khẩu..."
-                    className="w-full pl-3 pr-8 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-amber-300 focus:outline-none focus:border-indigo-500"
+                    className="w-full pl-3 pr-8 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-amber-300 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
                   <button
                     type="button"
@@ -202,7 +205,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 value={formData.name}
                 onChange={(e) => onFormDataChange({ ...formData, name: e.target.value.slice(0, 120) })}
                 placeholder="Nguyễn Văn A"
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
 
@@ -214,7 +217,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 maxLength={32}
                 value={formData.employeeCode}
                 onChange={(e) => onFormDataChange({ ...formData, employeeCode: e.target.value.slice(0, 32) })}
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
           </div>
@@ -228,7 +231,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 value={formData.position}
                 onChange={(e) => onFormDataChange({ ...formData, position: e.target.value.slice(0, 100) })}
                 placeholder="Thu ngân, Pha chế, Phục vụ..."
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
 
@@ -242,7 +245,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 value={formData.email}
                 onChange={(e) => onFormDataChange({ ...formData, email: e.target.value.slice(0, 128) })}
                 placeholder="nhanvien@chaomamnho.vn"
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
           </div>
@@ -257,7 +260,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 step={1000}
                 value={formData.hourlyRate}
                 onChange={(e) => onFormDataChange({ ...formData, hourlyRate: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
 
@@ -269,7 +272,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 value={formData.phone}
                 onChange={(e) => onFormDataChange({ ...formData, phone: e.target.value.slice(0, 32) })}
                 placeholder="0912 345 678"
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
 
@@ -279,7 +282,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
                 type="date"
                 value={formData.joinDate}
                 onChange={(e) => onFormDataChange({ ...formData, joinDate: e.target.value })}
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
           </div>
@@ -294,7 +297,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
               value={formData.note}
               onChange={(e) => onFormDataChange({ ...formData, note: e.target.value.slice(0, 500) })}
               placeholder="VD: Ca sáng cố định, có thể đổi ca..."
-              className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
 
@@ -308,7 +311,7 @@ export const EmployeeFormModal: React.FC<EmployeeFormModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-600/25 cursor-pointer"
             >
               {editingUser ? 'Lưu Thay Đổi' : 'Tạo Tài Khoản'}
             </button>

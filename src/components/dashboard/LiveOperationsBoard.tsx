@@ -51,7 +51,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
       <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-4 flex flex-col">
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
             <h3 className="text-xs font-bold text-zinc-100">
               Đang làm việc ({workingRecords.length})
             </h3>
@@ -152,7 +152,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                             <strong className="text-zinc-300">Lần {idx + 1}:</strong>{' '}
                             {formatTime(pt.checkInTime)} → {pt.checkOutTime ? formatTime(pt.checkOutTime) : '--'}
                           </span>
-                          <span className="text-indigo-300 font-semibold">{pt.minutes} phút</span>
+                          <span className="text-amber-300 font-semibold">{pt.minutes} phút</span>
                         </div>
                       ))}
                     </div>
@@ -168,7 +168,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
       <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-4 flex flex-col">
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
             <h3 className="text-xs font-bold text-zinc-100">
               Đã xong ca ({completedShiftGroups.length})
             </h3>
@@ -202,10 +202,10 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-bold text-zinc-100 truncate">{group.userName}</span>
-                          <span className="text-[10px] text-indigo-400 font-medium shrink-0">
+                          <span className="text-[10px] text-amber-400 font-medium shrink-0">
                             · {group.shiftName}
                           </span>
-                          <span className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 text-[10px] font-mono">
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-mono">
                             {group.turns.length} lần chấm
                           </span>
                         </div>
@@ -217,7 +217,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                     </div>
 
                     <div className="text-right shrink-0 font-mono tabular-nums">
-                      <div className="text-xs font-bold text-indigo-400">
+                      <div className="text-xs font-bold text-zinc-100">
                         {(group.totalMinutes / 60).toFixed(1)}h{' '}
                         <span className="text-[10px] font-normal text-zinc-500">({group.totalMinutes}p)</span>
                       </div>
@@ -238,7 +238,7 @@ export const LiveOperationsBoard: React.FC<LiveOperationsBoardProps> = ({
                           <strong className="text-zinc-300">Lần {idx + 1}:</strong>{' '}
                           {formatTime(t.checkInTime)} → {t.checkOutTime ? formatTime(t.checkOutTime) : '--'}
                         </span>
-                        <span className="text-indigo-300 font-semibold">{t.minutes} phút</span>
+                        <span className="text-zinc-300 font-semibold">{t.minutes} phút</span>
                       </div>
                     ))}
                     {group.turns.length > 1 && (

@@ -27,7 +27,7 @@ export const SupabaseStatusTab: React.FC<SupabaseStatusTabProps> = ({
       <div className="p-5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800/80">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
               <Cpu className="w-4 h-4" />
             </div>
             <div>
@@ -37,7 +37,7 @@ export const SupabaseStatusTab: React.FC<SupabaseStatusTabProps> = ({
                 </span>
                 {isSupabaseConnected ? (
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                     Đã kết nối máy chủ
                   </span>
                 ) : (
@@ -81,7 +81,7 @@ export const SupabaseStatusTab: React.FC<SupabaseStatusTabProps> = ({
 
           <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80">
             <span className="text-[10px] text-zinc-500 uppercase block">Lệnh đồng bộ dữ liệu</span>
-            <span className="font-mono font-bold text-indigo-400 mt-0.5 block truncate">
+            <span className="font-mono font-bold text-emerald-400 mt-0.5 block truncate">
               npm run migrate:supabase
             </span>
           </div>
@@ -117,7 +117,7 @@ export const SupabaseStatusTab: React.FC<SupabaseStatusTabProps> = ({
             rel="noopener noreferrer"
             className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold text-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto shrink-0"
           >
-            <Globe className="w-3.5 h-3.5 text-indigo-400" />
+            <Globe className="w-3.5 h-3.5 text-emerald-400" />
             <span>Xem Bảng Dữ Liệu</span>
           </a>
         </div>
@@ -125,7 +125,7 @@ export const SupabaseStatusTab: React.FC<SupabaseStatusTabProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80">
             <span className="text-[10px] text-zinc-500 uppercase block">Tên WiFi Quán</span>
-            <span className="font-mono font-bold text-indigo-300 mt-0.5 block truncate">
+            <span className="font-mono font-bold text-emerald-300 mt-0.5 block truncate">
               {formData.wifiSsid}
             </span>
           </div>
@@ -146,7 +146,7 @@ export const SupabaseStatusTab: React.FC<SupabaseStatusTabProps> = ({
 
           <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80">
             <span className="text-[10px] text-zinc-500 uppercase block">Định vị GPS</span>
-            <span className="font-mono font-bold text-indigo-300 mt-0.5 block truncate">
+            <span className="font-mono font-bold text-amber-300 mt-0.5 block truncate">
               {formData.requireGps
                 ? `Đang bật (Bán kính ${formData.storeGps?.radiusMeters || 80}m)`
                 : 'Đang tắt'}

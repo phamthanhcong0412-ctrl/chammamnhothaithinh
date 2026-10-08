@@ -7,9 +7,9 @@ import type { StoreConfig } from '../../types/index.ts';
 
 export function extractWifiBaseName(rawSsid?: string, storeName?: string): string {
   if (rawSsid && rawSsid.trim()) {
-    const cleaned = rawSsid
-      .split('/')[0]
-      .replace(/\s*\(2\.4G\s*[/&]\s*5G\)/gi, '')
+    let cleaned = rawSsid
+      .replace(/\s*\([^)]*(?:2\.4|5G|band)[^)]*\)/gi, '')
+      .replace(/\s*\(2\.4G.*$/gi, '')
       .replace(/[\s_-]*(2\.4GHz|5GHz|2\.4G|5G|24G)$/gi, '')
       .trim();
     if (cleaned) return cleaned;

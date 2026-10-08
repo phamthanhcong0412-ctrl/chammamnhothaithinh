@@ -111,25 +111,25 @@ export const MonthlyReport: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-indigo-400 shrink-0" />
+            <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
             <h2 className="text-xl font-bold text-zinc-100 tracking-tight">
               {isAdmin ? 'Bảng Lương Tháng' : 'Bảng Lương Của Tôi'}
             </h2>
           </div>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Tháng {selectedMonth} · Tính theo giờ làm thực tế
+            Tháng {selectedMonth} · Tính theo giờ làm thực tế của cửa hàng
           </p>
         </div>
 
         {/* Controls: Month selector & Export */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Calendar className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="pl-8 pr-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-semibold text-zinc-200 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="pl-8 pr-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-base sm:text-xs font-semibold text-zinc-200 focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
 
@@ -157,12 +157,12 @@ export const MonthlyReport: React.FC = () => {
             <span className="text-xs text-zinc-400 font-medium">
               {isAdmin ? 'Tổng giờ làm toàn quán' : 'Tổng giờ làm trong tháng'}
             </span>
-            <div className="text-2xl font-black text-indigo-400 font-mono tabular-nums mt-1">
+            <div className="text-2xl font-black text-emerald-400 font-mono tabular-nums mt-1">
               {totalStoreHours.toFixed(1)}h{' '}
               <span className="text-xs font-normal text-zinc-500">({totalStoreMinutes}p)</span>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
             <Clock className="w-5 h-5" />
           </div>
         </div>
@@ -172,19 +172,19 @@ export const MonthlyReport: React.FC = () => {
             <span className="text-xs text-zinc-400 font-medium">
               {isAdmin ? 'Số ca đã hoàn thành' : 'Số ca đã làm'}
             </span>
-            <div className="text-2xl font-black text-emerald-400 font-mono tabular-nums mt-1">
+            <div className="text-2xl font-black text-zinc-100 font-mono tabular-nums mt-1">
               {isAdmin ? totalRecords : summaries[0]?.recordsCount || 0} ca
             </div>
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-2xl bg-zinc-800 border border-zinc-700 text-zinc-300 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
           </div>
         </div>
 
         <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
           <div>
             <span className="text-xs text-zinc-400 font-medium">
-              {isAdmin ? 'Tổng tiền lương' : 'Lương tạm tính'}
+              {isAdmin ? 'Tổng tiền lương toàn quán' : 'Lương tạm tính'}
             </span>
             <div className="text-2xl font-black text-amber-400 font-mono tabular-nums mt-1">
               {totalStoreSalary.toLocaleString('vi-VN')}đ
@@ -205,13 +205,138 @@ export const MonthlyReport: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Tìm nhân viên theo tên, mã NV, vị trí..."
-            className="w-full pl-10 pr-4 py-2.5 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+            className="w-full pl-10 pr-4 py-2.5 bg-zinc-900/60 border border-zinc-800/80 rounded-xl text-base sm:text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500 transition-colors"
           />
         </div>
       )}
 
-      {/* Summary Table */}
-      <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800/80 overflow-hidden shadow-sm">
+      {/* Mobile-First Card-Based List (sm:hidden) */}
+      <div className="space-y-3 sm:hidden">
+        {filteredSummaries.length === 0 ? (
+          <div className="p-8 text-center text-xs text-zinc-500 bg-zinc-900/60 border border-zinc-800 rounded-2xl">
+            Chưa có dữ liệu chấm công trong tháng {selectedMonth}.
+          </div>
+        ) : (
+          filteredSummaries.map((summary) => {
+            const isExpanded = expandedUserId === summary.userId;
+            const userMonthRecords = attendance.filter(
+              (r) => r.userId === summary.userId && r.date.startsWith(selectedMonth)
+            );
+
+            return (
+              <div
+                key={summary.userId}
+                className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 space-y-3 shadow-sm"
+              >
+                {/* Employee Info Header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-zinc-100">{summary.userName}</h4>
+                    <p className="text-xs text-zinc-400">
+                      {summary.position} · <span className="font-mono text-zinc-300">{summary.employeeCode}</span>
+                    </p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold text-zinc-300 bg-zinc-800 border border-zinc-700">
+                    {(summary.hourlyRate || 0).toLocaleString('vi-VN')}đ/h
+                  </span>
+                </div>
+
+                {/* 3 Metrics Mini Grid */}
+                <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-zinc-950/70 border border-zinc-800/60 text-center font-mono text-xs">
+                  <div>
+                    <span className="text-[10px] text-zinc-500 block font-sans">Ngày công</span>
+                    <strong className="text-zinc-200">{summary.totalDaysWorked}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-zinc-500 block font-sans">Số ca</span>
+                    <strong className="text-zinc-200">{summary.recordsCount}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-zinc-500 block font-sans">Tổng giờ</span>
+                    <strong className="text-emerald-400 font-bold">{summary.totalHours}h</strong>
+                  </div>
+                </div>
+
+                {/* Total Salary Row */}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs text-zinc-400 font-medium">Lương thực lĩnh:</span>
+                  <span className="text-lg font-black font-mono tabular-nums text-emerald-400">
+                    {summary.estimatedSalary.toLocaleString('vi-VN')}đ
+                  </span>
+                </div>
+
+                {/* Mobile Action Buttons (Thumb Reach) */}
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-800/60">
+                  <button
+                    type="button"
+                    onClick={() => setPayslipUser(summary)}
+                    className="h-10 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Xem phiếu</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExpandedUserId(isExpanded ? null : summary.userId)}
+                    className="h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 border border-zinc-700 text-zinc-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    {isExpanded ? (
+                      <>
+                        <span>Thu gọn</span> <ChevronUp className="w-3.5 h-3.5" />
+                      </>
+                    ) : (
+                      <>
+                        <span>Nhật ký ({userMonthRecords.length})</span> <ChevronDown className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Expanded Shift Timeline for Mobile */}
+                {isExpanded && (
+                  <div className="pt-2 border-t border-zinc-800/70 space-y-2">
+                    <span className="text-[11px] font-semibold text-zinc-400 block">
+                      Nhật ký ca làm việc trong tháng:
+                    </span>
+                    {userMonthRecords.length === 0 ? (
+                      <p className="text-xs text-zinc-500 py-2 text-center">Chưa có ca làm nào</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                        {userMonthRecords.map((r) => (
+                          <div
+                            key={r.id}
+                            className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800/60 flex items-center justify-between text-[11px] font-mono"
+                          >
+                            <div>
+                              <div className="text-zinc-200 font-bold">{r.date}</div>
+                              <div className="text-[10px] text-zinc-400">
+                                {new Date(r.checkInTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} →{' '}
+                                {r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Đang làm'}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-emerald-400 font-bold block">
+                                {(r.totalMinutes / 60).toFixed(1)}h
+                              </span>
+                              <span className="text-[10px] text-zinc-400">
+                                {r.estimatedShiftPay ? `${r.estimatedShiftPay.toLocaleString('vi-VN')}đ` : '--'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Summary Table for Desktop & Tablet (hidden sm:block) */}
+      <div className="hidden sm:block rounded-2xl bg-zinc-900/60 border border-zinc-800/80 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
@@ -258,7 +383,7 @@ export const MonthlyReport: React.FC = () => {
                           {summary.recordsCount}
                         </td>
                         <td className="py-3 px-3 text-center font-mono tabular-nums">
-                          <span className="font-bold text-indigo-400">{summary.totalHours}h</span>{' '}
+                          <span className="font-bold text-emerald-400">{summary.totalHours}h</span>{' '}
                           <span className="text-[11px] text-zinc-500">
                             ({summary.totalMinutes.toLocaleString('vi-VN')}p)
                           </span>
@@ -270,7 +395,7 @@ export const MonthlyReport: React.FC = () => {
                           <div className="inline-flex items-center gap-1.5">
                             <button
                               onClick={() => setPayslipUser(summary)}
-                              className="px-2.5 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
                               title="Xem phiếu lương chi tiết"
                             >
                               <Receipt className="w-3.5 h-3.5" />
@@ -347,7 +472,7 @@ export const MonthlyReport: React.FC = () => {
                                               <div className="mt-1 space-y-0.5">
                                                 {r.turns.map((t, idx) => (
                                                   <div key={`${t.checkInTime}_${idx}`} className="text-[10px] text-zinc-400">
-                                                    <span className="text-indigo-400 font-semibold">Lần {idx + 1}:</span>{' '}
+                                                    <span className="text-amber-400 font-semibold">Lần {idx + 1}:</span>{' '}
                                                     {new Date(t.checkInTime).toLocaleTimeString('vi-VN', {
                                                       hour: '2-digit',
                                                       minute: '2-digit',
@@ -365,7 +490,7 @@ export const MonthlyReport: React.FC = () => {
                                               </div>
                                             )}
                                           </td>
-                                          <td className="py-2 px-2 font-mono tabular-nums font-semibold text-indigo-300">
+                                          <td className="py-2 px-2 font-mono tabular-nums font-semibold text-zinc-200">
                                             <div>
                                               {(r.totalMinutes / 60).toFixed(1)}h{' '}
                                               <span className="text-zinc-500 font-normal">({r.totalMinutes}p)</span>
@@ -404,10 +529,13 @@ export const MonthlyReport: React.FC = () => {
         </div>
       </div>
 
-      {/* Printable Individual Payslip Modal */}
+      {/* Printable Individual Payslip Modal (Bottom Sheet on Mobile) */}
       {payslipUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden text-zinc-100">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full sm:max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden text-zinc-100 pb-safe">
+            {/* Mobile Drag Indicator */}
+            <div className="w-12 h-1.5 rounded-full bg-zinc-700/80 mx-auto mt-2.5 mb-1 sm:hidden" />
+
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/60">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
@@ -434,7 +562,7 @@ export const MonthlyReport: React.FC = () => {
                   <div className="text-sm font-bold text-zinc-100">{payslipUser.userName}</div>
                   <div className="text-xs text-zinc-400 mt-0.5">{payslipUser.position}</div>
                 </div>
-                <span className="text-xs font-mono font-bold text-indigo-400 px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                <span className="text-xs font-mono font-bold text-emerald-400 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   {payslipUser.employeeCode}
                 </span>
               </div>
@@ -454,7 +582,7 @@ export const MonthlyReport: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-zinc-800/70">
                   <span className="text-zinc-400">Tổng thời gian làm việc</span>
-                  <span className="font-mono font-bold text-indigo-400">
+                  <span className="font-mono font-bold text-emerald-400">
                     {payslipUser.totalHours} giờ ({payslipUser.totalMinutes.toLocaleString('vi-VN')} phút)
                   </span>
                 </div>
@@ -481,7 +609,7 @@ export const MonthlyReport: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setPayslipUser(null)}
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white transition-colors cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-colors cursor-pointer"
                 >
                   Đóng
                 </button>

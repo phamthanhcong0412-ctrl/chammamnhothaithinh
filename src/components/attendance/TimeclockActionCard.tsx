@@ -72,7 +72,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
         {activeRecord ? (
           <div className="space-y-2.5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
               ĐANG TRONG CA
             </div>
 
@@ -100,20 +100,20 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
         ) : (
           <div className="space-y-1.5 py-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-800/90 border border-zinc-700/80 text-zinc-300 text-xs font-semibold">
-              <Clock className="w-3.5 h-3.5 text-indigo-400" />
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
               Sẵn sàng vào ca
             </div>
             <h3 className="text-base font-bold text-zinc-100">
-              Bấm Check-in Khi Bắt Đầu Làm Việc
+              Bắt Đầu Ca Làm Việc
             </h3>
             <p className="text-xs text-zinc-400">
-              Hệ thống tự động lưu giờ làm và tính lương theo ca.
+              Chạm nút bên dưới để nhận ca. Giờ làm và tiền lương được tự động ghi nhận.
             </p>
           </div>
         )}
       </div>
 
-      {/* Optional Shift Note Input */}
+      {/* Optional Shift Note Input (text-[16px] prevents iOS Safari auto-zoom) */}
       <div className="relative">
         <FileText className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
@@ -122,40 +122,42 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
           onChange={(e) => onShiftNoteChange(e.target.value)}
           placeholder={
             activeRecord
-              ? 'Ghi chú ra ca (nếu có)...'
-              : 'Ghi chú vào ca (nếu có)...'
+              ? 'Ghi chú kết thúc ca (nếu có)...'
+              : 'Ghi chú nhận ca (nếu có)...'
           }
-          className="w-full pl-10 pr-3.5 py-2.5 bg-zinc-950/80 border border-zinc-800 rounded-xl text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
+          className="w-full pl-10 pr-3.5 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
         />
       </div>
 
-      {/* 2 Tactile Action Buttons: CHECK-IN & CHECK-OUT */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button
-          onClick={onCheckIn}
-          disabled={isProcessing || !!activeRecord || !canCheckInOrOut}
-          className={`py-4 px-5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition-all transform active:scale-[0.98] shadow-lg ${
-            !activeRecord && canCheckInOrOut
-              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/25 cursor-pointer'
-              : 'bg-zinc-800/50 border border-zinc-800 text-zinc-500 cursor-not-allowed opacity-50'
-          }`}
-        >
-          <LogIn className="w-5 h-5" />
-          <span>CHECK-IN VÀO CA</span>
-        </button>
-
-        <button
-          onClick={onCheckOut}
-          disabled={isProcessing || !activeRecord || !canCheckInOrOut}
-          className={`py-4 px-5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 transition-all transform active:scale-[0.98] shadow-lg ${
-            activeRecord && canCheckInOrOut
-              ? 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-rose-600/25 cursor-pointer'
-              : 'bg-zinc-800/50 border border-zinc-800 text-zinc-500 cursor-not-allowed opacity-50'
-          }`}
-        >
-          <LogOut className="w-5 h-5" />
-          <span>CHECK-OUT RA CA</span>
-        </button>
+      {/* Mobile-First Hero 1-Touch Action Button (Height 56px for comfortable thumb reach) */}
+      <div>
+        {!activeRecord ? (
+          <button
+            onClick={onCheckIn}
+            disabled={isProcessing || !canCheckInOrOut}
+            className={`w-full h-14 rounded-2xl font-black text-base flex items-center justify-center gap-3 transition-all transform active:scale-[0.98] shadow-lg ${
+              canCheckInOrOut
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/25 cursor-pointer'
+                : 'bg-zinc-800/50 border border-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
+            }`}
+          >
+            <LogIn className="w-6 h-6" />
+            <span>NHẬN CA LÀM VIỆC</span>
+          </button>
+        ) : (
+          <button
+            onClick={onCheckOut}
+            disabled={isProcessing || !canCheckInOrOut}
+            className={`w-full h-14 rounded-2xl font-black text-base flex items-center justify-center gap-3 transition-all transform active:scale-[0.98] shadow-lg ${
+              canCheckInOrOut
+                ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/25 cursor-pointer'
+                : 'bg-zinc-800/50 border border-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
+            }`}
+          >
+            <LogOut className="w-6 h-6" />
+            <span>KẾT THÚC CA LÀM VIỆC</span>
+          </button>
+        )}
       </div>
 
       {!isWifiValid && (

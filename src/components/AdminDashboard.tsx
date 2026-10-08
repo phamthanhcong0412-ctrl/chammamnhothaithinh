@@ -185,7 +185,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
             <h2 className="text-xl font-bold text-zinc-100 tracking-tight">
               Theo Dõi Ca Làm Việc
             </h2>
@@ -230,9 +230,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <button
             onClick={onOpenEmailModal}
-            className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700/80 border border-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
           >
-            <Mail className="w-3.5 h-3.5" /> Gửi báo cáo
+            <Mail className="w-3.5 h-3.5 text-zinc-400" /> Gửi báo cáo
           </button>
         </div>
       </div>

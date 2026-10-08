@@ -111,7 +111,7 @@ let emailLogs: EmailLog[] = loadData<EmailLog[]>(EMAIL_LOGS_FILE, []);
 let customCollections: Record<string, any[]> = loadData<Record<string, any[]>>(COLLECTIONS_FILE, {});
 
 export const db = {
-  getConfig: () => storeConfig,
+  getConfig: () => loadData<StoreConfig>(CONFIG_FILE, DEFAULT_CONFIG),
   setConfig: (cfg: StoreConfig) => {
     storeConfig = cfg;
     saveData(CONFIG_FILE, storeConfig);

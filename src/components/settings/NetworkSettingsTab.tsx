@@ -8,9 +8,8 @@ import {
   Wifi,
   Radio,
   CheckCircle2,
+  Check,
   RefreshCw,
-  Cpu,
-  Sparkles,
   Lock,
   Plus,
   Trash2,
@@ -67,11 +66,11 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
   return (
     <div className="space-y-5">
       {/* QUICK SELECT CURRENTLY CONNECTED WIFI CARD */}
-      <div className="p-5 rounded-2xl bg-gradient-to-b from-indigo-950/40 to-zinc-950 border border-indigo-500/30 space-y-4">
+      <div className="p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800/80">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
-              <Radio className="w-4 h-4 animate-pulse" />
+              <Wifi className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -98,10 +97,10 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             type="button"
             onClick={handleScanConnectedWifi}
             disabled={isDetectingWifi}
-            className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 text-xs font-semibold flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700/80 border border-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-all self-start sm:self-auto cursor-pointer active:scale-95"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isDetectingWifi ? 'animate-spin' : ''}`} />
-            <span>{isDetectingWifi ? 'Đang quét WiFi...' : 'Quét Mạng Hiện Tại'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-zinc-300 ${isDetectingWifi ? 'animate-spin' : ''}`} />
+            <span>{isDetectingWifi ? 'Đang quét WiFi...' : 'Quét & Nhận Tên WiFi'}</span>
           </button>
         </div>
 
@@ -112,8 +111,8 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-emerald-400">{currentLiveIp}</span>
               {isCurrentIpInAllowedList ? (
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                  ✓ Đã cho phép
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  <Check className="w-3 h-3" /> Đã cho phép
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
@@ -126,8 +125,8 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
           <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-1">
             <span className="text-[11px] text-zinc-400 block">Mã Modem BSSID:</span>
             <div className="flex items-center gap-2">
-              <Cpu className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-              <span className="font-mono text-xs font-bold text-indigo-300 truncate">
+              <Wifi className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              <span className="font-mono text-xs font-bold text-zinc-300 truncate">
                 {liveDualBandProfile.dualBssid}
               </span>
             </div>
@@ -146,14 +145,14 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
                     prev ? { ...prev, wifiSsid: liveDualBandProfile.dualSsidLabel } : prev
                   )
                 }
-                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
                 title="Tự động gộp cả 2 băng tần 2.4GHz & 5GHz cho tên WiFi này"
               >
                 Gộp 2.4G & 5G
               </button>
             </div>
             <div className="relative">
-              <Wifi className="w-3.5 h-3.5 text-indigo-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Wifi className="w-3.5 h-3.5 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={formData.wifiSsid}
@@ -161,7 +160,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
                   setFormData((prev) => (prev ? { ...prev, wifiSsid: e.target.value } : prev))
                 }
                 placeholder="Nhập tên WiFi quán..."
-                className="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs font-bold text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-base sm:text-xs font-bold text-zinc-100 focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
@@ -181,14 +180,14 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
                       : prev
                   )
                 }
-                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
                 title="Tự động lấy mã định danh BSSID cả 2 băng tần 2.4G & 5G theo đường truyền đang kết nối"
               >
                 Lấy tự động
               </button>
             </div>
             <div className="relative">
-              <Cpu className="w-3.5 h-3.5 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Wifi className="w-3.5 h-3.5 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={formData.wifiBssid || deriveBssidFromNetworkIp(currentLiveIp)}
@@ -198,7 +197,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
                   )
                 }
                 placeholder="VD: A4:2B:0E:A1:2D:58 (2.4G) / 59 (5G)"
-                className="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-xs font-mono font-bold text-emerald-300 focus:outline-none focus:border-indigo-500 uppercase"
+                className="w-full pl-8 pr-3 py-1.5 bg-zinc-950 border border-zinc-700 rounded-lg text-base sm:text-xs font-mono font-bold text-emerald-300 focus:outline-none focus:border-emerald-500 uppercase"
               />
             </div>
           </div>
@@ -222,7 +221,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono font-bold text-[10px]">
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-bold text-[10px]">
                     2.4GHz
                   </span>
                   <span className="font-mono font-bold text-zinc-100 truncate">
@@ -233,13 +232,15 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
                   BSSID 2.4G: {liveDualBandProfile.bssid24G}
                 </div>
               </div>
-              <span className="text-[10px] font-bold text-emerald-400 shrink-0">✓ Hợp lệ</span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 shrink-0">
+                <Check className="w-3 h-3" /> Hợp lệ
+              </span>
             </div>
 
             <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[10px]">
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono font-bold text-[10px]">
                     5GHz
                   </span>
                   <span className="font-mono font-bold text-zinc-100 truncate">
@@ -250,7 +251,9 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
                   BSSID 5G: {liveDualBandProfile.bssid5G}
                 </div>
               </div>
-              <span className="text-[10px] font-bold text-emerald-400 shrink-0">✓ Hợp lệ</span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 shrink-0">
+                <Check className="w-3 h-3" /> Hợp lệ
+              </span>
             </div>
           </div>
         </div>
@@ -267,7 +270,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
               }
               className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-semibold border transition-all cursor-pointer ${
                 formData.wifiSsid === ssid
-                  ? 'bg-indigo-600/25 border-indigo-500 text-indigo-200'
+                  ? 'bg-emerald-600/25 border-emerald-500 text-emerald-200'
                   : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -281,9 +284,9 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
           type="button"
           onClick={handleQuickSelectConnectedWifiAndSave}
           disabled={isSaving}
-          className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+          className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
         >
-          <Sparkles className="w-4 h-4" />
+          <CheckCircle2 className="w-4 h-4" />
           <span>
             Lưu WiFi Này Làm Chuẩn Chấm Công
           </span>
@@ -371,7 +374,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
             onChange={(e) => setIpInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddIp())}
             placeholder="Nhập IP công khai của quán (VD: 14.161.45.88)..."
-            className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+            className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500"
           />
           <button
             type="button"
@@ -530,9 +533,9 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
               type="button"
               onClick={handleCaptureCurrentStoreGps}
               disabled={isDetectingGps}
-              className="w-full py-2.5 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              className="w-full py-2.5 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
-              <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+              <MapPin className="w-3.5 h-3.5 text-emerald-400" />
               <span>
                 {isDetectingGps
                   ? 'Đang lấy tọa độ GPS hiện tại...'

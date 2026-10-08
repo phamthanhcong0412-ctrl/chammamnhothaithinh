@@ -53,7 +53,17 @@ export async function detectClientPublicIp(forceRefresh = false): Promise<string
     return cachedPublicIp.ip;
   }
 
-  // 1. IPv4-only json endpoints
+  // 1. Siêu tốc: Thử lấy ngay từ backend local /api/network-info (< 3ms)
+  try {
+    const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/network-info`);
+    if (ok && data?.clientIp && data.clientIp !== '127.0.0.1' && data.clientIp !== '::1') {
+      const cleanIp = String(data.clientIp).trim();
+      cachedPublicIp = { ip: cleanIp, fetchedAt: Date.now() };
+      return cleanIp;
+    }
+  } catch {}
+
+  // 2. IPv4-only json endpoints (timeout ngắn 1.2s)
   const ipv4JsonEndpoints = [
     'https://api.ipify.org?format=json',
     'https://api4.ipify.org?format=json',
@@ -62,7 +72,7 @@ export async function detectClientPublicIp(forceRefresh = false): Promise<string
   for (const url of ipv4JsonEndpoints) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1800);
+      const timeout = setTimeout(() => controller.abort(), 1200);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
       if (res.ok) {
@@ -76,10 +86,10 @@ export async function detectClientPublicIp(forceRefresh = false): Promise<string
     } catch {}
   }
 
-  // 2. Fallback: icanhazip IPv4
+  // 3. Fallback: icanhazip IPv4
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1800);
+    const timeout = setTimeout(() => controller.abort(), 1200);
     const res = await fetch('https://ipv4.icanhazip.com', { signal: controller.signal });
     clearTimeout(timeout);
     if (res.ok) {
@@ -91,10 +101,10 @@ export async function detectClientPublicIp(forceRefresh = false): Promise<string
     }
   } catch {}
 
-  // 3. Fallback: Cloudflare trace
+  // 4. Fallback: Cloudflare trace
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
+    const timeout = setTimeout(() => controller.abort(), 1500);
     const res = await fetch('https://1.1.1.1/cdn-cgi/trace', { signal: controller.signal });
     clearTimeout(timeout);
     if (res.ok) {
@@ -105,15 +115,6 @@ export async function detectClientPublicIp(forceRefresh = false): Promise<string
         cachedPublicIp = { ip: cleanIp, fetchedAt: Date.now() };
         return cleanIp;
       }
-    }
-  } catch {}
-
-  // 4. Fallback: backend /api/network-info
-  try {
-    const { ok, data } = await fetchJsonOrThrow(`${API_BASE}/network-info`);
-    if (ok && data?.clientIp) {
-      cachedPublicIp = { ip: String(data.clientIp).trim(), fetchedAt: Date.now() };
-      return cachedPublicIp.ip;
     }
   } catch {}
 
@@ -190,23 +191,30 @@ export class ConfigService {
   }
 
   async getNetworkInfo(forceRefresh = false): Promise<NetworkInfo> {
-    const [clientIp, cfg, serverNet] = await Promise.all([
+    const [serverNet, clientIp, cfg] = await Promise.all([
+      fetchJsonOrThrow(`${API_BASE}/network-info`).catch(() => null),
       detectClientPublicIp(forceRefresh),
       this.getConfig().catch(() => loadLocal<StoreConfig>(STORAGE_KEY_CONFIG, DEFAULT_STORE_CONFIG)),
-      fetchJsonOrThrow(`${API_BASE}/network-info`).catch(() => null),
     ]);
 
     const isAllowedIp = isClientIpAllowedByConfig(clientIp, cfg);
     const rawDetectedSsid =
-      (serverNet?.ok && serverNet.data?.detectedSsid ? String(serverNet.data.detectedSsid) : '') ||
-      cfg.wifiSsid ||
-      'ChaoMamNho_ThaiThinh';
+      (serverNet?.ok && (serverNet.data?.rawDetectedSsid || serverNet.data?.detectedSsid))
+        ? String(serverNet.data.rawDetectedSsid || serverNet.data.detectedSsid)
+        : (cfg.wifiSsid || 'ChaoMamNho_ThaiThinh');
+    const detectedBssid =
+      serverNet?.ok && serverNet.data?.detectedBssid
+        ? String(serverNet.data.detectedBssid)
+        : undefined;
+
     const dualProfile = getDualBandWifiProfile(rawDetectedSsid, clientIp, cfg.storeName);
 
     return {
       clientIp,
       isAllowedIp,
       detectedSsid: dualProfile.dualSsidLabel,
+      rawSsid: serverNet?.ok && serverNet.data?.rawDetectedSsid ? String(serverNet.data.rawDetectedSsid) : dualProfile.dualSsidLabel,
+      detectedBssid: detectedBssid || dualProfile.dualBssid,
       bssid24G: dualProfile.bssid24G,
       bssid5G: dualProfile.bssid5G,
       timestamp: Date.now(),

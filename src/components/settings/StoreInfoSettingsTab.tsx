@@ -23,7 +23,7 @@ export const StoreInfoSettingsTab: React.FC<StoreInfoSettingsTabProps> = ({
           type="text"
           value={formData.storeName}
           onChange={(e) => setFormData((prev) => (prev ? { ...prev, storeName: e.target.value } : prev))}
-          className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
+          className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
         />
       </div>
 
@@ -33,7 +33,7 @@ export const StoreInfoSettingsTab: React.FC<StoreInfoSettingsTabProps> = ({
           type="text"
           value={formData.storeAddress}
           onChange={(e) => setFormData((prev) => (prev ? { ...prev, storeAddress: e.target.value } : prev))}
-          className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
+          className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
         />
       </div>
 
@@ -46,7 +46,7 @@ export const StoreInfoSettingsTab: React.FC<StoreInfoSettingsTabProps> = ({
             type="email"
             value={formData.managerEmail}
             onChange={(e) => setFormData((prev) => (prev ? { ...prev, managerEmail: e.target.value } : prev))}
-            className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
           />
         </div>
 
@@ -58,7 +58,7 @@ export const StoreInfoSettingsTab: React.FC<StoreInfoSettingsTabProps> = ({
             type="time"
             value={formData.autoEmailTime}
             onChange={(e) => setFormData((prev) => (prev ? { ...prev, autoEmailTime: e.target.value } : prev))}
-            className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
           />
         </div>
       </div>
