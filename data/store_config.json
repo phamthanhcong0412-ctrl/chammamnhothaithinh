@@ -39,15 +39,5 @@
   "autoEmailTime": "21:00",
   "managerEmail": "phamthanhcong0412@gmail.com",
   "lastReportSentDate": "2026-10-06",
-  "firebaseConfig": {
-    "adminEmail": "phamthanhcong0412@gmail.com",
-    "projectId": "ai-studio-applet-webapp-b5a3d",
-    "appId": "1:267480631516:web:feb2db4d4b39902e5b4c19",
-    "apiKey": "AIzaSyAJwKOF82z2hMxn8FT3VcTsCibjFriSgvU",
-    "authDomain": "ai-studio-applet-webapp-b5a3d.firebaseapp.com",
-    "firestoreDatabaseId": "ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881",
-    "storageBucket": "ai-studio-applet-webapp-b5a3d.firebasestorage.app",
-    "messagingSenderId": "267480631516"
-  },
   "wifiBssid": "A4:2B:D2:F5:34:46"
 }

@@ -50,7 +50,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
     setIsSubmitting(true);
     try {
       await changePassword(currentPassword.trim(), newPassword.trim());
-      setSuccessMsg('Đổi mật khẩu thành công! Đã lưu lên hệ thống Firebase.');
+      setSuccessMsg('Đổi mật khẩu thành công! Đã lưu lên hệ thống cơ sở dữ liệu.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -169,7 +169,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
 
           <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800/80 text-[11px] text-zinc-400 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Mật khẩu mới được đồng bộ Realtime tức thì lên hệ thống Firebase.</span>
+            <span>Mật khẩu mới được đồng bộ Realtime tức thì lên cơ sở dữ liệu.</span>
           </div>
 
           <div className="pt-2 flex items-center justify-end gap-2">
