@@ -50,7 +50,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
     setIsSubmitting(true);
     try {
       await changePassword(currentPassword.trim(), newPassword.trim());
-      setSuccessMsg('Đổi mật khẩu thành công! Đã lưu lên hệ thống Firebase.');
+      setSuccessMsg('Đổi mật khẩu thành công!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -65,12 +65,15 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden text-zinc-100">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="w-full sm:max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden text-zinc-100 pb-safe">
+        {/* Mobile Drag Indicator */}
+        <div className="w-12 h-1.5 rounded-full bg-zinc-700/80 mx-auto mt-2.5 mb-1 sm:hidden" />
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/60">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <KeyRound className="w-4 h-4" />
             </div>
             <div>
@@ -116,7 +119,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Nhập mật khẩu đang dùng..."
-                className="w-full pl-3.5 pr-9 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full pl-3.5 pr-9 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 transition-colors"
               />
               <button
                 type="button"
@@ -140,7 +143,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Tối thiểu 4 ký tự..."
-                className="w-full pl-3.5 pr-9 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-amber-300 focus:outline-none focus:border-indigo-500"
+                className="w-full pl-3.5 pr-9 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-amber-300 focus:outline-none focus:border-emerald-500 transition-colors"
               />
               <button
                 type="button"
@@ -163,13 +166,13 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Xác nhận lại mật khẩu mới..."
-              className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs font-mono text-amber-300 focus:outline-none focus:border-indigo-500"
+              className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-base sm:text-xs font-mono text-amber-300 focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
 
           <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800/80 text-[11px] text-zinc-400 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Mật khẩu mới được đồng bộ Realtime tức thì lên hệ thống Firebase.</span>
+            <span>Mật khẩu mới sẽ có hiệu lực ngay cho lần đăng nhập kế tiếp.</span>
           </div>
 
           <div className="pt-2 flex items-center justify-end gap-2">
@@ -183,9 +186,9 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white shadow-lg shadow-indigo-600/25 disabled:opacity-50 cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-600/25 disabled:opacity-50 cursor-pointer"
             >
-              {isSubmitting ? 'Đang cập nhật...' : 'Lưu Mật Khẩu Mới'}
+              {isSubmitting ? 'Đang cập nhật...' : 'Lưu Mật Khẩu'}
             </button>
           </div>
         </form>

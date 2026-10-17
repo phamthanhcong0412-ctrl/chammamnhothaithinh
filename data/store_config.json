@@ -1,9 +1,10 @@
 {
   "storeName": "Cháo Mầm Nhỏ Thái Thịnh",
   "storeAddress": "Thái Thịnh, Đống Đa, Hà Nội",
-  "wifiSsid": "ChaoMamNho_ThaiThinh_5G",
+  "wifiSsid": "ChaoMamNho_ThaiThinh (2.4G / 5G)",
   "allowedIps": [
-    "210.245.52.70"
+    "210.245.52.70",
+    "171.226.10.81"
   ],
   "bypassIpCheck": false,
   "requireWifi": true,
@@ -20,8 +21,8 @@
     {
       "id": "shift_morning",
       "name": "Ca Sáng (06:00 - 12:00)",
-      "startTime": "06:00",
       "endTime": "12:00",
+      "startTime": "06:00",
       "lateGraceMinutes": 15,
       "checkInBeforeMinutes": 30,
       "checkOutAfterMinutes": 90
@@ -29,8 +30,8 @@
     {
       "id": "shift_afternoon",
       "name": "Ca Chiều (15:30 - 20:00)",
-      "startTime": "15:30",
       "endTime": "20:00",
+      "startTime": "15:30",
       "lateGraceMinutes": 15,
       "checkInBeforeMinutes": 30,
       "checkOutAfterMinutes": 90
@@ -39,15 +40,5 @@
   "autoEmailTime": "21:00",
   "managerEmail": "phamthanhcong0412@gmail.com",
   "lastReportSentDate": "2026-10-06",
-  "firebaseConfig": {
-    "adminEmail": "phamthanhcong0412@gmail.com",
-    "projectId": "ai-studio-applet-webapp-b5a3d",
-    "appId": "1:267480631516:web:feb2db4d4b39902e5b4c19",
-    "apiKey": "AIzaSyAJwKOF82z2hMxn8FT3VcTsCibjFriSgvU",
-    "authDomain": "ai-studio-applet-webapp-b5a3d.firebaseapp.com",
-    "firestoreDatabaseId": "ai-studio-remixchmcngthngm-29b88f94-6ce3-4325-afeb-6a6d8e57c881",
-    "storageBucket": "ai-studio-applet-webapp-b5a3d.firebasestorage.app",
-    "messagingSenderId": "267480631516"
-  },
-  "wifiBssid": "A4:2B:D2:F5:34:46"
+  "wifiBssid": "A4:2B:AB:E2:0A:51 (2.4G) / 52 (5G)"
 }

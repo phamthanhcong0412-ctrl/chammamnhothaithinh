@@ -48,12 +48,12 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-zinc-100 p-4">
-        <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mb-4">
-          <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+      <div className="min-h-screen bg-[#141416] flex flex-col items-center justify-center text-zinc-100 p-4">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mb-4">
+          <Loader2 className="w-6 h-6 text-emerald-400 animate-spin" />
         </div>
-        <h2 className="text-sm font-bold tracking-tight text-zinc-200">Đang khởi tạo hệ thống Chấm Công Thông Minh...</h2>
-        <p className="text-xs text-zinc-500 mt-1">Kiểm tra kết nối mạng và đồng bộ ca làm việc</p>
+        <h2 className="text-sm font-bold tracking-tight text-zinc-200">Đang khởi tạo Cháo Mầm Nhỏ...</h2>
+        <p className="text-xs text-zinc-500 mt-1">Kiểm tra kết nối và đồng bộ ca làm việc</p>
       </div>
     );
   }
@@ -64,11 +64,10 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-indigo-500/30 selection:text-indigo-200 relative pb-20 md:pb-10 overflow-x-hidden">
+    <div className="min-h-screen bg-[#141416] text-zinc-100 flex flex-col selection:bg-emerald-500/20 selection:text-emerald-200 relative pb-20 md:pb-10 overflow-x-hidden">
       
-      {/* Background Decorative Ambient Gradients (slide-pro-chi style) */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[350px] bg-gradient-to-b from-indigo-500/10 via-violet-500/5 to-transparent blur-3xl pointer-events-none -z-10" />
-      <div className="fixed bottom-0 right-0 w-[500px] h-[300px] bg-emerald-500/5 blur-3xl pointer-events-none -z-10" />
+      {/* Background Subtle Ambient Glow */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-emerald-500/[0.03] blur-3xl pointer-events-none -z-10" />
 
       {/* Navbar */}
       <Navbar

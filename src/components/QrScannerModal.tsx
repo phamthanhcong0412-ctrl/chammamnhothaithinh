@@ -13,7 +13,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   isOpen,
   onClose,
   onScanSuccess,
-  storeName = 'Artisans Coffee',
+  storeName = 'Cháo Mầm Nhỏ Thái Thịnh',
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -154,22 +154,25 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full sm:max-w-md bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:pb-0">
+        {/* Mobile drag handle */}
+        <div className="sm:hidden w-10 h-1 bg-zinc-700 rounded-full mx-auto my-2 shrink-0" />
+
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/80 bg-zinc-900/80">
+        <div className="flex items-center justify-between px-5 py-3 sm:py-4 border-b border-zinc-800/80 bg-zinc-900/80">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <Camera className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-zinc-100">Quét Mã QR Cửa Hàng</h3>
+              <h3 className="text-sm font-semibold text-zinc-100">Quét Mã QR Quán</h3>
               <p className="text-xs text-zinc-400">{storeName}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -183,7 +186,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               <p className="text-xs text-zinc-300 leading-relaxed mb-4">{cameraError}</p>
               <button
                 onClick={startCamera}
-                className="px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 inline-flex items-center gap-1.5 transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" /> Thử lại Camera
               </button>
@@ -197,17 +200,14 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               />
               <canvas ref={canvasRef} className="hidden" />
 
-              {/* Viewfinder Target Overlay */}
+              {/* Viewfinder Target Overlay - Clean Human Utility (No Laser Beam) */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="relative w-56 h-56 border-2 border-indigo-500/60 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
+                <div className="relative w-56 h-56 border-2 border-emerald-500/50 rounded-2xl shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]">
                   {/* Corner accents */}
-                  <div className="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-indigo-400 rounded-tl-lg" />
-                  <div className="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-indigo-400 rounded-tr-lg" />
-                  <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-indigo-400 rounded-bl-lg" />
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-indigo-400 rounded-br-lg" />
-
-                  {/* Scanning laser beam animation */}
-                  <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_12px_#818cf8] animate-[bounce_2.5s_infinite]" />
+                  <div className="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-emerald-400 rounded-tl-lg" />
+                  <div className="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-emerald-400 rounded-tr-lg" />
+                  <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg" />
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-emerald-400 rounded-br-lg" />
                 </div>
               </div>
 
@@ -225,8 +225,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
         {/* Footer controls & alternatives */}
         <div className="p-4 bg-zinc-900 border-t border-zinc-800 space-y-2.5">
           <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
-            <span>Hướng camera về phía mã QR tại quầy thu ngân</span>
-            <span className="flex items-center gap-1 text-indigo-400 font-medium">
+            <span>Đặt khung ngắm vào biển QR tại quầy</span>
+            <span className="flex items-center gap-1 text-emerald-400 font-medium">
               <ShieldCheck className="w-3.5 h-3.5" /> Mã bảo mật
             </span>
           </div>
@@ -234,7 +234,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="py-2.5 px-3 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 text-xs font-medium text-zinc-300 flex items-center justify-center gap-1.5 transition-colors"
+              className="py-3 px-3 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 text-xs font-medium text-zinc-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5 text-zinc-400" /> Tải ảnh QR
             </button>
@@ -248,9 +248,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
 
             <button
               onClick={handleUseStoreToken}
-              className="py-2.5 px-3 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-xs font-semibold text-indigo-300 flex items-center justify-center gap-1.5 transition-colors"
+              className="py-3 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-semibold text-emerald-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
-              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" /> Quét nhanh mã quán
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Quét nhanh mã quán
             </button>
           </div>
         </div>
