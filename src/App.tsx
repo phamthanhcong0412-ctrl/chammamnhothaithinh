@@ -9,15 +9,17 @@ import { EmailReportModal } from './components/EmailReportModal.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
 import { ManualAttendanceModal } from './components/ManualAttendanceModal.tsx';
 import { LoginScreen } from './components/LoginScreen.tsx';
+import { ShiftRegistration } from './components/ShiftRegistration.tsx';
+import type { AppTab } from './components/Navbar.tsx';
 import type { AttendanceRecord } from './types/index.ts';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 function AppContent() {
   const { currentUser, isLoading, error, refreshData } = useApp();
   const isAdmin = currentUser?.role === 'admin';
-  const [currentTab, setCurrentTab] = useState<'attendance' | 'dashboard' | 'monthly' | 'employees'>('dashboard');
+  const [currentTab, setCurrentTab] = useState<AppTab>('dashboard');
 
-  const handleSetTab = (tab: 'attendance' | 'dashboard' | 'monthly' | 'employees') => {
+  const handleSetTab = (tab: AppTab) => {
     setCurrentTab(tab);
     refreshData().catch(() => {});
   };
@@ -115,6 +117,7 @@ function AppContent() {
         {currentTab === 'employees' && (
           isAdmin ? <EmployeeManagement /> : <StaffAttendance />
         )}
+        {currentTab === 'schedule' && <ShiftRegistration />}
       </main>
 
       {/* Modals */}

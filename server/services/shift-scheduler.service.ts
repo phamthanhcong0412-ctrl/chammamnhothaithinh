@@ -167,7 +167,7 @@ export function syncAllStatsOnServer(): void {
     const covered = completedList.some((comp) => {
       if (comp.userId !== r.userId || comp.date !== r.date) return false;
       const outMs = comp.checkOutTime ? new Date(comp.checkOutTime).getTime() : 0;
-      return outMs > 0 && wInMs <= outMs + 60000;
+      return outMs > 0 && wInMs < outMs - 2000;
     });
     if (covered) continue;
 
@@ -181,7 +181,7 @@ export function syncAllStatsOnServer(): void {
     const sorted = [...list].sort(
       (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
     );
-    dedupedWorking.push(sorted[0]);
+    dedupedWorking.push(sorted[sorted.length - 1]);
   }
 
   const nextAttendance = [...dedupedWorking, ...completedList]

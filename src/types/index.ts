@@ -156,3 +156,29 @@ export interface MonthlyEmployeeSummary {
   recordsCount?: number;
   records?: AttendanceRecord[];
 }
+
+export interface ShiftRegistrationItem {
+  id: string; // e.g. "reg_userId_date_shiftId"
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  employeeCode?: string;
+  date: string; // "YYYY-MM-DD"
+  shiftId: 'shift_morning' | 'shift_afternoon' | string;
+  shiftName: string;
+  registeredAt: string;
+  note?: string;
+}
+
+export interface WeekSchedule {
+  weekId: string; // e.g. "2026-W43"
+  weekNumber: number;
+  year: number;
+  startDate: string; // "YYYY-MM-DD" (Monday)
+  endDate: string; // "YYYY-MM-DD" (Sunday)
+  isLocked: boolean;
+  lockedBy?: string;
+  lockedAt?: string;
+  registrations: ShiftRegistrationItem[];
+  updatedAt: string;
+}

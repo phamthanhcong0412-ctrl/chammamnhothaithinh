@@ -191,18 +191,30 @@ export class AttendanceService {
       }
 
       const todayStr = getTodayString();
-      const nowMs = now.getTime();
-      const hasDuplicateSameTimestamp = attendance.some((r) => {
-        if (r.userId !== payload.userId || r.date !== todayStr) return false;
-        const inDiff = Math.abs(nowMs - new Date(r.checkInTime).getTime());
-        const outDiff = r.checkOutTime ? Math.abs(nowMs - new Date(r.checkOutTime).getTime()) : Infinity;
-        return inDiff < 15000 || outDiff < 5000;
-      });
-      if (hasDuplicateSameTimestamp) {
-        throw new Error('Thao tác quá nhanh, vui lòng chờ giây lát rồi thử lại.');
+      // Đảm bảo checkInTime của lượt mới luôn sau thời điểm checkOutTime của ca đã hoàn thành gần nhất
+      const latestCompletedShift = attendance.find(
+        (r) => r.userId === payload.userId && r.date === todayStr && r.status !== 'working' && r.checkOutTime
+      );
+      const latestOutMs = latestCompletedShift?.checkOutTime
+        ? new Date(latestCompletedShift.checkOutTime).getTime()
+        : 0;
+
+      let finalNowMs = now.getTime();
+      if (latestOutMs > 0 && finalNowMs <= latestOutMs) {
+        finalNowMs = latestOutMs + 1000;
       }
 
-      const checkInTime = now.toISOString();
+      // Chỉ chặn nếu có click đúp trùng lặp tức thời (< 1 giây) trên bản ghi đang mở
+      const hasDuplicateClick = attendance.some((r) => {
+        if (r.userId !== payload.userId || r.date !== todayStr) return false;
+        const inDiff = Math.abs(finalNowMs - new Date(r.checkInTime).getTime());
+        return r.status === 'working' && inDiff < 1000;
+      });
+      if (hasDuplicateClick) {
+        throw new Error('Hệ thống đang xử lý, vui lòng chờ trong giây lát.');
+      }
+
+      const checkInTime = new Date(finalNowMs).toISOString();
       const timing = evaluateShiftTiming(checkInTime, null, cfg);
 
       const newRecord: AttendanceRecord = enrichAttendanceRecord(

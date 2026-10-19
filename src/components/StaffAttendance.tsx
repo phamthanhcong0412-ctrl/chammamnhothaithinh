@@ -237,6 +237,14 @@ export const StaffAttendance: React.FC = () => {
   const hourlyRate = currentUser?.hourlyRate || 28000;
   const activeElapsedMinutes = Math.floor(activeElapsedSec / 60);
 
+  const hasCompletedTurnToday = useMemo(() => {
+    return myTodaySessions.some((r) => {
+      if (r.status !== 'working') return true;
+      if (Array.isArray(r.turns) && r.turns.some((t) => Boolean(t.checkOutTime))) return true;
+      return false;
+    });
+  }, [myTodaySessions]);
+
   const completedMinutesToday = useMemo(() => {
     return myTodaySessions
       .filter((r) => r.status !== 'working')
@@ -277,7 +285,7 @@ export const StaffAttendance: React.FC = () => {
     if (activeRecord) {
       setStatusMessage({
         type: 'error',
-        text: 'Bạn đang trong ca, vui lòng Check-out trước khi Check-in lại.',
+        text: 'Bạn đang trong ca, vui lòng Kết thúc ca trước khi bắt đầu lượt mới.',
       });
       return;
     }
@@ -301,12 +309,14 @@ export const StaffAttendance: React.FC = () => {
 
       setStatusMessage({
         type: 'success',
-        text: 'Check-in thành công! Chúc bạn làm việc tốt.',
+        text: hasCompletedTurnToday
+          ? 'Tiếp tục ca thành công! Chúc bạn làm việc tốt.'
+          : 'Bắt đầu ca thành công! Chúc bạn làm việc tốt.',
       });
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Check-in không thành công. Vui lòng thử lại.',
+        text: err.message || 'Thao tác không thành công. Vui lòng thử lại.',
       });
     } finally {
       processingRef.current = false;
@@ -345,7 +355,7 @@ export const StaffAttendance: React.FC = () => {
     if (!activeRecord) {
       setStatusMessage({
         type: 'error',
-        text: 'Bạn chưa vào ca để Check-out.',
+        text: 'Bạn chưa vào ca để Kết thúc ca.',
       });
       return;
     }
@@ -369,12 +379,12 @@ export const StaffAttendance: React.FC = () => {
 
       setStatusMessage({
         type: 'success',
-        text: `Check-out thành công! Tổng thời gian: ${(record.totalMinutes / 60).toFixed(1)}h.`,
+        text: `Kết thúc ca thành công! Tổng thời gian thực làm: ${(record.totalMinutes / 60).toFixed(1)}h (${record.totalMinutes} phút).`,
       });
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
-        text: err.message || 'Check-out thất bại.',
+        text: err.message || 'Kết thúc ca thất bại.',
       });
     } finally {
       processingRef.current = false;
@@ -432,6 +442,7 @@ export const StaffAttendance: React.FC = () => {
         isGpsValid={isGpsValid}
         isShiftTimeValid={isShiftTimeValid}
         storeConfig={storeConfig}
+        hasCompletedTurnToday={hasCompletedTurnToday}
         gpsError={gpsError}
         userGps={userGps}
         formatElapsed={formatElapsed}

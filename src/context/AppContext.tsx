@@ -155,6 +155,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isActionLockedRef = useRef(false);
   const usersRef = useRef<User[]>(users);
   usersRef.current = users;
+  const attendanceRef = useRef<AttendanceRecord[]>(attendance);
+  attendanceRef.current = attendance;
 
   // HUD Loading wrapper: đảm bảo không chạy song song 2 hành động gây race condition
   const runWithHudLoading = useCallback(
@@ -397,7 +399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       note?: string;
     }): Promise<AttendanceRecord> => {
       if (!currentUser) throw new Error('Vui lòng đăng nhập trước khi chấm công');
-      return runWithHudLoading('Đang check-in...', async () => {
+      return runWithHudLoading('Đang xử lý bắt đầu/tiếp tục ca...', async () => {
         const res = await api.checkIn({
           userId: currentUser.id,
           qrToken: payload?.qrToken,
@@ -406,15 +408,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           note: payload?.note,
         });
         const enrichedRec = enrichAttendanceRecord(res.record, usersRef.current);
+        const currentAtt = attendanceRef.current;
         const nextAtt = [
           enrichedRec,
-          ...attendance.filter((r) => !(r.userId === currentUser.id && r.status === 'working')),
+          ...currentAtt.filter((r) => !(r.userId === currentUser.id && r.status === 'working')),
         ];
         syncUserAndAttendanceState(nextAtt, currentUser.id);
         return enrichedRec;
       });
     },
-    [currentUser, attendance, runWithHudLoading, syncUserAndAttendanceState]
+    [currentUser, runWithHudLoading, syncUserAndAttendanceState]
   );
 
   const checkOut = useCallback(
@@ -425,7 +428,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       note?: string;
     }): Promise<AttendanceRecord> => {
       if (!currentUser) throw new Error('Vui lòng đăng nhập');
-      return runWithHudLoading('Đang check-out...', async () => {
+      return runWithHudLoading('Đang xử lý kết thúc ca...', async () => {
         const res = await api.checkOut({
           userId: currentUser.id,
           qrToken: payload?.qrToken,
@@ -434,11 +437,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           note: payload?.note,
         });
         const enrichedRec = enrichAttendanceRecord(res.record, usersRef.current);
+        const currentAtt = attendanceRef.current;
         const removedSet = new Set([
           ...(res.removedId ? [res.removedId] : []),
           ...(res.removedIds || []),
         ]);
-        const filteredAtt = attendance.filter(
+        const filteredAtt = currentAtt.filter(
           (r) =>
             !removedSet.has(r.id) &&
             !(r.userId === currentUser.id && r.status === 'working' && r.id !== enrichedRec.id)
@@ -450,7 +454,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return enrichedRec;
       });
     },
-    [currentUser, attendance, runWithHudLoading, syncUserAndAttendanceState]
+    [currentUser, runWithHudLoading, syncUserAndAttendanceState]
   );
 
   const checkOutUser = useCallback(
@@ -464,11 +468,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           managerOverride: true,
         });
         const enrichedRec = enrichAttendanceRecord(res.record, usersRef.current);
+        const currentAtt = attendanceRef.current;
         const removedSet = new Set([
           ...(res.removedId ? [res.removedId] : []),
           ...(res.removedIds || []),
         ]);
-        const filteredAtt = attendance.filter(
+        const filteredAtt = currentAtt.filter(
           (r) =>
             !removedSet.has(r.id) &&
             !(r.userId === userId && r.status === 'working' && r.id !== enrichedRec.id)
@@ -480,7 +485,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return enrichedRec;
       });
     },
-    [storeConfig?.wifiSsid, attendance, runWithHudLoading, syncUserAndAttendanceState]
+    [storeConfig?.wifiSsid, runWithHudLoading, syncUserAndAttendanceState]
   );
 
   const manualAttendance = useCallback(

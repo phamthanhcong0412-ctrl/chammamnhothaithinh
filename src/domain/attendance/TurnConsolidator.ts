@@ -8,7 +8,8 @@ import { evaluateShiftTiming } from '../shifts/ShiftTimingEvaluator.ts';
 import { enrichAttendanceRecord } from '../salary/SalaryCalculator.ts';
 
 /**
- * Gộp các lượt chấm công (turns) lân cận hoặc chồng lấn (<= 60s)
+ * Gộp các lượt chấm công (turns) nếu là bản ghi trùng lặp thực sự (< 2s hoặc lấn giờ ca trước).
+ * Tuyệt đối không gộp các lượt rời nhau (currInMs >= lastOutMs) để đảm bảo không tính khoảng trống giữa các lần vào/ra.
  */
 export function deduplicateAndMergeOverlappingTurns(turns: ShiftTurn[]): ShiftTurn[] {
   if (!turns || turns.length <= 1) return turns || [];
@@ -24,18 +25,35 @@ export function deduplicateAndMergeOverlappingTurns(turns: ShiftTurn[]): ShiftTu
       continue;
     }
     const last = merged[merged.length - 1];
+    const lastInMs = new Date(last.checkInTime).getTime();
     const lastOutMs = last.checkOutTime ? new Date(last.checkOutTime).getTime() : 0;
     const currInMs = new Date(curr.checkInTime).getTime();
+    const currOutMs = curr.checkOutTime ? new Date(curr.checkOutTime).getTime() : 0;
 
-    // Nếu thời điểm vào của lượt này nằm trong hoặc liền kề lượt trước (<= 60s)
-    if (lastOutMs > 0 && currInMs <= lastOutMs + 60000) {
-      const currOutMs = curr.checkOutTime ? new Date(curr.checkOutTime).getTime() : 0;
+    // Trùng lặp check-in cùng lúc (< 2s)
+    const isDuplicateInstant = Math.abs(currInMs - lastInMs) < 2000;
+    // Lượt trước chưa kết thúc (đang mở)
+    const isLastStillOpen = lastOutMs === 0;
+    // Hoặc thời điểm check-in này nằm hoàn toàn bên trong ca trước
+    const isInsideLastShift = lastOutMs > 0 && currInMs < lastOutMs;
+
+    if (isDuplicateInstant || isLastStillOpen || isInsideLastShift) {
       if (currOutMs > lastOutMs) {
         last.checkOutTime = curr.checkOutTime;
-        last.minutes = Math.max(1, Math.round((currOutMs - new Date(last.checkInTime).getTime()) / 60000));
+        last.minutes = Math.max(1, Math.round((currOutMs - lastInMs) / 60000));
+      }
+      if (curr.note && !last.note?.includes(curr.note)) {
+        last.note = last.note ? `${last.note} | ${curr.note}` : curr.note;
       }
     } else {
-      merged.push({ ...curr });
+      // Lượt hoàn toàn độc lập (currInMs >= lastOutMs): khoảng cách giữa lastOut và currIn không tính giờ làm
+      const diffMins = currOutMs > currInMs
+        ? Math.max(1, Math.round((currOutMs - currInMs) / 60000))
+        : Number(curr.minutes) || 0;
+      merged.push({
+        ...curr,
+        minutes: diffMins,
+      });
     }
   }
   return merged;
@@ -207,15 +225,16 @@ export function consolidateCompletedShifts(
   }
 
   // Deduplicate active `working` records:
-  // 1. Loại bỏ bản ghi `working` nếu thời điểm check-in đã nằm trọn trong 1 ca hoàn thành cùng ngày
-  // 2. Chỉ giữ tối đa 1 bản ghi `working` duy nhất cho mỗi nhân viên
+  // 1. Chỉ loại bỏ bản ghi `working` nếu thời điểm check-in của nó nằm trước giờ kết thúc của ca đã hoàn thành (wInMs < compOutMs - 2000)
+  //    Tuyệt đối KHÔNG loại bỏ lượt check-in mới (Lần 2, 3...) sau khi đã check-out (wInMs >= compOutMs - 2000)!
+  // 2. Chỉ giữ tối đa 1 bản ghi `working` mới nhất cho mỗi nhân viên
   const workingByUser = new Map<string, AttendanceRecord[]>();
   for (const w of rawWorking) {
     const wInMs = new Date(w.checkInTime).getTime();
     const alreadyCoveredByCompleted = consolidatedCompleted.some((comp) => {
       if (comp.userId !== w.userId || comp.date !== w.date) return false;
       const compOutMs = comp.checkOutTime ? new Date(comp.checkOutTime).getTime() : 0;
-      return compOutMs > 0 && wInMs <= compOutMs + 60000;
+      return compOutMs > 0 && wInMs < compOutMs - 2000;
     });
 
     if (alreadyCoveredByCompleted) {
@@ -233,8 +252,9 @@ export function consolidateCompletedShifts(
     const sortedW = [...userWorkingList].sort(
       (a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
     );
-    working.push(sortedW[0]);
-    for (let i = 1; i < sortedW.length; i++) {
+    // Luôn giữ bản ghi working mới nhất của user
+    working.push(sortedW[sortedW.length - 1]);
+    for (let i = 0; i < sortedW.length - 1; i++) {
       removedIds.push(sortedW[i].id);
     }
   }

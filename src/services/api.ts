@@ -10,6 +10,7 @@ import { userService } from './user.service.ts';
 import { attendanceService } from './attendance.service.ts';
 import { configService } from './config.service.ts';
 import { reportService } from './report.service.ts';
+import { scheduleService } from './schedule.service.ts';
 
 // Re-export toàn bộ Domain Pure Functions để các UI components tiếp tục hoạt động mà không cần sửa import
 export {
@@ -32,7 +33,7 @@ export {
 } from '../domain/index.ts';
 
 // Re-export services con để các module mới có thể import trực tiếp (SRP)
-export { authService, userService, attendanceService, configService, reportService };
+export { authService, userService, attendanceService, configService, reportService, scheduleService };
 
 /**
  * Facade Object: Giữ nguyên 100% API surface cũ cho AppContext và các Component
@@ -62,6 +63,12 @@ export const api = {
   checkOut: (payload: any) => attendanceService.checkOut(payload),
   manualAttendance: (payload: any) => attendanceService.manualAttendance(payload),
   deleteAttendance: (id: string) => attendanceService.deleteAttendance(id),
+
+  // Schedules (Đăng ký ca làm việc)
+  getSchedules: () => scheduleService.getSchedules(),
+  getWeekSchedule: (weekId: string) => scheduleService.getWeekSchedule(weekId),
+  registerShift: (payload: any) => scheduleService.registerShift(payload),
+  toggleScheduleLock: (payload: any) => scheduleService.toggleScheduleLock(payload),
 
   // Reports
   getMonthlyReport: (month?: string, userId?: string) =>

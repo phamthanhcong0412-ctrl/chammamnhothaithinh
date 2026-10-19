@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import type { User, AttendanceRecord, StoreConfig, EmailLog } from '../../src/types/index.ts';
+import type { User, AttendanceRecord, StoreConfig, EmailLog, WeekSchedule } from '../../src/types/index.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +22,7 @@ export const USERS_FILE = path.join(DATA_DIR, 'users.json');
 export const ATTENDANCE_FILE = path.join(DATA_DIR, 'attendance.json');
 export const EMAIL_LOGS_FILE = path.join(DATA_DIR, 'email_logs.json');
 export const COLLECTIONS_FILE = path.join(DATA_DIR, 'collections.json');
+export const SCHEDULES_FILE = path.join(DATA_DIR, 'shift_schedules.json');
 
 export const DEFAULT_CONFIG: StoreConfig = {
   storeName: 'Cháo Mầm Nhỏ Thái Thịnh',
@@ -109,6 +110,7 @@ let users: User[] = loadData<User[]>(USERS_FILE, DEFAULT_USERS);
 let attendance: AttendanceRecord[] = loadData<AttendanceRecord[]>(ATTENDANCE_FILE, []);
 let emailLogs: EmailLog[] = loadData<EmailLog[]>(EMAIL_LOGS_FILE, []);
 let customCollections: Record<string, any[]> = loadData<Record<string, any[]>>(COLLECTIONS_FILE, {});
+let shiftSchedules: WeekSchedule[] = loadData<WeekSchedule[]>(SCHEDULES_FILE, []);
 
 export const db = {
   getConfig: () => loadData<StoreConfig>(CONFIG_FILE, DEFAULT_CONFIG),
@@ -144,6 +146,29 @@ export const db = {
     customCollections = cols;
     saveData(COLLECTIONS_FILE, customCollections);
     return customCollections;
+  },
+
+  getSchedules: () => loadData<WeekSchedule[]>(SCHEDULES_FILE, shiftSchedules),
+  setSchedules: (schedules: WeekSchedule[]) => {
+    shiftSchedules = schedules;
+    saveData(SCHEDULES_FILE, shiftSchedules);
+    return shiftSchedules;
+  },
+  getWeekSchedule: (weekId: string): WeekSchedule | null => {
+    const all = loadData<WeekSchedule[]>(SCHEDULES_FILE, shiftSchedules);
+    return all.find((s) => s.weekId === weekId) || null;
+  },
+  saveWeekSchedule: (ws: WeekSchedule): WeekSchedule => {
+    const all = loadData<WeekSchedule[]>(SCHEDULES_FILE, shiftSchedules);
+    const idx = all.findIndex((s) => s.weekId === ws.weekId);
+    if (idx >= 0) {
+      all[idx] = ws;
+    } else {
+      all.push(ws);
+    }
+    shiftSchedules = all;
+    saveData(SCHEDULES_FILE, shiftSchedules);
+    return ws;
   },
 };
 

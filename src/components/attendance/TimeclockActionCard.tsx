@@ -25,6 +25,7 @@ export interface TimeclockActionCardProps {
   isGpsValid: boolean;
   isShiftTimeValid: boolean;
   storeConfig: StoreConfig | null;
+  hasCompletedTurnToday?: boolean;
   gpsError: string | null;
   userGps: { lat: number; lng: number; accuracy?: number; distance?: number } | null;
   formatElapsed: (sec: number) => string;
@@ -45,6 +46,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
   isGpsValid,
   isShiftTimeValid,
   storeConfig,
+  hasCompletedTurnToday,
   gpsError,
   userGps,
   formatElapsed,
@@ -101,13 +103,15 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
           <div className="space-y-1.5 py-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-800/90 border border-zinc-700/80 text-zinc-300 text-xs font-semibold">
               <Clock className="w-3.5 h-3.5 text-amber-400" />
-              Sẵn sàng vào ca
+              {hasCompletedTurnToday ? 'Tạm dừng ca · Sẵn sàng tiếp tục' : 'Sẵn sàng vào ca'}
             </div>
             <h3 className="text-base font-bold text-zinc-100">
-              Bắt Đầu Ca Làm Việc
+              {hasCompletedTurnToday ? 'Tiếp Tục Ca Làm Việc' : 'Bắt Đầu Ca Làm Việc'}
             </h3>
             <p className="text-xs text-zinc-400">
-              Chạm nút bên dưới để nhận ca. Giờ làm và tiền lương được tự động ghi nhận.
+              {hasCompletedTurnToday
+                ? 'Chạm nút bên dưới để tiếp tục ca. Khoảng thời gian tạm nghỉ giữa các lần không tính giờ làm.'
+                : 'Chạm nút bên dưới để bắt đầu ca. Giờ làm và tiền lương được tự động ghi nhận.'}
             </p>
           </div>
         )}
@@ -123,7 +127,9 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
           placeholder={
             activeRecord
               ? 'Ghi chú kết thúc ca (nếu có)...'
-              : 'Ghi chú nhận ca (nếu có)...'
+              : hasCompletedTurnToday
+              ? 'Ghi chú tiếp tục ca (nếu có)...'
+              : 'Ghi chú bắt đầu ca (nếu có)...'
           }
           className="w-full pl-10 pr-3.5 py-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-base sm:text-xs text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
         />
@@ -142,7 +148,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
             }`}
           >
             <LogIn className="w-6 h-6" />
-            <span>NHẬN CA LÀM VIỆC</span>
+            <span>{hasCompletedTurnToday ? 'TIẾP TỤC CA' : 'BẮT ĐẦU CA'}</span>
           </button>
         ) : (
           <button
@@ -155,7 +161,7 @@ export const TimeclockActionCard: React.FC<TimeclockActionCardProps> = ({
             }`}
           >
             <LogOut className="w-6 h-6" />
-            <span>KẾT THÚC CA LÀM VIỆC</span>
+            <span>KẾT THÚC CA</span>
           </button>
         )}
       </div>
