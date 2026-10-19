@@ -292,6 +292,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           onAttendanceChange: () => refreshData(),
           onUsersChange: () => refreshData(),
           onConfigChange: () => refreshData(),
+          onScheduleChange: () => refreshData(),
         })
       : () => {};
 

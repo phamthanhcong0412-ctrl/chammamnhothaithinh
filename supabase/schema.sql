@@ -138,25 +138,46 @@ CREATE TABLE IF NOT EXISTS public.email_logs (
 CREATE INDEX IF NOT EXISTS idx_email_logs_date ON public.email_logs(date DESC);
 
 -- --------------------------------------------------------------------
--- 5. KÍCH HOẠT REALTIME REPLICATION (Supabase Realtime)
--- Cho phép client nhận thông báo tức thì khi nhân viên check-in/out
+-- 5. BẢNG ĐĂNG KÝ CA LÀM VIỆC THEO TUẦN (shift_schedules)
+-- --------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.shift_schedules (
+    week_id TEXT PRIMARY KEY, -- Định dạng YYYY-Www, ví dụ: '2026-W43'
+    week_number INT NOT NULL,
+    year INT NOT NULL,
+    start_date TEXT NOT NULL, -- 'YYYY-MM-DD'
+    end_date TEXT NOT NULL,   -- 'YYYY-MM-DD'
+    is_locked BOOLEAN DEFAULT FALSE,
+    locked_by TEXT,
+    locked_at TIMESTAMPTZ,
+    registrations JSONB NOT NULL DEFAULT '[]'::jsonb,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shift_schedules_year_week ON public.shift_schedules(year, week_number);
+
+-- --------------------------------------------------------------------
+-- 6. KÍCH HOẠT REALTIME REPLICATION (Supabase Realtime)
+-- Cho phép client nhận thông báo tức thì khi nhân viên check-in/out & đăng ký ca
 -- --------------------------------------------------------------------
 ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance_records;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.store_config;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.shift_schedules;
 
 -- Thiết lập REPLICA IDENTITY FULL để sự kiện UPDATE/DELETE từ Realtime trả về toàn bộ dữ liệu cũ
 ALTER TABLE public.attendance_records REPLICA IDENTITY FULL;
 ALTER TABLE public.users REPLICA IDENTITY FULL;
 ALTER TABLE public.store_config REPLICA IDENTITY FULL;
+ALTER TABLE public.shift_schedules REPLICA IDENTITY FULL;
 
 -- --------------------------------------------------------------------
--- 6. CHÍNH SÁCH BẢO MẬT ROW LEVEL SECURITY (RLS)
+-- 7. CHÍNH SÁCH BẢO MẬT ROW LEVEL SECURITY (RLS)
 -- --------------------------------------------------------------------
 ALTER TABLE public.store_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shift_schedules ENABLE ROW LEVEL SECURITY;
 
 -- Cấu hình chính sách cho store_config: Cho phép đọc mọi người, chỉ admin/service_role sửa
 CREATE POLICY "Public read config" ON public.store_config FOR SELECT USING (true);
@@ -174,3 +195,8 @@ CREATE POLICY "Allow delete attendance" ON public.attendance_records FOR DELETE 
 
 -- Cấu hình chính sách cho email_logs:
 CREATE POLICY "Allow read write email logs" ON public.email_logs FOR ALL USING (true);
+
+-- Cấu hình chính sách cho shift_schedules:
+CREATE POLICY "Allow public read shift_schedules" ON public.shift_schedules FOR SELECT USING (true);
+CREATE POLICY "Allow insert and update shift_schedules" ON public.shift_schedules FOR ALL USING (true);
+CREATE POLICY "Allow delete shift_schedules" ON public.shift_schedules FOR DELETE USING (true);

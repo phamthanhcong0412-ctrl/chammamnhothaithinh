@@ -7,7 +7,7 @@
  */
 
 import { createClient, type RealtimeChannel } from '@supabase/supabase-js';
-import type { User, AttendanceRecord, StoreConfig } from './types/index.ts';
+import type { User, AttendanceRecord, StoreConfig, WeekSchedule } from './types/index.ts';
 
 // Re-export Domain helpers để đảm bảo Single Source of Truth và không làm gãy import cũ (DRY)
 export {
@@ -67,15 +67,18 @@ interface CacheEntry<T> {
 let storeConfigCache: CacheEntry<Partial<StoreConfig>> | null = null;
 let usersCache: CacheEntry<User[]> | null = null;
 let attendanceCache: CacheEntry<AttendanceRecord[]> | null = null;
+let schedulesCache: CacheEntry<WeekSchedule[]> | null = null;
 
-export function invalidateSupabaseCache(type?: 'all' | 'config' | 'users' | 'attendance'): void {
+export function invalidateSupabaseCache(type?: 'all' | 'config' | 'users' | 'attendance' | 'schedules'): void {
   if (!type || type === 'all') {
     storeConfigCache = null;
     usersCache = null;
     attendanceCache = null;
+    schedulesCache = null;
   } else if (type === 'config') storeConfigCache = null;
   else if (type === 'users') usersCache = null;
   else if (type === 'attendance') attendanceCache = null;
+  else if (type === 'schedules') schedulesCache = null;
 }
 
 // ====================================================================
@@ -246,6 +249,38 @@ export const AttendanceMapper = {
       adjusted_reason: rec.adjustedReason || null,
       created_at: rec.createdAt || new Date().toISOString(),
       updated_at: new Date().toISOString(),
+    };
+  },
+};
+
+export const ShiftScheduleMapper = {
+  toDomain(row: any): WeekSchedule {
+    return {
+      weekId: row.week_id,
+      weekNumber: Number(row.week_number) || 1,
+      year: Number(row.year) || new Date().getFullYear(),
+      startDate: row.start_date,
+      endDate: row.end_date,
+      isLocked: Boolean(row.is_locked),
+      lockedBy: row.locked_by || undefined,
+      lockedAt: row.locked_at || undefined,
+      registrations: Array.isArray(row.registrations) ? row.registrations : [],
+      updatedAt: row.updated_at || new Date().toISOString(),
+    };
+  },
+
+  toRow(schedule: WeekSchedule): Record<string, any> {
+    return {
+      week_id: schedule.weekId,
+      week_number: schedule.weekNumber,
+      year: schedule.year,
+      start_date: schedule.startDate,
+      end_date: schedule.endDate,
+      is_locked: Boolean(schedule.isLocked),
+      locked_by: schedule.lockedBy || null,
+      locked_at: schedule.lockedAt || null,
+      registrations: Array.isArray(schedule.registrations) ? schedule.registrations : [],
+      updated_at: schedule.updatedAt || new Date().toISOString(),
     };
   },
 };
@@ -499,6 +534,56 @@ export async function batchDeleteAttendanceFromSupabase(recordIds: string[]): Pr
   }
 }
 
+// --- SHIFT SCHEDULES ---
+export async function fetchSchedulesFromSupabase(forceRefresh = false): Promise<WeekSchedule[]> {
+  if (!isSupabaseConfigured) return [];
+  if (!forceRefresh && schedulesCache && Date.now() - schedulesCache.timestamp < 15000) {
+    return schedulesCache.data;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('shift_schedules')
+      .select('*')
+      .order('start_date', { ascending: false });
+    if (error || !data) return schedulesCache?.data || [];
+    const mapped = data.map(ShiftScheduleMapper.toDomain);
+    schedulesCache = { data: mapped, timestamp: Date.now() };
+    return mapped;
+  } catch (err) {
+    console.error('Lỗi lấy shift_schedules từ Supabase:', err);
+    return schedulesCache?.data || [];
+  }
+}
+
+export async function fetchWeekScheduleFromSupabase(weekId: string): Promise<WeekSchedule | null> {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const { data, error } = await supabase
+      .from('shift_schedules')
+      .select('*')
+      .eq('week_id', weekId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return ShiftScheduleMapper.toDomain(data);
+  } catch (err) {
+    console.error(`Lỗi lấy lịch tuần ${weekId} từ Supabase:`, err);
+    return null;
+  }
+}
+
+export async function saveScheduleToSupabase(schedule: WeekSchedule): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  try {
+    schedulesCache = null; // Invalidate cache
+    const row = ShiftScheduleMapper.toRow(schedule);
+    const { error } = await supabase.from('shift_schedules').upsert(row, { onConflict: 'week_id' });
+    if (error) throw error;
+  } catch (err) {
+    console.error('Lỗi lưu shift_schedule lên Supabase:', err);
+    throw err;
+  }
+}
+
 // ====================================================================
 // 5. REALTIME WEBSOCKETS SUBSCRIPTION
 // ====================================================================
@@ -507,12 +592,14 @@ export function subscribeToRealtimeStoreData(callbacks: {
   onAttendanceChange?: () => void;
   onUsersChange?: () => void;
   onConfigChange?: () => void;
+  onScheduleChange?: () => void;
 }): () => void {
   if (!isSupabaseConfigured) return () => {};
 
   let attTimer: any = null;
   let userTimer: any = null;
   let cfgTimer: any = null;
+  let schedTimer: any = null;
 
   const debouncedAtt = () => {
     if (attTimer) clearTimeout(attTimer);
@@ -525,6 +612,10 @@ export function subscribeToRealtimeStoreData(callbacks: {
   const debouncedCfg = () => {
     if (cfgTimer) clearTimeout(cfgTimer);
     cfgTimer = setTimeout(() => callbacks.onConfigChange?.(), 250);
+  };
+  const debouncedSched = () => {
+    if (schedTimer) clearTimeout(schedTimer);
+    schedTimer = setTimeout(() => callbacks.onScheduleChange?.(), 250);
   };
 
   const channel: RealtimeChannel = supabase
@@ -541,12 +632,17 @@ export function subscribeToRealtimeStoreData(callbacks: {
       invalidateSupabaseCache('config');
       debouncedCfg();
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_schedules' }, () => {
+      invalidateSupabaseCache('schedules');
+      debouncedSched();
+    })
     .subscribe();
 
   return () => {
     if (attTimer) clearTimeout(attTimer);
     if (userTimer) clearTimeout(userTimer);
     if (cfgTimer) clearTimeout(cfgTimer);
+    if (schedTimer) clearTimeout(schedTimer);
     supabase.removeChannel(channel);
   };
 }

@@ -5,6 +5,12 @@
 
 import type { WeekSchedule, ShiftRegistrationItem } from '../types/index.ts';
 import { getRollingWeeks, pruneSchedulesToWindow, type WeekMeta } from '../utils/week.ts';
+import {
+  isSupabaseConfigured,
+  fetchSchedulesFromSupabase,
+  fetchWeekScheduleFromSupabase,
+  saveScheduleToSupabase,
+} from '../supabase.ts';
 
 const STORAGE_KEY_SCHEDULES = 'chao_mam_nho_shift_schedules';
 
@@ -26,6 +32,21 @@ export class ScheduleService {
   async getSchedules(): Promise<{ weeksMeta: WeekMeta[]; schedules: WeekSchedule[] }> {
     const rolling = getRollingWeeks(new Date());
     const allowedWeekIds = new Set(rolling.map((w) => w.weekId));
+
+    if (isSupabaseConfigured) {
+      try {
+        const sbSchedules = await fetchSchedulesFromSupabase();
+        if (sbSchedules && sbSchedules.length > 0) {
+          saveLocalSchedules(sbSchedules);
+          return {
+            weeksMeta: rolling,
+            schedules: pruneSchedulesToWindow(sbSchedules, allowedWeekIds),
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase getSchedules warning:', e);
+      }
+    }
 
     try {
       const res = await fetch('/api/schedules');
@@ -52,6 +73,20 @@ export class ScheduleService {
   async getWeekSchedule(weekId: string): Promise<{ schedule: WeekSchedule | null; meta: WeekMeta | null }> {
     const rolling = getRollingWeeks(new Date());
     const meta = rolling.find((w) => w.weekId === weekId) || null;
+
+    if (isSupabaseConfigured) {
+      try {
+        const sbSchedule = await fetchWeekScheduleFromSupabase(weekId);
+        if (sbSchedule) {
+          return {
+            schedule: sbSchedule,
+            meta,
+          };
+        }
+      } catch (e) {
+        console.warn('Supabase getWeekSchedule warning:', e);
+      }
+    }
 
     try {
       const res = await fetch(`/api/schedules/${weekId}`);
@@ -98,6 +133,10 @@ export class ScheduleService {
         if (idx >= 0) localList[idx] = data.schedule;
         else localList.push(data.schedule);
         saveLocalSchedules(localList);
+
+        if (isSupabaseConfigured) {
+          saveScheduleToSupabase(data.schedule).catch(() => {});
+        }
       }
       return data;
     } catch (err: any) {
@@ -151,6 +190,11 @@ export class ScheduleService {
 
       ws.updatedAt = new Date().toISOString();
       saveLocalSchedules(localList);
+
+      if (isSupabaseConfigured) {
+        saveScheduleToSupabase(ws).catch(() => {});
+      }
+
       return {
         success: true,
         message: payload.action === 'unregister' ? 'Đã hủy ca.' : 'Đã đăng ký ca.',
@@ -180,6 +224,10 @@ export class ScheduleService {
         if (idx >= 0) localList[idx] = data.schedule;
         else localList.push(data.schedule);
         saveLocalSchedules(localList);
+
+        if (isSupabaseConfigured) {
+          saveScheduleToSupabase(data.schedule).catch(() => {});
+        }
       }
       return data;
     } catch (err: any) {
@@ -213,6 +261,11 @@ export class ScheduleService {
       }
       ws.updatedAt = new Date().toISOString();
       saveLocalSchedules(localList);
+
+      if (isSupabaseConfigured) {
+        saveScheduleToSupabase(ws).catch(() => {});
+      }
+
       return {
         success: true,
         message: payload.isLocked ? 'Đã khóa đăng ký tuần này.' : 'Đã mở đăng ký tuần này.',

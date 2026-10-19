@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import type { User, AttendanceRecord, StoreConfig, EmailLog } from '../src/types/index.ts';
+import type { User, AttendanceRecord, StoreConfig, EmailLog, WeekSchedule } from '../src/types/index.ts';
 
 dotenv.config();
 
@@ -83,8 +83,11 @@ async function migrate() {
   const users = readJsonFile<User[]>('users.json', []);
   if (users.length > 0) {
     console.log(`\n👥 2/4. Đang chuyển ${users.length} tài khoản nhân sự (users)...`);
+    const { data: existingUsers } = await supabase.from('users').select('id, username');
+    const existingMap = new Map((existingUsers || []).map((u: any) => [String(u.username).toLowerCase(), u.id]));
+
     const userRows = users.map((u) => ({
-      id: u.id,
+      id: existingMap.get(u.username.toLowerCase()) || u.id,
       username: u.username,
       password: u.password || '123456',
       email: u.email || `${u.username}@chaomamnho.vn`,
@@ -113,10 +116,22 @@ async function migrate() {
   const attendance = readJsonFile<AttendanceRecord[]>('attendance.json', []);
   if (attendance.length > 0) {
     console.log(`\n⏰ 3/4. Đang chuyển ${attendance.length} bản ghi chấm công (attendance_records)...`);
-    const attendanceRows = attendance.map((r) => ({
-      id: r.id,
-      user_id: r.userId,
-      user_name: r.userName || null,
+    const { data: dbUsers } = await supabase.from('users').select('id, username, name');
+    const validUserIds = new Set((dbUsers || []).map((u: any) => u.id));
+    const userToIdMap = new Map();
+    for (const u of dbUsers || []) {
+      userToIdMap.set(u.id, u.id);
+      userToIdMap.set(String(u.username).toLowerCase(), u.id);
+      if (u.name) userToIdMap.set(String(u.name).toLowerCase(), u.id);
+    }
+
+    const attendanceRows = attendance
+      .map((r) => {
+        const resolvedUserId = userToIdMap.get(r.userId) || (r.userName ? userToIdMap.get(r.userName.toLowerCase()) : null) || r.userId;
+        return {
+          id: r.id,
+          user_id: resolvedUserId,
+          user_name: r.userName || null,
       user_email: r.userEmail || null,
       employee_code: r.employeeCode || null,
       date: r.date,
@@ -145,7 +160,8 @@ async function migrate() {
       adjusted_reason: r.adjustedReason || null,
       created_at: r.createdAt || r.checkInTime,
       updated_at: r.updatedAt || new Date().toISOString(),
-    }));
+    };
+  }).filter((r) => validUserIds.has(r.user_id));
 
     // Chia batch 50 bản ghi để an toàn
     const BATCH_SIZE = 50;
@@ -183,6 +199,31 @@ async function migrate() {
       console.error('❌ Lỗi lưu email_logs:', error.message);
     } else {
       console.log(`✅ Đã chuyển thành công ${emailLogs.length} nhật ký email.`);
+    }
+  }
+
+  // 5. Migrate Shift Schedules
+  const schedules = readJsonFile<WeekSchedule[]>('shift_schedules.json', []);
+  if (schedules.length > 0) {
+    console.log(`\n📅 5/5. Đang chuyển ${schedules.length} lịch đăng ký ca (shift_schedules)...`);
+    const scheduleRows = schedules.map((s) => ({
+      week_id: s.weekId,
+      week_number: s.weekNumber,
+      year: s.year,
+      start_date: s.startDate,
+      end_date: s.endDate,
+      is_locked: Boolean(s.isLocked),
+      locked_by: s.lockedBy || null,
+      locked_at: s.lockedAt || null,
+      registrations: s.registrations || [],
+      updated_at: s.updatedAt || new Date().toISOString(),
+    }));
+
+    const { error } = await supabase.from('shift_schedules').upsert(scheduleRows, { onConflict: 'week_id' });
+    if (error) {
+      console.error('❌ Lỗi lưu shift_schedules:', error.message);
+    } else {
+      console.log(`✅ Đã chuyển thành công ${schedules.length} lịch đăng ký ca.`);
     }
   }
 
