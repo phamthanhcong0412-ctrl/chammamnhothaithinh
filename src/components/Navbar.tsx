@@ -165,34 +165,26 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* User Profile Dropdown Button (Clear on both Mobile & Desktop) */}
+            {/* User Profile Avatar Button (Avatar-only to prevent layout breaking on mobile) */}
             <div className="relative">
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 text-left transition-all cursor-pointer shadow-sm active:scale-95"
+                title={currentUser?.name || 'Tài khoản'}
+                aria-label="Tài khoản cá nhân"
+                className="relative p-0.5 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               >
                 <img
                   src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80'}
-                  alt={currentUser?.name}
-                  className="w-7 h-7 rounded-xl object-cover bg-zinc-800 border border-emerald-500/40 shrink-0"
+                  alt={currentUser?.name || 'Avatar'}
+                  className="w-8 h-8 rounded-xl object-cover bg-zinc-800 border border-emerald-500/40 shrink-0"
                 />
-                <div className="block">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-zinc-200 leading-none truncate max-w-[85px] sm:max-w-[120px]">
-                      {currentUser?.name || 'Tài khoản'}
-                    </span>
-                    {isAdmin ? (
-                      <span className="hidden sm:inline-block px-1 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                        Quản lý
-                      </span>
-                    ) : (
-                      <span className="hidden sm:inline-block px-1 py-0.2 rounded text-[9px] font-medium bg-emerald-500/15 text-emerald-300">
-                        NV
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                {/* Role indicator badge dot */}
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#141416] ${
+                    isAdmin ? 'bg-amber-400' : 'bg-emerald-400'
+                  }`}
+                  title={isAdmin ? 'Quản lý' : 'Nhân viên'}
+                />
               </button>
 
               {/* Dropdown Menu */}
@@ -278,18 +270,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </>
               )}
             </div>
-
-            {/* Quick 1-Touch Logout Icon on Mobile Header */}
-            <button
-              onClick={() => logout()}
-              title="Đăng xuất nhanh"
-              className="md:hidden p-2 rounded-xl bg-zinc-900/80 hover:bg-rose-500/15 border border-zinc-800 text-zinc-400 hover:text-rose-400 transition-colors cursor-pointer active:scale-95"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-
           </div>
-
         </div>
       </header>
 
