@@ -1,6 +1,6 @@
 {
-  "name": "Remix Chấm Công Thông Minh - Smart Store Attendance",
-  "description": "Hệ thống chấm công nhân viên quét QR \u0026 xác thực WiFi / GPS cửa hàng, dashboard quản lý thời gian thực, tính công và tự động báo cáo email.",
+  "name": "Cháo Mầm Nhỏ Thái Thịnh - Quản Lý Chấm Công & Ca Kíp",
+  "description": "Hệ thống quản lý ca kíp, chấm công và bảng lương Cháo Mầm Nhỏ Thái Thịnh. Tinh gọn, chính xác và tiện lợi.",
   "requestFramePermissions": [
     "camera"
   ],
