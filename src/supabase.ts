@@ -20,14 +20,21 @@ export {
 // 1. SUPABASE CLIENT & AUTH CONFIGURATION
 // ====================================================================
 
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+const env = (import.meta as any).env || {};
+const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL || '';
+const supabaseAnonKey =
+  env.VITE_SUPABASE_ANON_KEY ||
+  env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  env.SUPABASE_PUBLISHABLE_KEY ||
+  env.SUPABASE_ANON_KEY ||
+  '';
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
   supabaseAnonKey &&
   !supabaseUrl.includes('your-project') &&
-  !supabaseAnonKey.includes('your-anon-key')
+  !supabaseAnonKey.includes('your-anon-key') &&
+  !supabaseAnonKey.includes('placeholder')
 );
 
 export const supabase = createClient(

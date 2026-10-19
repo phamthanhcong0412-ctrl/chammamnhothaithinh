@@ -12,13 +12,16 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, '..', 'data');
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseKey =
+  process.env.SUPABASE_SECRET_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error('\n❌ Lỗi: Thiếu biến môi trường SUPABASE_URL hoặc SUPABASE_SERVICE_ROLE_KEY.');
-  console.error('👉 Vui lòng cấu hình file .env trước khi chạy script migration:');
-  console.error('   VITE_SUPABASE_URL=https://your-project.supabase.co');
-  console.error('   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key (hoặc VITE_SUPABASE_ANON_KEY)\n');
+  console.error('\n❌ Lỗi: Thiếu biến môi trường SUPABASE_URL hoặc SUPABASE_SECRET_KEY.');
+  console.error('👉 Vui lòng cấu hình file .env trước khi chạy script migration.');
   process.exit(1);
 }
 
