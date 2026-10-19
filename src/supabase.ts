@@ -20,14 +20,17 @@ export {
 // 1. SUPABASE CLIENT & AUTH CONFIGURATION
 // ====================================================================
 
+const DEFAULT_SUPABASE_URL = 'https://vgvxfkdzvzfuzqfwwwha.supabase.co';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_Fhl4sin9fLmeWmKsQyiFXg_ItRQEkoY';
+
 const env = (import.meta as any).env || {};
-const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL || '';
+const supabaseUrl = env.VITE_SUPABASE_URL || env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
 const supabaseAnonKey =
   env.VITE_SUPABASE_ANON_KEY ||
   env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   env.SUPABASE_PUBLISHABLE_KEY ||
   env.SUPABASE_ANON_KEY ||
-  '';
+  DEFAULT_SUPABASE_PUBLISHABLE_KEY;
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
