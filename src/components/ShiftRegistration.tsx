@@ -454,7 +454,7 @@ export const ShiftRegistration: React.FC = () => {
             <Lock className="w-4 h-4 text-amber-400 shrink-0" />
             <span>
               Bảng đăng ký tuần này đã được Quản lý khóa
-              {schedule.lockedBy ? ` bởi ${schedule.lockedBy}` : ''}.
+              {schedule?.lockedBy ? ` bởi ${schedule.lockedBy}` : ''}.
               {!isAdmin && ' Bạn chỉ có thể theo dõi và không thể tự đổi ca.'}
             </span>
           </div>

@@ -10,6 +10,7 @@ import { SettingsModal } from './components/SettingsModal.tsx';
 import { ManualAttendanceModal } from './components/ManualAttendanceModal.tsx';
 import { LoginScreen } from './components/LoginScreen.tsx';
 import { ShiftRegistration } from './components/ShiftRegistration.tsx';
+import { ErrorBoundary } from './components/common/ErrorBoundary.tsx';
 import type { AppTab } from './components/Navbar.tsx';
 import type { AttendanceRecord } from './types/index.ts';
 import { Loader2, AlertTriangle } from 'lucide-react';
@@ -117,7 +118,11 @@ function AppContent() {
         {currentTab === 'employees' && (
           isAdmin ? <EmployeeManagement /> : <StaffAttendance />
         )}
-        {currentTab === 'schedule' && <ShiftRegistration />}
+        {currentTab === 'schedule' && (
+          <ErrorBoundary fallbackTitle="Lịch đăng ký ca làm việc">
+            <ShiftRegistration />
+          </ErrorBoundary>
+        )}
       </main>
 
       {/* Modals */}

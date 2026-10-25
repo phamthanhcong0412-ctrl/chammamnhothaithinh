@@ -588,61 +588,63 @@ export async function saveScheduleToSupabase(schedule: WeekSchedule): Promise<vo
 // 5. REALTIME WEBSOCKETS SUBSCRIPTION
 // ====================================================================
 
-export function subscribeToRealtimeStoreData(callbacks: {
+type RealtimeCallbacks = {
   onAttendanceChange?: () => void;
   onUsersChange?: () => void;
   onConfigChange?: () => void;
   onScheduleChange?: () => void;
-}): () => void {
-  if (!isSupabaseConfigured) return () => {};
+};
 
-  let attTimer: any = null;
-  let userTimer: any = null;
-  let cfgTimer: any = null;
-  let schedTimer: any = null;
+const realtimeListeners = new Set<RealtimeCallbacks>();
+let sharedRealtimeChannel: RealtimeChannel | null = null;
+let attTimer: any = null;
+let userTimer: any = null;
+let cfgTimer: any = null;
+let schedTimer: any = null;
 
-  const debouncedAtt = () => {
-    if (attTimer) clearTimeout(attTimer);
-    attTimer = setTimeout(() => callbacks.onAttendanceChange?.(), 250);
-  };
-  const debouncedUser = () => {
-    if (userTimer) clearTimeout(userTimer);
-    userTimer = setTimeout(() => callbacks.onUsersChange?.(), 250);
-  };
-  const debouncedCfg = () => {
-    if (cfgTimer) clearTimeout(cfgTimer);
-    cfgTimer = setTimeout(() => callbacks.onConfigChange?.(), 250);
-  };
-  const debouncedSched = () => {
-    if (schedTimer) clearTimeout(schedTimer);
-    schedTimer = setTimeout(() => callbacks.onScheduleChange?.(), 250);
-  };
+function ensureSharedRealtimeChannel() {
+  if (!isSupabaseConfigured || sharedRealtimeChannel) return;
 
-  const channel: RealtimeChannel = supabase
-    .channel('chammam_realtime')
+  sharedRealtimeChannel = supabase
+    .channel('chammam_realtime_shared')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, () => {
       invalidateSupabaseCache('attendance');
-      debouncedAtt();
+      if (attTimer) clearTimeout(attTimer);
+      attTimer = setTimeout(() => {
+        realtimeListeners.forEach((cb) => cb.onAttendanceChange?.());
+      }, 250);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
       invalidateSupabaseCache('users');
-      debouncedUser();
+      if (userTimer) clearTimeout(userTimer);
+      userTimer = setTimeout(() => {
+        realtimeListeners.forEach((cb) => cb.onUsersChange?.());
+      }, 250);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'store_config' }, () => {
       invalidateSupabaseCache('config');
-      debouncedCfg();
+      if (cfgTimer) clearTimeout(cfgTimer);
+      cfgTimer = setTimeout(() => {
+        realtimeListeners.forEach((cb) => cb.onConfigChange?.());
+      }, 250);
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'shift_schedules' }, () => {
       invalidateSupabaseCache('schedules');
-      debouncedSched();
+      if (schedTimer) clearTimeout(schedTimer);
+      schedTimer = setTimeout(() => {
+        realtimeListeners.forEach((cb) => cb.onScheduleChange?.());
+      }, 250);
     })
     .subscribe();
+}
+
+export function subscribeToRealtimeStoreData(callbacks: RealtimeCallbacks): () => void {
+  if (!isSupabaseConfigured) return () => {};
+
+  ensureSharedRealtimeChannel();
+  realtimeListeners.add(callbacks);
 
   return () => {
-    if (attTimer) clearTimeout(attTimer);
-    if (userTimer) clearTimeout(userTimer);
-    if (cfgTimer) clearTimeout(cfgTimer);
-    if (schedTimer) clearTimeout(schedTimer);
-    supabase.removeChannel(channel);
+    realtimeListeners.delete(callbacks);
   };
 }
