@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import { api } from '../services/api.ts';
+import { subscribeToRealtimeStoreData } from '../supabase.ts';
 import type { WeekSchedule, ShiftRegistrationItem, User } from '../types/index.ts';
 import { getRollingWeeks, type WeekMeta } from '../utils/week.ts';
 
@@ -127,6 +128,14 @@ export const ShiftRegistration: React.FC = () => {
 
   useEffect(() => {
     loadWeekSchedule(selectedWeekId);
+    const unsubscribe = subscribeToRealtimeStoreData({
+      onScheduleChange: () => {
+        loadWeekSchedule(selectedWeekId);
+      },
+    });
+    return () => {
+      unsubscribe();
+    };
   }, [selectedWeekId, loadWeekSchedule]);
 
   // Handle register / unregister shift
@@ -153,6 +162,7 @@ export const ShiftRegistration: React.FC = () => {
     );
 
     const action = isAlreadyRegistered ? 'unregister' : 'register';
+    const targetUser = users.find((u) => u.id === uid) || (uid === currentUser?.id ? currentUser : null);
 
     try {
       await runWithHudLoading(
@@ -161,6 +171,9 @@ export const ShiftRegistration: React.FC = () => {
           const res = await api.registerShift({
             weekId: selectedWeekId,
             userId: uid,
+            userName: targetUser?.name || currentUser?.name || 'Nhân viên',
+            userAvatar: targetUser?.avatar || currentUser?.avatar,
+            employeeCode: targetUser?.employeeCode || currentUser?.employeeCode,
             date: dateStr,
             shiftId,
             shiftName,

@@ -1,6 +1,9 @@
 /**
  * SERVICE: schedule.service
  * Quản lý gọi API và bộ nhớ đệm cho nghiệp vụ Đăng Ký Ca Làm Việc theo tuần (SRP)
+ * Đảm bảo kiến trúc Cloud-First (Supabase) + Local-First Fallback:
+ * - Khi nhân viên đăng ký ca, luôn fetch trạng thái mới nhất từ Supabase trước khi gộp để KHÔNG làm mất dữ liệu của nhân viên khác.
+ * - Hỗ trợ hoạt động đa thiết bị thời gian thực.
  */
 
 import type { WeekSchedule, ShiftRegistrationItem } from '../types/index.ts';
@@ -78,6 +81,13 @@ export class ScheduleService {
       try {
         const sbSchedule = await fetchWeekScheduleFromSupabase(weekId);
         if (sbSchedule) {
+          // Lưu vào local cache để đồng bộ
+          const localList = loadLocalSchedules();
+          const idx = localList.findIndex((s) => s.weekId === weekId);
+          if (idx >= 0) localList[idx] = sbSchedule;
+          else localList.push(sbSchedule);
+          saveLocalSchedules(localList);
+
           return {
             schedule: sbSchedule,
             meta,
@@ -92,6 +102,13 @@ export class ScheduleService {
       const res = await fetch(`/api/schedules/${weekId}`);
       if (res.ok) {
         const data = await res.json();
+        if (data.schedule) {
+          const localList = loadLocalSchedules();
+          const idx = localList.findIndex((s) => s.weekId === weekId);
+          if (idx >= 0) localList[idx] = data.schedule;
+          else localList.push(data.schedule);
+          saveLocalSchedules(localList);
+        }
         return {
           schedule: data.schedule || null,
           meta: data.meta || meta,
@@ -110,6 +127,9 @@ export class ScheduleService {
   async registerShift(payload: {
     weekId: string;
     userId: string;
+    userName?: string;
+    userAvatar?: string;
+    employeeCode?: string;
     date: string;
     shiftId: string;
     shiftName?: string;
@@ -117,90 +137,114 @@ export class ScheduleService {
     note?: string;
     isManagerOverride?: boolean;
   }): Promise<{ success: boolean; message: string; schedule: WeekSchedule }> {
-    try {
-      const res = await fetch('/api/schedules/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Đăng ký ca thất bại.');
-      }
-      if (data.schedule) {
-        const localList = loadLocalSchedules();
-        const idx = localList.findIndex((s) => s.weekId === data.schedule.weekId);
-        if (idx >= 0) localList[idx] = data.schedule;
-        else localList.push(data.schedule);
-        saveLocalSchedules(localList);
+    const rolling = getRollingWeeks(new Date());
+    const meta = rolling.find((w) => w.weekId === payload.weekId);
 
-        if (isSupabaseConfigured) {
-          saveScheduleToSupabase(data.schedule).catch(() => {});
-        }
+    // BƯỚC 1: Luôn lấy dữ liệu mới nhất từ Supabase trước tiên để không bị mất ca của đồng nghiệp
+    let ws: WeekSchedule | null = null;
+    if (isSupabaseConfigured) {
+      try {
+        ws = await fetchWeekScheduleFromSupabase(payload.weekId);
+      } catch (err) {
+        console.warn('Lấy lịch từ Supabase trước khi đăng ký ca cảnh báo:', err);
       }
-      return data;
-    } catch (err: any) {
-      // Local fallback if offline
+    }
+
+    // Nếu Supabase chưa có hoặc offline, kiểm tra Local Storage
+    if (!ws) {
       const localList = loadLocalSchedules();
-      let ws = localList.find((s) => s.weekId === payload.weekId);
-      const rolling = getRollingWeeks(new Date());
-      const meta = rolling.find((w) => w.weekId === payload.weekId);
+      ws = localList.find((s) => s.weekId === payload.weekId) || null;
+    }
 
-      if (!ws && meta) {
-        ws = {
-          weekId: meta.weekId,
-          weekNumber: meta.weekNumber,
-          year: meta.year,
-          startDate: meta.startDate,
-          endDate: meta.endDate,
-          isLocked: false,
-          registrations: [],
-          updatedAt: new Date().toISOString(),
-        };
-        localList.push(ws);
-      }
-
-      if (!ws) throw err;
-
-      if (ws.isLocked && !payload.isManagerOverride) {
-        throw new Error('Bảng đăng ký ca tuần này đã bị khóa bởi Quản lý.');
-      }
-
-      const regId = `reg_${payload.userId}_${payload.date}_${payload.shiftId}`;
-      const existingIdx = ws.registrations.findIndex(
-        (r) => r.id === regId || (r.userId === payload.userId && r.date === payload.date && r.shiftId === payload.shiftId)
-      );
-
-      if (payload.action === 'unregister') {
-        if (existingIdx >= 0) ws.registrations.splice(existingIdx, 1);
-      } else {
-        const item: ShiftRegistrationItem = {
-          id: regId,
-          userId: payload.userId,
-          userName: 'Nhân viên',
-          date: payload.date,
-          shiftId: payload.shiftId,
-          shiftName: payload.shiftName || (payload.shiftId === 'shift_morning' ? 'Ca Sáng' : 'Ca Chiều'),
-          registeredAt: new Date().toISOString(),
-          note: payload.note,
-        };
-        if (existingIdx >= 0) ws.registrations[existingIdx] = item;
-        else ws.registrations.push(item);
-      }
-
-      ws.updatedAt = new Date().toISOString();
-      saveLocalSchedules(localList);
-
-      if (isSupabaseConfigured) {
-        saveScheduleToSupabase(ws).catch(() => {});
-      }
-
-      return {
-        success: true,
-        message: payload.action === 'unregister' ? 'Đã hủy ca.' : 'Đã đăng ký ca.',
-        schedule: ws,
+    // Nếu chưa từng có bản ghi nào thì khởi tạo tuần mới
+    if (!ws && meta) {
+      ws = {
+        weekId: meta.weekId,
+        weekNumber: meta.weekNumber,
+        year: meta.year,
+        startDate: meta.startDate,
+        endDate: meta.endDate,
+        isLocked: false,
+        registrations: [],
+        updatedAt: new Date().toISOString(),
       };
     }
+
+    if (!ws) {
+      throw new Error('Không thể tìm thấy hoặc khởi tạo lịch của tuần này.');
+    }
+
+    // BƯỚC 2: Kiểm tra trạng thái khóa ca
+    if (ws.isLocked && !payload.isManagerOverride) {
+      throw new Error('Bảng đăng ký ca tuần này đã được Quản lý khóa. Bạn không thể chỉnh sửa.');
+    }
+
+    // BƯỚC 3: Cập nhật ca làm việc (GIỮ NGUYÊN 100% CA CỦA NHÂN VIÊN KHÁC)
+    const currentRegs: ShiftRegistrationItem[] = Array.isArray(ws.registrations) ? [...ws.registrations] : [];
+    const regId = `reg_${payload.userId}_${payload.date}_${payload.shiftId}`;
+
+    const existingIdx = currentRegs.findIndex(
+      (r) =>
+        r.id === regId ||
+        (r.userId === payload.userId && r.date === payload.date && r.shiftId === payload.shiftId)
+    );
+
+    if (payload.action === 'unregister') {
+      if (existingIdx >= 0) {
+        currentRegs.splice(existingIdx, 1);
+      }
+    } else {
+      const newItem: ShiftRegistrationItem = {
+        id: regId,
+        userId: payload.userId,
+        userName: payload.userName || 'Nhân viên',
+        userAvatar: payload.userAvatar,
+        employeeCode: payload.employeeCode,
+        date: payload.date,
+        shiftId: payload.shiftId,
+        shiftName: payload.shiftName || (payload.shiftId === 'shift_morning' ? 'Ca Sáng' : 'Ca Chiều'),
+        registeredAt: new Date().toISOString(),
+        note: payload.note,
+      };
+
+      if (existingIdx >= 0) {
+        currentRegs[existingIdx] = { ...currentRegs[existingIdx], ...newItem };
+      } else {
+        currentRegs.push(newItem);
+      }
+    }
+
+    ws.registrations = currentRegs;
+    ws.updatedAt = new Date().toISOString();
+
+    // BƯỚC 4: Lưu đồng bộ lên Supabase ĐẦU TIÊN
+    if (isSupabaseConfigured) {
+      try {
+        await saveScheduleToSupabase(ws);
+      } catch (sbErr) {
+        console.error('Lỗi lưu lịch ca lên Supabase:', sbErr);
+      }
+    }
+
+    // BƯỚC 5: Cập nhật bộ nhớ cục bộ
+    const localList = loadLocalSchedules();
+    const lIdx = localList.findIndex((s) => s.weekId === ws.weekId);
+    if (lIdx >= 0) localList[lIdx] = ws;
+    else localList.push(ws);
+    saveLocalSchedules(localList);
+
+    // BƯỚC 6: Gửi ngầm tới backend API nếu có server Express chạy
+    fetch('/api/schedules/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+
+    return {
+      success: true,
+      message: payload.action === 'unregister' ? 'Đã hủy ca thành công.' : 'Đã đăng ký ca thành công.',
+      schedule: ws,
+    };
   }
 
   async toggleScheduleLock(payload: {
@@ -208,70 +252,72 @@ export class ScheduleService {
     isLocked: boolean;
     managerName?: string;
   }): Promise<{ success: boolean; message: string; schedule: WeekSchedule }> {
-    try {
-      const res = await fetch('/api/schedules/toggle-lock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Khóa/mở ca thất bại.');
-      }
-      if (data.schedule) {
-        const localList = loadLocalSchedules();
-        const idx = localList.findIndex((s) => s.weekId === data.schedule.weekId);
-        if (idx >= 0) localList[idx] = data.schedule;
-        else localList.push(data.schedule);
-        saveLocalSchedules(localList);
+    const rolling = getRollingWeeks(new Date());
+    const meta = rolling.find((w) => w.weekId === payload.weekId);
 
-        if (isSupabaseConfigured) {
-          saveScheduleToSupabase(data.schedule).catch(() => {});
-        }
-      }
-      return data;
-    } catch (err: any) {
+    // Lấy lịch mới nhất từ Supabase
+    let ws: WeekSchedule | null = null;
+    if (isSupabaseConfigured) {
+      try {
+        ws = await fetchWeekScheduleFromSupabase(payload.weekId);
+      } catch {}
+    }
+
+    if (!ws) {
       const localList = loadLocalSchedules();
-      let ws = localList.find((s) => s.weekId === payload.weekId);
-      const rolling = getRollingWeeks(new Date());
-      const meta = rolling.find((w) => w.weekId === payload.weekId);
+      ws = localList.find((s) => s.weekId === payload.weekId) || null;
+    }
 
-      if (!ws && meta) {
-        ws = {
-          weekId: meta.weekId,
-          weekNumber: meta.weekNumber,
-          year: meta.year,
-          startDate: meta.startDate,
-          endDate: meta.endDate,
-          isLocked: payload.isLocked,
-          registrations: [],
-          updatedAt: new Date().toISOString(),
-        };
-        localList.push(ws);
-      }
-
-      if (!ws) throw err;
-      ws.isLocked = payload.isLocked;
-      if (payload.isLocked) {
-        ws.lockedBy = payload.managerName || 'Quản lý';
-        ws.lockedAt = new Date().toISOString();
-      } else {
-        ws.lockedBy = undefined;
-        ws.lockedAt = undefined;
-      }
-      ws.updatedAt = new Date().toISOString();
-      saveLocalSchedules(localList);
-
-      if (isSupabaseConfigured) {
-        saveScheduleToSupabase(ws).catch(() => {});
-      }
-
-      return {
-        success: true,
-        message: payload.isLocked ? 'Đã khóa đăng ký tuần này.' : 'Đã mở đăng ký tuần này.',
-        schedule: ws,
+    if (!ws && meta) {
+      ws = {
+        weekId: meta.weekId,
+        weekNumber: meta.weekNumber,
+        year: meta.year,
+        startDate: meta.startDate,
+        endDate: meta.endDate,
+        isLocked: payload.isLocked,
+        registrations: [],
+        updatedAt: new Date().toISOString(),
       };
     }
+
+    if (!ws) throw new Error('Không tìm thấy lịch tuần.');
+
+    ws.isLocked = payload.isLocked;
+    if (payload.isLocked) {
+      ws.lockedBy = payload.managerName || 'Quản lý';
+      ws.lockedAt = new Date().toISOString();
+    } else {
+      ws.lockedBy = undefined;
+      ws.lockedAt = undefined;
+    }
+    ws.updatedAt = new Date().toISOString();
+
+    if (isSupabaseConfigured) {
+      try {
+        await saveScheduleToSupabase(ws);
+      } catch (sbErr) {
+        console.error('Lỗi lưu khóa ca lên Supabase:', sbErr);
+      }
+    }
+
+    const localList = loadLocalSchedules();
+    const lIdx = localList.findIndex((s) => s.weekId === ws.weekId);
+    if (lIdx >= 0) localList[lIdx] = ws;
+    else localList.push(ws);
+    saveLocalSchedules(localList);
+
+    fetch('/api/schedules/toggle-lock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+
+    return {
+      success: true,
+      message: payload.isLocked ? 'Đã khóa đăng ký tuần này.' : 'Đã mở đăng ký tuần này.',
+      schedule: ws,
+    };
   }
 }
 

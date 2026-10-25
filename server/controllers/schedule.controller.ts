@@ -88,10 +88,9 @@ scheduleRouter.post('/api/schedules/register', (req: Request, res: Response) => 
 
   const users = db.getUsers();
   const user = users.find((u) => u.id === userId);
-  if (!user) {
-    res.status(404).json({ error: 'Không tìm thấy thông tin nhân viên.' });
-    return;
-  }
+  const userName = user?.name || req.body.userName || 'Nhân viên';
+  const userAvatar = user?.avatar || req.body.userAvatar || undefined;
+  const employeeCode = user?.employeeCode || req.body.employeeCode || undefined;
 
   // Quản lý can override lock; nếu không phải quản lý và tuần bị khóa -> chặn
   const isManagerOverride = Boolean(req.body.isManagerOverride);
@@ -113,10 +112,10 @@ scheduleRouter.post('/api/schedules/register', (req: Request, res: Response) => 
     // Register
     const newReg: ShiftRegistrationItem = {
       id: regId,
-      userId: user.id,
-      userName: user.name,
-      userAvatar: user.avatar,
-      employeeCode: user.employeeCode,
+      userId,
+      userName,
+      userAvatar,
+      employeeCode,
       date,
       shiftId,
       shiftName: shiftName || (shiftId === 'shift_morning' ? 'Ca Sáng' : 'Ca Chiều'),
