@@ -249,7 +249,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetch('/api/attendance/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attendance: consolidated, replace: true, removedIds }),
+          body: JSON.stringify({ attendance: updatedRecords, replace: false, removedIds }),
         }).catch(() => {});
       }
 
@@ -623,7 +623,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fetch('/api/attendance/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance: enrichedAtt, replace: true, removedIds }),
+        body: JSON.stringify({ attendance: enrichedAtt, replace: false, removedIds }),
       }).catch(() => {});
 
       setLastSyncResult(result);

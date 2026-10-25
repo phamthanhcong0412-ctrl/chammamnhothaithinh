@@ -147,7 +147,15 @@ export class AttendanceService {
       if (!user) throw new Error('Không tìm thấy thông tin nhân viên.');
 
       const cfg = await configService.getConfig().catch(() => DEFAULT_STORE_CONFIG);
-      const rawAttendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      let rawAttendance: AttendanceRecord[] = [];
+      if (isSupabaseConfigured) {
+        try {
+          rawAttendance = await fetchAttendanceFromSupabase();
+        } catch {}
+      }
+      if (rawAttendance.length === 0) {
+        rawAttendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      }
       const { consolidated: attendance } = consolidateCompletedShifts(rawAttendance, users, cfg);
 
       if (attendance.some((r) => r.userId === payload.userId && r.status === 'working')) {
@@ -255,7 +263,7 @@ export class AttendanceService {
       fetch(`${API_BASE}/attendance/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance: nextAttendance, replace: true }),
+        body: JSON.stringify({ attendance: [newRecord], replace: false }),
       }).catch(() => {});
 
       return { success: true, record: newRecord };
@@ -281,28 +289,21 @@ export class AttendanceService {
     try {
       const users = await userService.getUsers();
       const cfg = await configService.getConfig().catch(() => DEFAULT_STORE_CONFIG);
-      let rawAttendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      let rawAttendance: AttendanceRecord[] = [];
+      if (isSupabaseConfigured) {
+        try {
+          rawAttendance = await fetchAttendanceFromSupabase();
+        } catch {}
+      }
+      if (rawAttendance.length === 0) {
+        rawAttendance = loadLocal<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
+      }
       let { consolidated: attendance, removedIds: consolidatedRemovedIds } = consolidateCompletedShifts(
         rawAttendance,
         users,
         cfg
       );
       let idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
-
-      if (idx === -1 && isSupabaseConfigured) {
-        try {
-          const sbAtt = await fetchAttendanceFromSupabase();
-          if (sbAtt.length > 0) {
-            const consolidatedSb = consolidateCompletedShifts(sbAtt, users, cfg);
-            attendance = consolidatedSb.consolidated;
-            consolidatedRemovedIds = [
-              ...consolidatedRemovedIds,
-              ...consolidatedSb.removedIds,
-            ];
-            idx = attendance.findIndex((r) => r.userId === payload.userId && r.status === 'working');
-          }
-        } catch {}
-      }
 
       if (idx === -1) throw new Error('Không tìm thấy ca làm việc đang mở để check-out.');
       const record = attendance[idx];
@@ -440,7 +441,7 @@ export class AttendanceService {
         fetch(`${API_BASE}/attendance/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attendance, replace: true, removedIds: allRemovedIds }),
+          body: JSON.stringify({ attendance: [mergedRecord], replace: false, removedIds: allRemovedIds }),
         }).catch(() => {});
 
         return { success: true, record: mergedRecord, removedId: record.id, removedIds: allRemovedIds };
@@ -498,7 +499,7 @@ export class AttendanceService {
       fetch(`${API_BASE}/attendance/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance, replace: true, removedIds: extraWorkingIds }),
+        body: JSON.stringify({ attendance: [updatedRecord], replace: false, removedIds: extraWorkingIds }),
       }).catch(() => {});
 
       return { success: true, record: updatedRecord, removedIds: extraWorkingIds };
@@ -631,7 +632,7 @@ export class AttendanceService {
     fetch(`${API_BASE}/attendance/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attendance, replace: true, removedIds: [id] }),
+      body: JSON.stringify({ attendance: [], replace: false, removedIds: [id] }),
     }).catch(() => {});
     return { success: true };
   }

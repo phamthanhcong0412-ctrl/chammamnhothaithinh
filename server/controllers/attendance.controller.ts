@@ -360,13 +360,26 @@ attendanceRouter.post('/api/attendance/sync', (req: Request, res: Response) => {
   if (Array.isArray(incomingAttendance)) {
     let attendance = db.getAttendance();
     const mergedMap = new Map<string, AttendanceRecord>();
-    if (!replace) {
+
+    if (replace) {
+      // Khi replace: true, chỉ thay thế bản ghi của các nhân viên có mặt trong incomingAttendance.
+      // TUYỆT ĐỐI KHÔNG XÓA bản ghi của các nhân viên khác!
+      const incomingUserIds = new Set(
+        incomingAttendance.map((r: any) => r?.userId).filter(Boolean)
+      );
+      attendance.forEach((r) => {
+        if (!incomingUserIds.has(r.userId) && !removedIds.includes(r.id)) {
+          mergedMap.set(r.id, r);
+        }
+      });
+    } else {
       attendance.forEach((r) => {
         if (!removedIds.includes(r.id)) {
           mergedMap.set(r.id, r);
         }
       });
     }
+
     incomingAttendance.forEach((r: AttendanceRecord) => {
       if (r && r.id && r.userId && !removedIds.includes(r.id)) {
         mergedMap.set(r.id, r);
