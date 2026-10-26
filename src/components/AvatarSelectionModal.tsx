@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Check, RefreshCw, Smile, Camera } from 'lucide-react';
+import { X, Check, RefreshCw, Smile, Heart, Sparkles } from 'lucide-react';
 import type { User as UserType } from '../types/index.ts';
 
 export interface AvatarSelectionModalProps {
@@ -9,70 +9,67 @@ export interface AvatarSelectionModalProps {
   onSaveAvatar: (newAvatarUrl: string) => Promise<void>;
 }
 
-export type AvatarCategory = 'all' | 'cute' | 'kitchen' | 'service' | 'cashier' | 'active';
+export type AvatarCategory = 'all' | 'female' | 'male';
 
 export interface ChibiAvatarPreset {
   id: string;
   name: string;
   seed: string;
+  top: string;
   tag: string;
-  category: 'cute' | 'kitchen' | 'service' | 'cashier' | 'active';
+  gender: 'female' | 'male';
 }
 
-// 36 mẫu Chibi Việt Nam được tinh chỉnh màu da sáng đồng bộ (skinColor=ffdbb4)
+/**
+ * 30 Mẫu Avatar Chibi Da Trắng Hồng Hào (24 Nữ Dễ Thương + 6 Nam Bảnh Bao)
+ * Nguồn: Thư viện chuẩn DiceBear Avataaars (Open-source vector SVG, da trắng ffdbb4, không râu)
+ */
 export const CHIBI_AVATAR_PRESETS: ChibiAvatarPreset[] = [
-  // 1. Nhóm Dễ thương & Siêu Kute (11 mẫu)
-  { id: 'av_8', name: 'Bé hạt tiêu tóc vàng', seed: 'BaoBao', tag: 'Kute', category: 'cute' },
-  { id: 'av_17', name: 'Bé tóc hai chùm', seed: 'AnNhi', tag: 'Kute', category: 'cute' },
-  { id: 'av_18', name: 'Nam chibi mũ len', seed: 'GiaBao', tag: 'Kute', category: 'cute' },
-  { id: 'av_19', name: 'Cô nàng tóc bob xinh', seed: 'BichNgoc', tag: 'Kute', category: 'cute' },
-  { id: 'av_21', name: 'Nữ sinh tóc mái ngố', seed: 'HaMy', tag: 'Kute', category: 'cute' },
-  { id: 'av_24', name: 'Tóc búi củ tỏi dễ thương', seed: 'KhanhLinh', tag: 'Kute', category: 'cute' },
-  { id: 'av_29', name: 'Cô gái uốn sóng nhẹ', seed: 'ThuyTien', tag: 'Kute', category: 'cute' },
-  { id: 'av_31', name: 'Má lúm đồng tiền', seed: 'YenNhi', tag: 'Kute', category: 'cute' },
-  { id: 'av_32', name: 'Mũ tai gấu siêu kute', seed: 'CongChua', tag: 'Kute', category: 'cute' },
-  { id: 'av_34', name: 'Mắt tròn xoe mầm nhỏ', seed: 'TieuBao', tag: 'Kute', category: 'cute' },
-  { id: 'av_36', name: 'Biểu tượng Mầm Nhỏ', seed: 'MamNho', tag: 'Kute', category: 'cute' },
+  // -------------------------------------------------------------
+  // 24 CÔ NÀNG DỄ THƯƠNG DA TRẮNG
+  // -------------------------------------------------------------
+  { id: 'g1', name: 'Cô nàng tóc dài thẳng', seed: 'MaiAnh', top: 'straight01', tag: 'Duyên dáng', gender: 'female' },
+  { id: 'g2', name: 'Bé tóc búi củ tỏi', seed: 'LinhChi', top: 'bun', tag: 'Kute', gender: 'female' },
+  { id: 'g3', name: 'Nữ sinh tóc bob', seed: 'ThuHa', top: 'bob', tag: 'Năng động', gender: 'female' },
+  { id: 'g4', name: 'Nàng uốn sóng nhẹ', seed: 'ThuyTien', top: 'curvy', tag: 'Tiểu thư', gender: 'female' },
+  { id: 'g5', name: 'Tóc dài tự nhiên', seed: 'NgocDiep', top: 'straight02', tag: 'Thanh lịch', gender: 'female' },
+  { id: 'g6', name: 'Nữ thu ngân tóc ngắn', seed: 'PhuongThao', top: 'miaWallace', tag: 'Thu ngân', gender: 'female' },
+  { id: 'g7', name: 'Bé hạt tiêu tóc mái', seed: 'BaoBao', top: 'longButNotTooLong', tag: 'Đáng yêu', gender: 'female' },
+  { id: 'g8', name: 'Cô nàng kẹp tóc nơ', seed: 'KimNgan', top: 'straightAndStrand', tag: 'Ngọt ngào', gender: 'female' },
+  { id: 'g9', name: 'Nữ phục vụ tươi tắn', seed: 'ThanhTruc', top: 'curvy', tag: 'Phục vụ', gender: 'female' },
+  { id: 'g10', name: 'Cô gái mắt cười', seed: 'HaMy', top: 'bob', tag: 'Vui vẻ', gender: 'female' },
+  { id: 'g11', name: 'Bé mầm nhỏ má hồng', seed: 'AnNhi', top: 'bun', tag: 'Siêu kute', gender: 'female' },
+  { id: 'g12', name: 'Nữ pha chế dịu dàng', seed: 'KhanhLinh', top: 'straight01', tag: 'Pha chế', gender: 'female' },
+  { id: 'g13', name: 'Cô nàng tóc xoăn bồng', seed: 'BichNgoc', top: 'curly', tag: 'Cá tính', gender: 'female' },
+  { id: 'g14', name: 'Nữ quản lý thanh lịch', seed: 'ttlhong', top: 'bun', tag: 'Quản lý', gender: 'female' },
+  { id: 'g15', name: 'Nụ cười tỏa nắng', seed: 'HuongGiang', top: 'straight02', tag: 'Tươi tắn', gender: 'female' },
+  { id: 'g16', name: 'Nàng thơ má lúm', seed: 'YenNhi', top: 'curvy', tag: 'Dễ thương', gender: 'female' },
+  { id: 'g17', name: 'Cô bé cài băng đô', seed: 'QuynhAnh', top: 'froBand', tag: 'Điệu đà', gender: 'female' },
+  { id: 'g18', name: 'Nữ nhân viên duyên dáng', seed: 'MinhAnh', top: 'straightAndStrand', tag: 'Nhẹ nhàng', gender: 'female' },
+  { id: 'g19', name: 'Tóc ngắn cá tính', seed: 'ThaoMy', top: 'miaWallace', tag: 'Cool ngầu', gender: 'female' },
+  { id: 'g20', name: 'Bé chibi mắt tròn', seed: 'TieuBao', top: 'bun', tag: 'Tròn xoe', gender: 'female' },
+  { id: 'g21', name: 'Trà sữa ngọt ngào', seed: 'TraSua', top: 'straight01', tag: 'Ngọt ngào', gender: 'female' },
+  { id: 'g22', name: 'Nữ Barista tích cực', seed: 'HongNhung', top: 'curvy', tag: 'Năng nổ', gender: 'female' },
+  { id: 'g23', name: 'Cô nàng kính tròn', seed: 'DieuLinh', top: 'bob', tag: 'Tri thức', gender: 'female' },
+  { id: 'g24', name: 'Biểu tượng Mầm Nhỏ', seed: 'MamNho', top: 'straight02', tag: 'Mầm Nhỏ', gender: 'female' },
 
-  // 2. Nhóm Bếp & Pha chế (8 mẫu)
-  { id: 'av_1', name: 'Bếp trưởng kính cận', seed: 'ptcong', tag: 'Bếp', category: 'kitchen' },
-  { id: 'av_5', name: 'Đầu bếp mũ phong cách', seed: 'TuanAnh', tag: 'Bếp', category: 'kitchen' },
-  { id: 'av_7', name: 'Nam pha chế lịch lãm', seed: 'HoangMinh', tag: 'Pha chế', category: 'kitchen' },
-  { id: 'av_14', name: 'Nữ Barista tích cực', seed: 'KimNgan', tag: 'Pha chế', category: 'kitchen' },
-  { id: 'av_22', name: 'Chàng đầu bếp năng nổ', seed: 'HaiDang', tag: 'Bếp', category: 'kitchen' },
-  { id: 'av_26', name: 'Pha chế tóc rẽ ngôi', seed: 'NhatMinh', tag: 'Pha chế', category: 'kitchen' },
-  { id: 'av_28', name: 'Phụ bếp mũ lưỡi trai', seed: 'ThanhTung', tag: 'Bếp', category: 'kitchen' },
-  { id: 'av_35', name: 'Barista trà sữa ngọt ngào', seed: 'TraSua', tag: 'Pha chế', category: 'kitchen' },
-
-  // 3. Nhóm Phục vụ & Chăm sóc (8 mẫu)
-  { id: 'av_3', name: 'Nam phục vụ tươi cười', seed: 'Nv1', tag: 'Phục vụ', category: 'service' },
-  { id: 'av_4', name: 'Nữ phục vụ tóc sóng', seed: 'MaiAnh', tag: 'Phục vụ', category: 'service' },
-  { id: 'av_9', name: 'Nữ nhân viên dịu dàng', seed: 'LinhChi', tag: 'Phục vụ', category: 'service' },
-  { id: 'av_12', name: 'Nam phục vụ tóc xoăn', seed: 'DucThang', tag: 'Phục vụ', category: 'service' },
-  { id: 'av_16', name: 'Nữ phục vụ tóc đuôi ngựa', seed: 'ThanhTruc', tag: 'Phục vụ', category: 'service' },
-  { id: 'av_23', name: 'Phục vụ nụ cười tỏa nắng', seed: 'HuongGiang', tag: 'Phục vụ', category: 'service' },
-  { id: 'av_25', name: 'Phục vụ kính cận hiền lành', seed: 'MinhTri', tag: 'Phục vụ', category: 'service' },
-  { id: 'av_30', name: 'Chàng trai sơ mi tươi vui', seed: 'VietAnh', tag: 'Phục vụ', category: 'service' },
-
-  // 4. Nhóm Quản lý & Thu ngân (6 mẫu)
-  { id: 'av_2', name: 'Nữ quản lý tóc búi', seed: 'ttlhong', tag: 'Quản lý', category: 'cashier' },
-  { id: 'av_6', name: 'Nữ thu ngân năng động', seed: 'ThuHa', tag: 'Thu ngân', category: 'cashier' },
-  { id: 'av_11', name: 'Cô gái kính tròn vui vẻ', seed: 'PhuongThao', tag: 'Thu ngân', category: 'cashier' },
-  { id: 'av_13', name: 'Nữ lễ tân thanh lịch', seed: 'NgocDiep', tag: 'Lễ tân', category: 'cashier' },
-  { id: 'av_15', name: 'Nam điềm tĩnh kính vuông', seed: 'MinhQuan', tag: 'Kế toán', category: 'cashier' },
-  { id: 'av_27', name: 'Thu ngân tóc kẹp nơ', seed: 'QuynhAnh', tag: 'Thu ngân', category: 'cashier' },
-
-  // 5. Nhóm Năng động & Cá tính (3 mẫu)
-  { id: 'av_10', name: 'Chàng trai áo hoodie', seed: 'QuangDuy', tag: 'Cá tính', category: 'active' },
-  { id: 'av_20', name: 'Chàng trai tai nghe nhạc', seed: 'DuyKhang', tag: 'Cá tính', category: 'active' },
-  { id: 'av_33', name: 'Chàng trai tóc xù lãng tử', seed: 'HoangTu', tag: 'Cá tính', category: 'active' },
+  // -------------------------------------------------------------
+  // 6 ANH CHÀNG BẢNH BAO DA SÁNG
+  // -------------------------------------------------------------
+  { id: 'm1', name: 'Bếp trưởng kính cận', seed: 'ptcong', top: 'shortFlat', tag: 'Bếp trưởng', gender: 'male' },
+  { id: 'm2', name: 'Nam phục vụ tươi cười', seed: 'Nv1', top: 'shortRound', tag: 'Phục vụ', gender: 'male' },
+  { id: 'm3', name: 'Đầu bếp trẻ năng nổ', seed: 'TuanAnh', top: 'shortWaved', tag: 'Đầu bếp', gender: 'male' },
+  { id: 'm4', name: 'Chàng pha chế bảnh bao', seed: 'HoangMinh', top: 'theCaesar', tag: 'Pha chế', gender: 'male' },
+  { id: 'm5', name: 'Nam thu ngân hiền lành', seed: 'MinhTri', top: 'shortFlat', tag: 'Thu ngân', gender: 'male' },
+  { id: 'm6', name: 'Chàng trai áo sơ mi', seed: 'VietAnh', top: 'shortRound', tag: 'Lịch lãm', gender: 'male' },
 ];
 
 /**
- * Trả về link avatar Chibi với tông da sáng tự nhiên (ffdbb4)
+ * Tạo link avatar Chibi da trắng tự nhiên (#ffdbb4), không râu
  */
-export function getChibiAvatarUrl(seed: string): string {
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&skinColor=ffdbb4`;
+export function getChibiAvatarUrl(seed: string, top?: string): string {
+  const topParam = top ? `&top=${encodeURIComponent(top)}` : '';
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}${topParam}&skinColor=ffdbb4&facialHairProbability=0`;
 }
 
 export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
@@ -96,12 +93,16 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
 
   const filteredPresets = useMemo(() => {
     return CHIBI_AVATAR_PRESETS.filter((p) => {
-      return activeCategory === 'all' || p.category === activeCategory;
+      if (activeCategory === 'female') return p.gender === 'female';
+      if (activeCategory === 'male') return p.gender === 'male';
+      return true;
     });
   }, [activeCategory]);
 
   const activePreset = useMemo(() => {
-    return CHIBI_AVATAR_PRESETS.find((p) => getChibiAvatarUrl(p.seed) === selectedAvatar);
+    return CHIBI_AVATAR_PRESETS.find(
+      (p) => getChibiAvatarUrl(p.seed, p.top) === selectedAvatar || getChibiAvatarUrl(p.seed) === selectedAvatar
+    );
   }, [selectedAvatar]);
 
   if (!isOpen) return null;
@@ -126,7 +127,7 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
       {/* Backdrop click to dismiss */}
       <div className="fixed inset-0" onClick={onClose} />
 
-      {/* Modal Container: Docked to bottom on mobile (Bottom-Sheet), centered card on desktop */}
+      {/* Modal Container: Bottom-Sheet on mobile, centered card on desktop */}
       <div className="relative w-full sm:max-w-2xl bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden z-10 flex flex-col max-h-[92vh] pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
         
         {/* Mobile drag handle indicator */}
@@ -142,7 +143,7 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-zinc-100 flex items-center gap-2">
-                Bộ Sưu Tập Avatar Chibi ({CHIBI_AVATAR_PRESETS.length} mẫu)
+                Bộ Sưu Tập Avatar Chibi Da Trắng ({CHIBI_AVATAR_PRESETS.length} mẫu)
               </h3>
               <p className="text-[11px] text-zinc-400">
                 Tài khoản: <strong className="text-zinc-200">{targetUser?.name || targetUser?.username}</strong>
@@ -185,39 +186,55 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
                   )}
                 </div>
                 <p className="text-[11px] text-emerald-400 font-medium mt-0.5">
-                  Chibi da sáng dễ thương • Vector sắc nét
+                  Chibi da trắng dễ thương • Không râu • Nét vẽ Vector
                 </p>
               </div>
             </div>
 
             <span className="text-[11px] text-zinc-500 font-mono hidden sm:block">
-              Chạm vào ảnh để chọn
+              Chạm ảnh để chọn
             </span>
           </div>
 
           {/* Category Filter Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-            {[
-              { id: 'all', label: `Tất cả (${CHIBI_AVATAR_PRESETS.length})` },
-              { id: 'cute', label: 'Siêu Kute (11)' },
-              { id: 'kitchen', label: 'Bếp & Pha Chế (8)' },
-              { id: 'service', label: 'Phục Vụ (8)' },
-              { id: 'cashier', label: 'Quản Lý & Thu Ngân (6)' },
-              { id: 'active', label: 'Cá Tính (3)' },
-            ].map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setActiveCategory(cat.id as AvatarCategory)}
-                className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer active:scale-95 ${
-                  activeCategory === cat.id
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => setActiveCategory('all')}
+              className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer active:scale-95 ${
+                activeCategory === 'all'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Tất cả ({CHIBI_AVATAR_PRESETS.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveCategory('female')}
+              className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer active:scale-95 flex items-center gap-1 ${
+                activeCategory === 'female'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Heart className="w-3.5 h-3.5 text-rose-400" />
+              <span>Cô nàng dễ thương (24)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveCategory('male')}
+              className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all cursor-pointer active:scale-95 flex items-center gap-1 ${
+                activeCategory === 'male'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Anh chàng bảnh bao (6)</span>
+            </button>
           </div>
 
         </div>
@@ -232,10 +249,10 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
             </div>
           )}
 
-          {/* 36 Presets Grid */}
+          {/* 30 Presets Grid */}
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
             {filteredPresets.map((preset) => {
-              const url = getChibiAvatarUrl(preset.seed);
+              const url = getChibiAvatarUrl(preset.seed, preset.top);
               const isSelected = selectedAvatar === url;
               return (
                 <button
@@ -277,7 +294,7 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
         {/* Modal Footer Actions */}
         <div className="p-4 border-t border-zinc-800 bg-zinc-950/60 flex items-center justify-between gap-3">
           <p className="text-[11px] text-zinc-500 hidden sm:block">
-            Đã đồng bộ tự động lên tài khoản & cơ sở dữ liệu
+            Đồng bộ tự động lên tài khoản & cơ sở dữ liệu Supabase
           </p>
 
           <div className="flex items-center gap-2.5 ml-auto">
