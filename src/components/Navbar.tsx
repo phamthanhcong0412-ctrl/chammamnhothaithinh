@@ -11,9 +11,11 @@ import {
   Clock,
   KeyRound,
   CalendarCheck,
+  Smile,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import { ChangePasswordModal } from './ChangePasswordModal.tsx';
+import { AvatarSelectionModal } from './AvatarSelectionModal.tsx';
 
 export type AppTab = 'attendance' | 'dashboard' | 'monthly' | 'employees' | 'schedule';
 
@@ -30,9 +32,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenEmailModal,
   onOpenSettingsModal,
 }) => {
-  const { currentUser, storeConfig, logout } = useApp();
+  const { currentUser, storeConfig, logout, updateUser } = useApp();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isChangePwOpen, setIsChangePwOpen] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -247,6 +250,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         onClick={() => {
                           setIsUserMenuOpen(false);
+                          setIsAvatarModalOpen(true);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-zinc-200 hover:bg-zinc-800 flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Smile className="w-3.5 h-3.5 text-emerald-400" />
+                        Đổi ảnh đại diện (Chibi)
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
                           setIsChangePwOpen(true);
                         }}
                         className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:bg-zinc-800 flex items-center gap-2 transition-colors cursor-pointer"
@@ -359,6 +373,24 @@ export const Navbar: React.FC<NavbarProps> = ({
           </>
         )}
       </div>
+
+      {/* Modal Đổi Avatar Chibi */}
+      {currentUser && (
+        <AvatarSelectionModal
+          isOpen={isAvatarModalOpen}
+          onClose={() => setIsAvatarModalOpen(false)}
+          targetUser={currentUser}
+          onSaveAvatar={async (newAvatarUrl) => {
+            await updateUser(currentUser.id, { avatar: newAvatarUrl });
+          }}
+        />
+      )}
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePwOpen}
+        onClose={() => setIsChangePwOpen(false)}
+      />
     </>
   );
 };

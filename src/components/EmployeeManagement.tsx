@@ -15,6 +15,7 @@ import {
   DeleteEmployeeModal,
   type EmployeeFormData,
 } from './employee/index.ts';
+import { AvatarSelectionModal } from './AvatarSelectionModal.tsx';
 
 export const EmployeeManagement: React.FC = () => {
   const {
@@ -37,6 +38,7 @@ export const EmployeeManagement: React.FC = () => {
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [avatarTargetUser, setAvatarTargetUser] = useState<User | null>(null);
   const [actionToast, setActionToast] = useState<string | null>(null);
 
   const triggerToast = (msg: string) => {
@@ -315,7 +317,21 @@ export const EmployeeManagement: React.FC = () => {
         onCopyCredentials={handleCopyCredentials}
         onOpenEdit={handleOpenEdit}
         onOpenDelete={setUserToDelete}
+        onOpenAvatarSelect={setAvatarTargetUser}
       />
+
+      {/* Avatar Selection Modal */}
+      {avatarTargetUser && (
+        <AvatarSelectionModal
+          isOpen={Boolean(avatarTargetUser)}
+          onClose={() => setAvatarTargetUser(null)}
+          targetUser={avatarTargetUser}
+          onSaveAvatar={async (newAvatarUrl) => {
+            await updateUser(avatarTargetUser.id, { avatar: newAvatarUrl });
+            triggerToast(`Đã cập nhật avatar chibi cho ${avatarTargetUser.name}!`);
+          }}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       <DeleteEmployeeModal

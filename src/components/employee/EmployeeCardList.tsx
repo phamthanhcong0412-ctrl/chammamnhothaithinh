@@ -11,6 +11,7 @@ import {
   Check,
   Calendar,
   FileText,
+  Camera,
 } from 'lucide-react';
 import type { User } from '../../types/index.ts';
 
@@ -23,6 +24,7 @@ export interface EmployeeCardListProps {
   onCopyCredentials: (user: User) => void;
   onOpenEdit: (user: User) => void;
   onOpenDelete: (user: User) => void;
+  onOpenAvatarSelect?: (user: User) => void;
 }
 
 export const EmployeeCardList: React.FC<EmployeeCardListProps> = ({
@@ -34,6 +36,7 @@ export const EmployeeCardList: React.FC<EmployeeCardListProps> = ({
   onCopyCredentials,
   onOpenEdit,
   onOpenDelete,
+  onOpenAvatarSelect,
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -51,12 +54,17 @@ export const EmployeeCardList: React.FC<EmployeeCardListProps> = ({
             <div>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onOpenAvatarSelect?.(user)}
+                    title="Bấm để đổi avatar chibi cho nhân sự này"
+                    className="relative shrink-0 group/av cursor-pointer"
+                  >
                     <img
                       src={user.avatar}
                       alt={user.name}
                       referrerPolicy="no-referrer"
-                      className="w-12 h-12 rounded-2xl object-cover bg-zinc-800 border border-zinc-700/60 shadow-inner"
+                      className="w-12 h-12 rounded-2xl object-cover bg-zinc-800 border border-zinc-700/60 shadow-inner group-hover/av:border-emerald-500 transition-all"
                     />
                     <span
                       className={`w-3 h-3 rounded-full border-2 border-zinc-900 absolute -bottom-0.5 -right-0.5 ${
@@ -64,7 +72,10 @@ export const EmployeeCardList: React.FC<EmployeeCardListProps> = ({
                       }`}
                       title={isWorkingNow ? 'Đang trong ca làm việc' : 'Ngoài ca'}
                     />
-                  </div>
+                    <span className="absolute inset-0 bg-black/50 rounded-2xl opacity-0 group-hover/av:opacity-100 flex items-center justify-center transition-opacity text-emerald-300">
+                      <Camera className="w-4 h-4" />
+                    </span>
+                  </button>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <h4 className="text-sm font-bold text-zinc-100 truncate">{user.name}</h4>
