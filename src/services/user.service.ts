@@ -147,7 +147,7 @@ export class UserService {
         name: user.name || (role === 'admin' ? 'Quản Lý Mới' : 'Nhân Viên Mới'),
         avatar:
           user.avatar ||
-          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(rawUsername)}`,
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(rawUsername)}&skinColor=ffdbb4`,
         role,
         employeeCode: user.employeeCode || `${rolePrefix}-${String(roleCount).padStart(3, '0')}`,
         position: user.position || (role === 'admin' ? 'Quản Lý Cửa Hàng' : 'Nhân Viên Bán Hàng'),

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Check, Sparkles, RefreshCw, Smile, Camera, Search, Filter } from 'lucide-react';
+import { X, Check, RefreshCw, Smile, Camera } from 'lucide-react';
 import type { User as UserType } from '../types/index.ts';
 
 export interface AvatarSelectionModalProps {
@@ -19,6 +19,7 @@ export interface ChibiAvatarPreset {
   category: 'cute' | 'kitchen' | 'service' | 'cashier' | 'active';
 }
 
+// 36 mẫu Chibi Việt Nam được tinh chỉnh màu da sáng đồng bộ (skinColor=ffdbb4)
 export const CHIBI_AVATAR_PRESETS: ChibiAvatarPreset[] = [
   // 1. Nhóm Dễ thương & Siêu Kute (11 mẫu)
   { id: 'av_8', name: 'Bé hạt tiêu tóc vàng', seed: 'BaoBao', tag: 'Kute', category: 'cute' },
@@ -67,8 +68,11 @@ export const CHIBI_AVATAR_PRESETS: ChibiAvatarPreset[] = [
   { id: 'av_33', name: 'Chàng trai tóc xù lãng tử', seed: 'HoangTu', tag: 'Cá tính', category: 'active' },
 ];
 
+/**
+ * Trả về link avatar Chibi với tông da sáng tự nhiên (ffdbb4)
+ */
 export function getChibiAvatarUrl(seed: string): string {
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&skinColor=ffdbb4`;
 }
 
 export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
@@ -79,17 +83,12 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
 }) => {
   const [selectedAvatar, setSelectedAvatar] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<AvatarCategory>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [customSeed, setCustomSeed] = useState<string>('');
-  const [randomList, setRandomList] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && targetUser) {
       setSelectedAvatar(targetUser.avatar || getChibiAvatarUrl(targetUser.username || 'staff'));
-      setCustomSeed('');
-      setSearchQuery('');
       setActiveCategory('all');
       setErrorMessage(null);
     }
@@ -97,30 +96,15 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
 
   const filteredPresets = useMemo(() => {
     return CHIBI_AVATAR_PRESETS.filter((p) => {
-      const matchCat = activeCategory === 'all' || p.category === activeCategory;
-      const matchSearch =
-        !searchQuery.trim() ||
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.tag.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchCat && matchSearch;
+      return activeCategory === 'all' || p.category === activeCategory;
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory]);
+
+  const activePreset = useMemo(() => {
+    return CHIBI_AVATAR_PRESETS.find((p) => getChibiAvatarUrl(p.seed) === selectedAvatar);
+  }, [selectedAvatar]);
 
   if (!isOpen) return null;
-
-  const handleGenerateRandom = () => {
-    const randomSeed = 'chibi_' + Math.random().toString(36).substring(2, 9);
-    setRandomList((prev) => [randomSeed, ...prev.slice(0, 7)]);
-    setSelectedAvatar(getChibiAvatarUrl(randomSeed));
-  };
-
-  const handleApplyCustomSeed = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = customSeed.trim();
-    if (!trimmed) return;
-    const url = getChibiAvatarUrl(trimmed);
-    setSelectedAvatar(url);
-  };
 
   const handleSave = async () => {
     if (!selectedAvatar) return;
@@ -161,7 +145,7 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
                 Bộ Sưu Tập Avatar Chibi ({CHIBI_AVATAR_PRESETS.length} mẫu)
               </h3>
               <p className="text-[11px] text-zinc-400">
-                Đổi ảnh đại diện cho: <strong className="text-zinc-200">{targetUser?.name || targetUser?.username}</strong>
+                Tài khoản: <strong className="text-zinc-200">{targetUser?.name || targetUser?.username}</strong>
               </p>
             </div>
           </div>
@@ -193,26 +177,22 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
-                  <span>Ảnh Đang Chọn</span>
-                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    Sắc nét SVG
-                  </span>
+                  <span>{activePreset ? activePreset.name : 'Avatar Đang Chọn'}</span>
+                  {activePreset && (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      {activePreset.tag}
+                    </span>
+                  )}
                 </div>
-                <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                  Bấm vào bất kỳ ảnh bên dưới hoặc tạo ngẫu nhiên
+                <p className="text-[11px] text-emerald-400 font-medium mt-0.5">
+                  Chibi da sáng dễ thương • Vector sắc nét
                 </p>
               </div>
             </div>
 
-            <button
-              onClick={handleGenerateRandom}
-              type="button"
-              className="px-3 py-2 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/80 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0"
-              title="Tạo ngẫu nhiên một chibi độc đáo"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Tạo ngẫu nhiên</span>
-            </button>
+            <span className="text-[11px] text-zinc-500 font-mono hidden sm:block">
+              Chạm vào ảnh để chọn
+            </span>
           </div>
 
           {/* Category Filter Chips */}
@@ -249,45 +229,6 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
           {errorMessage && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
               {errorMessage}
-            </div>
-          )}
-
-          {/* Randomly generated chibi strip if available */}
-          {randomList.length > 0 && (
-            <div className="space-y-2 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/20">
-              <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                Chibi Độc Quyền Vừa Tạo Ngẫu Nhiên ({randomList.length})
-              </label>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {randomList.map((seed) => {
-                  const url = getChibiAvatarUrl(seed);
-                  const isSelected = selectedAvatar === url;
-                  return (
-                    <button
-                      key={seed}
-                      type="button"
-                      onClick={() => setSelectedAvatar(url)}
-                      className={`relative p-1.5 rounded-2xl flex flex-col items-center shrink-0 transition-all cursor-pointer active:scale-95 ${
-                        isSelected
-                          ? 'bg-amber-500/20 border-2 border-amber-500 shadow-md'
-                          : 'bg-zinc-950/70 border border-zinc-800'
-                      }`}
-                    >
-                      <img
-                        src={url}
-                        alt={seed}
-                        className="w-12 h-12 rounded-xl bg-zinc-800/80 object-cover"
-                      />
-                      {isSelected && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 stroke-[3]" />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           )}
 
@@ -330,28 +271,6 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
               );
             })}
           </div>
-
-          {/* Custom Seed Input Generator */}
-          <form onSubmit={handleApplyCustomSeed} className="p-3 rounded-2xl bg-zinc-950/40 border border-zinc-800/80 space-y-1.5">
-            <label className="text-xs font-semibold text-zinc-400">
-              Hoặc nhập biệt danh/từ khóa bất kỳ để tạo Chibi riêng:
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={customSeed}
-                onChange={(e) => setCustomSeed(e.target.value)}
-                placeholder="Ví dụ: hoa_tieu, cobe_mamnho, bep_truong..."
-                className="flex-1 px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder:text-zinc-600 text-base sm:text-xs focus:outline-none focus:border-emerald-500"
-              />
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-colors cursor-pointer active:scale-95"
-              >
-                Tạo
-              </button>
-            </div>
-          </form>
 
         </div>
 
