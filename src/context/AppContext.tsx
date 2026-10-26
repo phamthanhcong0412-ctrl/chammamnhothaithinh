@@ -35,6 +35,7 @@ import {
   enrichUserWithAttendanceStats,
   enrichAttendanceRecord,
   loginWithGoogleOAuth,
+  invalidateSupabaseCache,
   type SupabaseSyncResult,
 } from '../supabase.ts';
 import { ActionHudLoading } from '../components/common/ActionHudLoading.tsx';
@@ -296,6 +297,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })
       : () => {};
 
+    // 1. Tự động tải lại dữ liệu mới nhất khi nhân viên mở khóa màn hình hoặc quay lại trình duyệt
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        invalidateSupabaseCache('all');
+        refreshData().catch(() => {});
+      }
+    };
+    const handleFocus = () => {
+      invalidateSupabaseCache('all');
+      refreshData().catch(() => {});
+    };
+
+    // 2. Heartbeat nền: định kỳ mỗi 45 giây tự quét dữ liệu mới & tự động chốt ca nếu nhân viên quên check-out
+    const heartbeatTimer = setInterval(() => {
+      refreshData().catch(() => {});
+    }, 45000);
+
     const handleStorageEvent = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.ATTENDANCE && e.newValue) {
         try {
@@ -314,9 +332,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
     window.addEventListener('storage', handleStorageEvent);
+
     return () => {
       unsubSupabase();
+      clearInterval(heartbeatTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
       window.removeEventListener('storage', handleStorageEvent);
     };
   }, [refreshData]);
