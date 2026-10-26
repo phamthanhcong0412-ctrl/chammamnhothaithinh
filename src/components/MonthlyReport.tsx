@@ -16,9 +16,10 @@ import {
 import { useApp } from '../context/AppContext.tsx';
 import { api } from '../services/api.ts';
 import type { MonthlyEmployeeSummary } from '../types/index.ts';
+import { exportDetailedPayrollExcel } from '../utils/excelExport.ts';
 
 export const MonthlyReport: React.FC = () => {
-  const { storeConfig, attendance, currentUser } = useApp();
+  const { storeConfig, attendance, users, currentUser } = useApp();
   const isAdmin = currentUser?.role === 'admin';
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
@@ -67,42 +68,15 @@ export const MonthlyReport: React.FC = () => {
   const totalStoreMinutes = summaries.reduce((acc, s) => acc + s.totalMinutes, 0);
   const totalStoreSalary = summaries.reduce((acc, s) => acc + s.estimatedSalary, 0);
 
-  const handleExportCSV = () => {
-    const headers = [
-      'Mã NV',
-      'Họ Tên',
-      'Vị Trí',
-      'Đơn Giá/Giờ (VND)',
-      'Số Ngày Công',
-      'Số Ca',
-      'Tổng Phút',
-      'Tổng Giờ',
-      'Lương Thực Lĩnh (VND)',
-    ];
-    const rows = summaries.map((s) => [
-      s.employeeCode,
-      `"${s.userName}"`,
-      `"${s.position}"`,
-      s.hourlyRate,
-      s.totalDaysWorked,
-      s.recordsCount,
-      s.totalMinutes,
-      s.totalHours,
-      s.estimatedSalary,
-    ]);
-
-    const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
-      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    const filePrefix = isAdmin ? 'Bang_Cong_Tong_Hop' : `Bang_Cong_Ca_Nhan_${currentUser?.name}`;
-    link.setAttribute('download', `${filePrefix}_${selectedMonth}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExportExcel = () => {
+    exportDetailedPayrollExcel({
+      month: selectedMonth,
+      storeName: storeConfig?.storeName || 'Cháo Mầm Nhỏ Thái Thịnh',
+      summaries: filteredSummaries.length > 0 ? filteredSummaries : summaries,
+      attendanceRecords: attendance,
+      users,
+      currentUserName: currentUser?.name,
+    });
   };
 
   return (
@@ -134,10 +108,12 @@ export const MonthlyReport: React.FC = () => {
           </div>
 
           <button
-            onClick={handleExportCSV}
-            className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            onClick={handleExportExcel}
+            className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-100 text-xs font-semibold flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-sm hover:border-emerald-500/50"
+            title="Xuất file Excel gồm 3 Sheet: Bảng tổng hợp lương, Lịch sử chi tiết từng ca và Thống kê theo ngày để backup"
           >
-            <Download className="w-3.5 h-3.5 text-emerald-400" /> Xuất file Excel
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Xuất Excel Chi Tiết & Backup</span>
           </button>
 
           <button
