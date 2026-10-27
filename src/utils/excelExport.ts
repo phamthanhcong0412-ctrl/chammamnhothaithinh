@@ -51,6 +51,7 @@ export interface ExportDetailedPayrollOptions {
   attendanceRecords: AttendanceRecord[];
   users: User[];
   currentUserName?: string;
+  currentUser?: User | null;
 }
 
 export function exportDetailedPayrollExcel({
@@ -59,12 +60,30 @@ export function exportDetailedPayrollExcel({
   summaries,
   attendanceRecords,
   users,
-  currentUserName,
+  currentUser,
 }: ExportDetailedPayrollOptions): void {
   const wb = XLSX.utils.book_new();
 
+  // Phân quyền dữ liệu xuất Excel:
+  // - Quản lý (admin): Xuất toàn bộ nhân viên của cửa hàng
+  // - Nhân viên (staff): Chỉ được xuất dữ liệu bảng lương và lịch sử chấm công của chính mình
+  const isStaffOnly = Boolean(currentUser && currentUser.role !== 'admin');
+  const targetUserId = isStaffOnly ? currentUser!.id : null;
+
+  const scopedUsers = targetUserId
+    ? users.filter((u) => u.id === targetUserId)
+    : users;
+
+  const scopedSummaries = targetUserId
+    ? summaries.filter((s) => s.userId === targetUserId)
+    : summaries;
+
+  const scopedAttendance = targetUserId
+    ? attendanceRecords.filter((r) => r.userId === targetUserId)
+    : attendanceRecords;
+
   // Lọc bản ghi của tháng được chọn
-  const monthRecords = attendanceRecords
+  const monthRecords = scopedAttendance
     .filter((r) => r.date && r.date.startsWith(month))
     .sort((a, b) => {
       // Sắp xếp tăng dần theo ngày rồi đến giờ vào ca
@@ -74,12 +93,12 @@ export function exportDetailedPayrollExcel({
 
   // Map người dùng để lấy thông tin chi tiết
   const userMap = new Map<string, User>();
-  users.forEach((u) => userMap.set(u.id, u));
+  scopedUsers.forEach((u) => userMap.set(u.id, u));
 
   // ==========================================================================
   // SHEET 1: BẢNG TỔNG HỢP LƯƠNG THÁNG
   // ==========================================================================
-  const summaryRows = summaries.map((s, index) => {
+  const summaryRows = scopedSummaries.map((s, index) => {
     const u = userMap.get(s.userId);
     return {
       'STT': index + 1,
@@ -98,15 +117,17 @@ export function exportDetailedPayrollExcel({
   });
 
   // Dòng Tổng Cộng
-  const totalHours = summaries.reduce((acc, s) => acc + (s.totalHours || 0), 0);
-  const totalMinutes = summaries.reduce((acc, s) => acc + (s.totalMinutes || 0), 0);
-  const totalSalary = summaries.reduce((acc, s) => acc + (s.estimatedSalary || 0), 0);
-  const totalShifts = summaries.reduce((acc, s) => acc + (s.recordsCount || 0), 0);
+  const totalHours = scopedSummaries.reduce((acc, s) => acc + (s.totalHours || 0), 0);
+  const totalMinutes = scopedSummaries.reduce((acc, s) => acc + (s.totalMinutes || 0), 0);
+  const totalSalary = scopedSummaries.reduce((acc, s) => acc + (s.estimatedSalary || 0), 0);
+  const totalShifts = scopedSummaries.reduce((acc, s) => acc + (s.recordsCount || 0), 0);
 
   summaryRows.push({
     'STT': '' as any,
     'Mã Nhân Viên': 'TỔNG CỘNG',
-    'Họ và Tên': `${summaries.length} Nhân Sự`,
+    'Họ và Tên': isStaffOnly
+      ? currentUser?.name || `${scopedSummaries.length} Nhân Sự`
+      : `${scopedSummaries.length} Nhân Sự`,
     'Vị Trí / Chức Vụ': '',
     'Số Điện Thoại': '',
     'Đơn Giá Lương (VND/giờ)': '' as any,
@@ -321,7 +342,13 @@ export function exportDetailedPayrollExcel({
   // XUẤT FILE EXCEL (.XLSX)
   // ==========================================================================
   const cleanStoreName = storeName.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const fileName = `BangLuong_ChiTiet_${month}_${cleanStoreName}.xlsx`;
+  const cleanEmpCode = (currentUser?.employeeCode || currentUser?.username || 'CaNhan').replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_'
+  );
+  const fileName = isStaffOnly
+    ? `BangLuong_CaNhan_${cleanEmpCode}_${month}.xlsx`
+    : `BangLuong_TatCaNhanVien_${month}_${cleanStoreName}.xlsx`;
 
   XLSX.writeFile(wb, fileName);
 }

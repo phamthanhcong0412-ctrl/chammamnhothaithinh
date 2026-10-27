@@ -69,13 +69,26 @@ export const MonthlyReport: React.FC = () => {
   const totalStoreSalary = summaries.reduce((acc, s) => acc + s.estimatedSalary, 0);
 
   const handleExportExcel = () => {
+    if (!currentUser) return;
+
+    const exportSummaries = isAdmin
+      ? summaries
+      : summaries.filter((s) => s.userId === currentUser.id);
+    const exportAttendance = isAdmin
+      ? attendance
+      : attendance.filter((r) => r.userId === currentUser.id);
+    const exportUsers = isAdmin
+      ? users
+      : users.filter((u) => u.id === currentUser.id);
+
     exportDetailedPayrollExcel({
       month: selectedMonth,
       storeName: storeConfig?.storeName || 'Cháo Mầm Nhỏ Thái Thịnh',
-      summaries: filteredSummaries.length > 0 ? filteredSummaries : summaries,
-      attendanceRecords: attendance,
-      users,
-      currentUserName: currentUser?.name,
+      summaries: exportSummaries,
+      attendanceRecords: exportAttendance,
+      users: exportUsers,
+      currentUserName: currentUser.name,
+      currentUser,
     });
   };
 
@@ -110,10 +123,14 @@ export const MonthlyReport: React.FC = () => {
           <button
             onClick={handleExportExcel}
             className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-100 text-xs font-semibold flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-sm hover:border-emerald-500/50"
-            title="Xuất file Excel gồm 3 Sheet: Bảng tổng hợp lương, Lịch sử chi tiết từng ca và Thống kê theo ngày để backup"
+            title={
+              isAdmin
+                ? 'Xuất file Excel gồm 3 Sheet của toàn bộ nhân viên trong quán'
+                : 'Xuất file Excel gồm 3 Sheet bảng lương và lịch sử chấm công của riêng bạn'
+            }
           >
             <Download className="w-4 h-4 text-emerald-400" />
-            <span>Xuất Excel Chi Tiết & Backup</span>
+            <span>{isAdmin ? 'Xuất Excel Toàn Bộ NV' : 'Xuất Excel Của Tôi'}</span>
           </button>
 
           <button
