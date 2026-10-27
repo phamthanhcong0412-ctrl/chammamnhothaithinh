@@ -46,7 +46,10 @@ export function evaluateShiftTiming(
     shift?.endTime || (isAfternoon ? '20:00' : '12:00'),
     isAfternoon ? 20 * 60 : 12 * 60
   );
-  const checkOutAfterMinutes = shift?.checkOutAfterMinutes ?? 90;
+  const checkOutAfterMinutes =
+    typeof shift?.checkOutAfterMinutes === 'number' && shift.checkOutAfterMinutes > 0
+      ? shift.checkOutAfterMinutes
+      : 90;
 
   // Cửa hàng không phạt đi muộn / về sớm
   return {
@@ -64,7 +67,8 @@ export function evaluateShiftTiming(
 
 export function isTimeInConfiguredShifts(
   now: Date,
-  cfg: StoreConfig
+  cfg: StoreConfig,
+  action: 'check_in' | 'check_out' = 'check_in'
 ): {
   inShiftWindow: boolean;
   matchingShift?: ShiftConfig;
@@ -88,15 +92,24 @@ export function isTimeInConfiguredShifts(
   for (const shift of shifts) {
     const startMins = parseHmToMins(shift.startTime, 6 * 60);
     const endMins = parseHmToMins(shift.endTime, 12 * 60);
-    const beforeMins = shift.checkInBeforeMinutes ?? 30;
+    const beforeMins =
+      typeof shift.checkInBeforeMinutes === 'number' && shift.checkInBeforeMinutes > 0
+        ? shift.checkInBeforeMinutes
+        : 30;
+    const afterMins =
+      typeof shift.checkOutAfterMinutes === 'number' && shift.checkOutAfterMinutes > 0
+        ? shift.checkOutAfterMinutes
+        : 90;
     const graceMins = shift.lateGraceMinutes ?? 15;
 
     const windowStart = startMins - beforeMins;
-    const windowEnd = endMins;
+    const windowEnd = action === 'check_out' ? endMins + afterMins : endMins;
 
     const startH = String(Math.floor(Math.max(0, windowStart) / 60)).padStart(2, '0');
     const startM = String(Math.max(0, windowStart) % 60).padStart(2, '0');
-    rangesDescriptions.push(`${shift.name}: ${startH}:${startM} - ${shift.endTime}`);
+    const endH = String(Math.floor(Math.min(1439, windowEnd) / 60)).padStart(2, '0');
+    const endM = String(Math.min(1439, windowEnd) % 60).padStart(2, '0');
+    rangesDescriptions.push(`${shift.name}: ${startH}:${startM} - ${endH}:${endM}`);
 
     if (nowMinutes >= windowStart && nowMinutes <= windowEnd) {
       matchingShift = shift;

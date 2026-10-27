@@ -119,24 +119,38 @@ export const StaffAttendance: React.FC = () => {
 
     const mStart = parseTimeMinutes(morningCfg?.startTime || '06:00', 6 * 60);
     const mEnd = parseTimeMinutes(morningCfg?.endTime || '12:00', 12 * 60);
-    const mBefore = morningCfg?.checkInBeforeMinutes ?? 30;
-    const mAfter = morningCfg?.checkOutAfterMinutes ?? 90;
+    const mBefore =
+      typeof morningCfg?.checkInBeforeMinutes === 'number' && morningCfg.checkInBeforeMinutes > 0
+        ? morningCfg.checkInBeforeMinutes
+        : 30;
+    const mAfter =
+      typeof morningCfg?.checkOutAfterMinutes === 'number' && morningCfg.checkOutAfterMinutes > 0
+        ? morningCfg.checkOutAfterMinutes
+        : 90;
     const mCheckInStart = mStart - mBefore;
     const mCheckOutEnd = mEnd + mAfter;
 
     const aStart = parseTimeMinutes(afternoonCfg?.startTime || '15:30', 15 * 60 + 30);
     const aEnd = parseTimeMinutes(afternoonCfg?.endTime || '20:00', 20 * 60);
-    const aBefore = afternoonCfg?.checkInBeforeMinutes ?? 30;
-    const aAfter = afternoonCfg?.checkOutAfterMinutes ?? 90;
+    const aBefore =
+      typeof afternoonCfg?.checkInBeforeMinutes === 'number' && afternoonCfg.checkInBeforeMinutes > 0
+        ? afternoonCfg.checkInBeforeMinutes
+        : 30;
+    const aAfter =
+      typeof afternoonCfg?.checkOutAfterMinutes === 'number' && afternoonCfg.checkOutAfterMinutes > 0
+        ? afternoonCfg.checkOutAfterMinutes
+        : 90;
     const aCheckInStart = aStart - aBefore;
     const aCheckOutEnd = aEnd + aAfter;
 
     if (nowMins >= mCheckInStart && nowMins <= mCheckOutEnd) {
       return {
         inShiftWindow: true,
+        inCheckInWindow: nowMins <= mEnd,
+        inCheckOutWindow: true,
         isAfternoon: false,
         activeShiftTitle: `Ca Sáng (${formatMinutesToTime(mStart)} - ${formatMinutesToTime(mEnd)})`,
-        badgeText: 'Trong Ca Sáng',
+        badgeText: nowMins > mEnd ? 'Giờ Ra Ca Sáng' : 'Trong Ca Sáng',
         checkInRange: `${formatMinutesToTime(mCheckInStart)} - ${formatMinutesToTime(mEnd)}`,
         checkOutRange: `${formatMinutesToTime(mStart)} - ${formatMinutesToTime(mCheckOutEnd)}`,
         endTimeStr: formatMinutesToTime(mEnd),
@@ -146,17 +160,21 @@ export const StaffAttendance: React.FC = () => {
     if (nowMins >= aCheckInStart && nowMins <= aCheckOutEnd) {
       return {
         inShiftWindow: true,
+        inCheckInWindow: nowMins <= aEnd,
+        inCheckOutWindow: true,
         isAfternoon: true,
         activeShiftTitle: `Ca Chiều (${formatMinutesToTime(aStart)} - ${formatMinutesToTime(aEnd)})`,
-        badgeText: 'Trong Ca Chiều',
+        badgeText: nowMins > aEnd ? 'Giờ Ra Ca Chiều' : 'Trong Ca Chiều',
         checkInRange: `${formatMinutesToTime(aCheckInStart)} - ${formatMinutesToTime(aEnd)}`,
-        checkOutRange: `${formatMinutesToTime(aStart)} - ${formatMinutesToTime(aEnd)}`,
+        checkOutRange: `${formatMinutesToTime(aStart)} - ${formatMinutesToTime(aCheckOutEnd)}`,
         endTimeStr: formatMinutesToTime(aEnd),
       };
     }
 
     return {
       inShiftWindow: false,
+      inCheckInWindow: false,
+      inCheckOutWindow: false,
       isAfternoon: nowMins >= 14 * 60,
       activeShiftTitle: nowMins < mCheckInStart ? 'Chưa tới Ca Sáng' : 'Ngoài Giờ Làm Việc',
       badgeText: 'Ngoài Giờ Ca',
@@ -167,8 +185,8 @@ export const StaffAttendance: React.FC = () => {
 
   const isShiftTimeValid = useMemo(() => {
     if (!storeConfig?.shifts || storeConfig.shifts.length === 0) return true;
-    return shiftStatus.inShiftWindow;
-  }, [storeConfig?.shifts, shiftStatus.inShiftWindow]);
+    return activeRecord ? shiftStatus.inCheckOutWindow : shiftStatus.inCheckInWindow;
+  }, [storeConfig?.shifts, activeRecord, shiftStatus.inCheckInWindow, shiftStatus.inCheckOutWindow]);
 
   const canCheckInOrOut = isWifiValid && isGpsValid && isShiftTimeValid;
 

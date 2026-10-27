@@ -191,7 +191,7 @@ export class AttendanceService {
       }
 
       const now = new Date();
-      const shiftCheck = isTimeInConfiguredShifts(now, cfg);
+      const shiftCheck = isTimeInConfiguredShifts(now, cfg, 'check_in');
       if (!shiftCheck.inShiftWindow) {
         throw new Error(
           `Hiện tại chưa đến hoặc đã qua giờ vào ca (${shiftCheck.allowedRangesText}).`
@@ -337,7 +337,7 @@ export class AttendanceService {
           }
         }
 
-        const shiftCheck = isTimeInConfiguredShifts(now, cfg);
+        const shiftCheck = isTimeInConfiguredShifts(now, cfg, 'check_out');
         if (!shiftCheck.inShiftWindow) {
           throw new Error(
             `Hiện tại chưa đến hoặc đã qua giờ hết ca (${shiftCheck.allowedRangesText}).`

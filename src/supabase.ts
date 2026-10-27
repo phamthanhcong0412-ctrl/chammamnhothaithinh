@@ -104,7 +104,19 @@ export const StoreConfigMapper = {
       },
       qrRefreshSeconds: Number(row.qr_refresh_seconds) || 45,
       qrSecret: row.qr_secret || 'store_secret_qr_token_default',
-      shifts: Array.isArray(row.shifts) ? row.shifts : [],
+      shifts: Array.isArray(row.shifts)
+        ? row.shifts.map((s: any) => ({
+            ...s,
+            checkInBeforeMinutes:
+              typeof s?.checkInBeforeMinutes === 'number' && s.checkInBeforeMinutes > 0
+                ? s.checkInBeforeMinutes
+                : 30,
+            checkOutAfterMinutes:
+              typeof s?.checkOutAfterMinutes === 'number' && s.checkOutAfterMinutes > 0
+                ? s.checkOutAfterMinutes
+                : 90,
+          }))
+        : [],
       autoEmailTime: row.auto_email_time || '21:00',
       managerEmail: row.manager_email || 'phamthanhcong0412@gmail.com',
       lastReportSentDate: row.last_report_sent_date || null,
