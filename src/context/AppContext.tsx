@@ -67,12 +67,14 @@ export interface AppContextType {
   checkIn: (payload?: {
     qrToken?: string;
     wifiSsid?: string;
+    wifiBssid?: string;
     gps?: { lat: number; lng: number; accuracy?: number; distance?: number };
     note?: string;
   }) => Promise<AttendanceRecord>;
   checkOut: (payload?: {
     qrToken?: string;
     wifiSsid?: string;
+    wifiBssid?: string;
     gps?: { lat: number; lng: number; distance?: number };
     note?: string;
   }) => Promise<AttendanceRecord>;
@@ -420,6 +422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     async (payload?: {
       qrToken?: string;
       wifiSsid?: string;
+      wifiBssid?: string;
       gps?: { lat: number; lng: number; accuracy?: number; distance?: number };
       note?: string;
     }): Promise<AttendanceRecord> => {
@@ -429,6 +432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           userId: currentUser.id,
           qrToken: payload?.qrToken,
           wifiSsid: payload?.wifiSsid,
+          wifiBssid: payload?.wifiBssid || networkInfo?.detectedBssid || storeConfig?.wifiBssid,
           gps: payload?.gps,
           note: payload?.note,
         });
@@ -442,13 +446,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return enrichedRec;
       });
     },
-    [currentUser, runWithHudLoading, syncUserAndAttendanceState]
+    [currentUser, networkInfo?.detectedBssid, storeConfig?.wifiBssid, runWithHudLoading, syncUserAndAttendanceState]
   );
 
   const checkOut = useCallback(
     async (payload?: {
       qrToken?: string;
       wifiSsid?: string;
+      wifiBssid?: string;
       gps?: { lat: number; lng: number; distance?: number };
       note?: string;
     }): Promise<AttendanceRecord> => {
@@ -458,6 +463,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           userId: currentUser.id,
           qrToken: payload?.qrToken,
           wifiSsid: payload?.wifiSsid,
+          wifiBssid: payload?.wifiBssid || networkInfo?.detectedBssid || storeConfig?.wifiBssid,
           gps: payload?.gps,
           note: payload?.note,
         });
@@ -479,7 +485,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return enrichedRec;
       });
     },
-    [currentUser, runWithHudLoading, syncUserAndAttendanceState]
+    [currentUser, networkInfo?.detectedBssid, storeConfig?.wifiBssid, runWithHudLoading, syncUserAndAttendanceState]
   );
 
   const checkOutUser = useCallback(
@@ -564,7 +570,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setStoreConfig(res.config);
         setNetworkInfo((prev) =>
           prev
-            ? { ...prev, isAllowedIp: isClientIpAllowedByConfig(prev.clientIp, res.config) }
+            ? {
+                ...prev,
+                isAllowedIp: isClientIpAllowedByConfig(
+                  prev.clientIp,
+                  res.config,
+                  prev.detectedBssid || res.config.wifiBssid
+                ),
+              }
             : prev
         );
         api.getNetworkInfo(true).then((net) => setNetworkInfo(net)).catch(() => {});

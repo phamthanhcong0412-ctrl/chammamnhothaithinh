@@ -197,7 +197,6 @@ export class ConfigService {
       this.getConfig().catch(() => loadLocal<StoreConfig>(STORAGE_KEY_CONFIG, DEFAULT_STORE_CONFIG)),
     ]);
 
-    const isAllowedIp = isClientIpAllowedByConfig(clientIp, cfg);
     const rawDetectedSsid =
       (serverNet?.ok && (serverNet.data?.rawDetectedSsid || serverNet.data?.detectedSsid))
         ? String(serverNet.data.rawDetectedSsid || serverNet.data.detectedSsid)
@@ -205,16 +204,23 @@ export class ConfigService {
     const detectedBssid =
       serverNet?.ok && serverNet.data?.detectedBssid
         ? String(serverNet.data.detectedBssid)
-        : undefined;
+        : cfg.wifiBssid || undefined;
 
-    const dualProfile = getDualBandWifiProfile(rawDetectedSsid, clientIp, cfg.storeName);
+    const dualProfile = getDualBandWifiProfile(
+      rawDetectedSsid,
+      clientIp,
+      cfg.storeName,
+      detectedBssid
+    );
+    const finalBssid = detectedBssid || dualProfile.dualBssid;
+    const isAllowedIp = isClientIpAllowedByConfig(clientIp, cfg, finalBssid);
 
     return {
       clientIp,
       isAllowedIp,
       detectedSsid: dualProfile.dualSsidLabel,
       rawSsid: serverNet?.ok && serverNet.data?.rawDetectedSsid ? String(serverNet.data.rawDetectedSsid) : dualProfile.dualSsidLabel,
-      detectedBssid: detectedBssid || dualProfile.dualBssid,
+      detectedBssid: finalBssid,
       bssid24G: dualProfile.bssid24G,
       bssid5G: dualProfile.bssid5G,
       timestamp: Date.now(),

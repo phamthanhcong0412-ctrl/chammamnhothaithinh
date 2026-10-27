@@ -43,7 +43,7 @@ attendanceRouter.get('/api/attendance', (req: Request, res: Response) => {
 attendanceRouter.post('/api/attendance/check-in', (req: Request, res: Response) => {
   autoCloseOverdueShifts();
 
-  const { userId, wifiSsid, wifiVerified, gps, note, bypassShiftWindow } = req.body;
+  const { userId, wifiSsid, wifiBssid, wifiVerified, gps, note, bypassShiftWindow } = req.body;
   const users = db.getUsers();
   const user = users.find((u) => u.id === userId);
   if (!user) {
@@ -54,7 +54,15 @@ attendanceRouter.post('/api/attendance/check-in', (req: Request, res: Response) 
   const storeConfig = db.getConfig();
   const clientIp = getClientIp(req);
   const isIpValid = storeConfig.bypassIpCheck || storeConfig.allowedIps.includes(clientIp);
-  const isWifiValid = wifiVerified === true || (wifiSsid && wifiSsid === storeConfig.wifiSsid);
+  const isBssidValid = Boolean(
+    storeConfig.wifiBssid &&
+      wifiBssid &&
+      String(wifiBssid).trim().toUpperCase() === String(storeConfig.wifiBssid).trim().toUpperCase()
+  );
+  const isWifiValid =
+    wifiVerified === true ||
+    isBssidValid ||
+    (wifiSsid && wifiSsid === storeConfig.wifiSsid);
   if (storeConfig.requireWifi && !isIpValid && !isWifiValid) {
     res.status(400).json({
       error: `Chặn chấm công: Bạn chưa kết nối vào đúng WiFi của quán ("${storeConfig.wifiSsid}"). Vui lòng kết nối đúng mạng WiFi để tiếp tục.`,
@@ -124,11 +132,19 @@ attendanceRouter.post('/api/attendance/check-in', (req: Request, res: Response) 
 attendanceRouter.post('/api/attendance/check-out', (req: Request, res: Response) => {
   autoCloseOverdueShifts();
 
-  const { userId, wifiSsid, wifiVerified, gps, note } = req.body;
+  const { userId, wifiSsid, wifiBssid, wifiVerified, gps, note } = req.body;
   const storeConfig = db.getConfig();
   const clientIp = getClientIp(req);
   const isIpValid = storeConfig.bypassIpCheck || storeConfig.allowedIps.includes(clientIp);
-  const isWifiValid = wifiVerified === true || (wifiSsid && wifiSsid === storeConfig.wifiSsid);
+  const isBssidValid = Boolean(
+    storeConfig.wifiBssid &&
+      wifiBssid &&
+      String(wifiBssid).trim().toUpperCase() === String(storeConfig.wifiBssid).trim().toUpperCase()
+  );
+  const isWifiValid =
+    wifiVerified === true ||
+    isBssidValid ||
+    (wifiSsid && wifiSsid === storeConfig.wifiSsid);
   if (storeConfig.requireWifi && !isIpValid && !isWifiValid) {
     res.status(400).json({
       error: `Chặn chấm công: Bạn chưa kết nối vào đúng WiFi của quán ("${storeConfig.wifiSsid}"). Vui lòng kết nối đúng mạng WiFi để tiếp tục.`,

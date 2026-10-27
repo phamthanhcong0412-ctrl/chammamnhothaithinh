@@ -66,14 +66,23 @@ export function detectActiveSystemWifi(): { ssid?: string; bssid?: string; signa
 configRouter.get('/api/network-info', (req: Request, res: Response) => {
   const storeConfig = db.getConfig();
   const clientIp = getClientIp(req);
-  const isAllowedIp =
-    storeConfig.bypassIpCheck ||
-    storeConfig.allowedIps.includes(clientIp) ||
-    clientIp === '127.0.0.1' ||
-    clientIp === '::1';
 
   // Tự động nhận diện WiFi thực tế từ card mạng
   const systemWifi = detectActiveSystemWifi();
+  const effectiveBssid = systemWifi.bssid || storeConfig.wifiBssid || undefined;
+  const isBssidValid = Boolean(
+    storeConfig.wifiBssid &&
+      effectiveBssid &&
+      effectiveBssid.trim().toUpperCase() === storeConfig.wifiBssid.trim().toUpperCase()
+  );
+
+  const isAllowedIp =
+    storeConfig.bypassIpCheck ||
+    storeConfig.allowedIps.includes(clientIp) ||
+    isBssidValid ||
+    clientIp === '127.0.0.1' ||
+    clientIp === '::1';
+
   const rawSsid = systemWifi.ssid || storeConfig.wifiSsid || 'ChaoMamNho_ThaiThinh (2.4G / 5G)';
   const baseSsid =
     rawSsid
@@ -89,7 +98,7 @@ configRouter.get('/api/network-info', (req: Request, res: Response) => {
     wifiSsid: systemWifi.ssid ? `${systemWifi.ssid} (2.4G / 5G)` : storeConfig.wifiSsid,
     detectedSsid: `${baseSsid} (2.4G / 5G)`,
     rawDetectedSsid: systemWifi.ssid || baseSsid,
-    detectedBssid: systemWifi.bssid || undefined,
+    detectedBssid: effectiveBssid,
     ssid24G: `${baseSsid}_2.4G`,
     ssid5G: `${baseSsid}_5G`,
     signal: systemWifi.signal,

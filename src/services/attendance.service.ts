@@ -163,8 +163,9 @@ export class AttendanceService {
       }
 
       const clientIp = await detectClientPublicIp(false);
+      const candidateBssid = payload.wifiBssid || cfg.wifiBssid;
 
-      if (!isClientIpAllowedByConfig(clientIp, cfg)) {
+      if (!isClientIpAllowedByConfig(clientIp, cfg, candidateBssid)) {
         throw new Error(
           `Vui lòng kết nối đúng mạng WiFi "${cfg.wifiSsid}" của quán để chấm công.`
         );
@@ -240,7 +241,7 @@ export class AttendanceService {
           checkInMethod: 'direct_button',
           checkInIp: clientIp,
           checkInWifiSsid: payload.wifiSsid || cfg.wifiSsid,
-          checkInWifiBssid: cfg.wifiBssid || 'A4:2B:B0:C1:9E:58',
+          checkInWifiBssid: candidateBssid || cfg.wifiBssid || 'A4:2B:B0:C1:9E:58',
           checkInGps: payload.gps,
           shiftId: timing.shiftId,
           shiftName: timing.shiftName,
@@ -276,6 +277,7 @@ export class AttendanceService {
     userId: string;
     qrToken?: string;
     wifiSsid?: string;
+    wifiBssid?: string;
     gps?: { lat: number; lng: number; distance?: number };
     note?: string;
     managerOverride?: boolean;
@@ -309,9 +311,10 @@ export class AttendanceService {
       const record = attendance[idx];
       const now = new Date();
       const clientIp = payload.managerOverride ? '127.0.0.1' : await detectClientPublicIp(false);
+      const candidateBssid = payload.wifiBssid || cfg.wifiBssid;
 
       if (!payload.managerOverride) {
-        if (!isClientIpAllowedByConfig(clientIp, cfg)) {
+        if (!isClientIpAllowedByConfig(clientIp, cfg, candidateBssid)) {
           throw new Error(
             `Vui lòng kết nối đúng mạng WiFi "${cfg.wifiSsid}" của quán để hết ca.`
           );

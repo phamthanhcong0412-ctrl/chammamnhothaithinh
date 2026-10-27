@@ -90,7 +90,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const liveDualBandProfile = getDualBandWifiProfile(
     formData.wifiSsid,
     currentLiveIp,
-    formData.storeName
+    formData.storeName,
+    formData.wifiBssid
   );
 
   const handleScanConnectedWifi = async () => {

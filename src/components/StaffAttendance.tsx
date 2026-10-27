@@ -59,11 +59,16 @@ export const StaffAttendance: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Strict WiFi Verification
+  // WiFi Verification: hợp lệ chỉ cần đúng WAN IP hoặc đúng BSSID của quán
   const isWifiValid = useMemo(() => {
     if (!storeConfig) return true;
-    return isClientIpAllowedByConfig(networkInfo?.clientIp || '', storeConfig);
-  }, [storeConfig, networkInfo?.clientIp]);
+    const candidateBssid = networkInfo?.detectedBssid || storeConfig.wifiBssid;
+    return isClientIpAllowedByConfig(
+      networkInfo?.clientIp || '',
+      storeConfig,
+      candidateBssid
+    );
+  }, [storeConfig, networkInfo?.clientIp, networkInfo?.detectedBssid]);
 
   // Dual-Lock GPS Verification
   const checkEmployeeGps = () => {
@@ -314,6 +319,7 @@ export const StaffAttendance: React.FC = () => {
     try {
       await checkIn({
         wifiSsid: storeConfig?.wifiSsid,
+        wifiBssid: networkInfo?.detectedBssid || storeConfig?.wifiBssid,
         gps: userGps || undefined,
         note: shiftNote.trim() || undefined,
       });
@@ -384,6 +390,7 @@ export const StaffAttendance: React.FC = () => {
     try {
       const record = await checkOut({
         wifiSsid: storeConfig?.wifiSsid,
+        wifiBssid: networkInfo?.detectedBssid || storeConfig?.wifiBssid,
         gps: userGps || undefined,
         note: shiftNote.trim() || undefined,
       });

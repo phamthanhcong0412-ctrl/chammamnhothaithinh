@@ -16,7 +16,11 @@ import {
   MapPin,
 } from 'lucide-react';
 import type { StoreConfig } from '../../types/index.ts';
-import { deriveBssidFromNetworkIp, getDualBandWifiProfile } from '../../domain/index.ts';
+import {
+  deriveBssidFromNetworkIp,
+  getDualBandWifiProfile,
+  isWifiBssidAllowedByConfig,
+} from '../../domain/index.ts';
 
 export const SUGGESTED_WIFI_NAMES = [
   'ChaoMamNho_ThaiThinh',
@@ -63,6 +67,12 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
   handleAddIp,
   handleRemoveIp,
 }) => {
+  const isBssidMatched = Boolean(
+    formData.wifiBssid &&
+      isWifiBssidAllowedByConfig(formData.wifiBssid || liveDualBandProfile.dualBssid, formData)
+  );
+  const isWifiOrBssidAllowed = isCurrentIpInAllowedList || isBssidMatched;
+
   return (
     <div className="space-y-5">
       {/* QUICK SELECT CURRENTLY CONNECTED WIFI CARD */}
@@ -77,18 +87,18 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
                 <h4 className="text-xs font-bold text-zinc-100">
                   Lấy Nhanh WiFi Đang Kết Nối
                 </h4>
-                {isCurrentIpInAllowedList && !formData.bypassIpCheck ? (
+                {isWifiOrBssidAllowed && !formData.bypassIpCheck ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    Đã cho phép
+                    Đã cho phép (WAN IP / BSSID)
                   </span>
                 ) : (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                    Chưa thêm IP này
+                    Chưa thêm WiFi này
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-zinc-400 mt-0.5">
-                Lấy nhanh địa chỉ IP và mã nhận diện mạng WiFi quán đang kết nối
+                Chỉ cần khớp WAN IP hoặc mã Modem BSSID là nhân viên được phép chấm công (không lo WAN IP nhảy động)
               </p>
             </div>
           </div>
@@ -107,12 +117,16 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
         {/* Live Detected Info */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-1">
-            <span className="text-[11px] text-zinc-400 block">Địa chỉ IP mạng hiện tại:</span>
-            <div className="flex items-center gap-2">
+            <span className="text-[11px] text-zinc-400 block">Địa chỉ WAN IP hiện tại:</span>
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-sm font-bold text-emerald-400">{currentLiveIp}</span>
               {isCurrentIpInAllowedList ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                  <Check className="w-3 h-3" /> Đã cho phép
+                  <Check className="w-3 h-3" /> Đúng WAN IP
+                </span>
+              ) : isBssidMatched ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  <Check className="w-3 h-3" /> Hợp lệ qua BSSID
                 </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
@@ -124,11 +138,18 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
 
           <div className="p-3.5 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-1">
             <span className="text-[11px] text-zinc-400 block">Mã Modem BSSID:</span>
-            <div className="flex items-center gap-2">
-              <Wifi className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              <span className="font-mono text-xs font-bold text-zinc-300 truncate">
-                {liveDualBandProfile.dualBssid}
-              </span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Wifi className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="font-mono text-xs font-bold text-zinc-200 truncate">
+                  {formData.wifiBssid || liveDualBandProfile.dualBssid}
+                </span>
+              </div>
+              {isBssidMatched && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shrink-0">
+                  <Check className="w-3 h-3" /> Đúng BSSID
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -304,7 +325,7 @@ export const NetworkSettingsTab: React.FC<NetworkSettingsTabProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-              Khi <strong>BẬT</strong>: Nhân viên phải kết nối đúng WiFi quán (khớp địa chỉ IP cho phép) và đúng ca làm việc mới có thể vào/ra ca.
+              Khi <strong>BẬT</strong>: Nhân viên chỉ cần đúng <strong>WAN IP</strong> hoặc đúng <strong>Mã Modem BSSID</strong> của quán (hỗ trợ cả khi WAN IP nhảy động) và đúng ca làm việc để vào/ra ca.
             </p>
           </div>
 

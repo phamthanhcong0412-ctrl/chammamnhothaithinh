@@ -15,6 +15,7 @@ export interface CheckInValidationContext {
   clientIp?: string;
   clientGps?: { lat: number; lng: number };
   clientWifiSsid?: string;
+  clientWifiBssid?: string;
   timestamp?: Date;
   action?: 'check_in' | 'check_out';
 }
@@ -32,26 +33,30 @@ export interface ICheckInValidator {
 }
 
 /**
- * Strategy 1: Xác thực kết nối mạng WiFi cửa hàng (IP Whitelist / Dual-band SSID)
+ * Strategy 1: Xác thực kết nối mạng WiFi cửa hàng (Khớp WAN IP hoặc BSSID / Dual-band SSID)
  */
 export class WifiCheckInValidator implements ICheckInValidator {
   readonly name = 'WifiCheckInValidator';
 
   validate(context: CheckInValidationContext): CheckInValidationResult {
-    const { storeConfig, clientIp, clientWifiSsid } = context;
+    const { storeConfig, clientIp, clientWifiSsid, clientWifiBssid } = context;
 
     if (!storeConfig.requireWifi || storeConfig.bypassIpCheck) {
       return { isValid: true };
     }
 
-    // 1. Kiểm tra IP nếu có
-    if (clientIp) {
-      const isIpAllowed = isClientIpAllowedByConfig(clientIp, storeConfig);
-      if (!isIpAllowed) {
+    // 1. Kiểm tra WAN IP hoặc BSSID
+    if (clientIp || clientWifiBssid) {
+      const isAllowed = isClientIpAllowedByConfig(
+        clientIp || '',
+        storeConfig,
+        clientWifiBssid
+      );
+      if (!isAllowed) {
         return {
           isValid: false,
-          error: `Mạng không hợp lệ (IP: ${clientIp}). Vui lòng kết nối vào mạng WiFi cửa hàng để chấm công.`,
-          details: { clientIp, allowedIps: storeConfig.allowedIps },
+          error: `Mạng không hợp lệ (IP: ${clientIp || 'N/A'}). Vui lòng kết nối vào mạng WiFi cửa hàng để chấm công.`,
+          details: { clientIp, clientWifiBssid, allowedIps: storeConfig.allowedIps, wifiBssid: storeConfig.wifiBssid },
         };
       }
     }
